@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Eduzah CRM</title>
+    <meta name="description" content="Eduzah CRM — customer and engagement management."/>
+    <meta name="robots" content="noindex, nofollow"/>
+
+    <script>
+      (function () {
+        try {
+          localStorage.removeItem("eduzah-theme");
+        } catch (e) {}
+        document.documentElement.dataset.theme = "dark";
+      })();
+    </script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap"
+          rel="stylesheet"
+          media="print"
+          onload="this.media='all'"/>
+    <noscript>
+      <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet"/>
+    </noscript>
+  </head>
+  <body data-theme="dark">
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
