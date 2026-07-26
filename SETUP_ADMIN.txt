@@ -1,0 +1,50 @@
+Eduzah — إنشاء أول حساب مدير (Firebase)
+========================================
+
+السبب: التطبيق يقرأ الدور من Firestore في users/{uid}. بدون هذا المستند لن يعمل الدخول كمدير حتى لو أنشأت المستخدم في Authentication فقط.
+
+────────────────────────────────────────
+الطريقة أ — صفحة الإعداد (مُفضّلة)
+────────────────────────────────────────
+
+1) انشر قواعد Firestore:
+   npm run deploy:rules
+
+2) Firebase Console → Firestore Database → ابدأ مجموعة collection اسمها: settings
+   أنشئ مستند document ID: bootstrap
+   أضف حقل واحد:
+   - enabled  |  نوع boolean  |  القيمة true
+
+3) افتح الموقع:
+   https://نطاقك/setup-admin
+
+4) أنشئ حساب المدير (بريد + كلمة مرور قوية).
+
+5) بعد النجاح:
+   - سجّل الدخول من /login
+   - احذف مستند settings/bootstrap من Firestore (أو تأكد أنه حُذف تلقائياً) حتى لا يستطيع أحد إنشاء مدير آخر لاحقاً.
+
+────────────────────────────────────────
+الطريقة ب — يدوياً من الكونسول
+────────────────────────────────────────
+
+1) Authentication → Users → Add user
+   (أو استخدم مستخدماً موجوداً وانسخ User UID)
+
+2) Firestore → users → Add document
+   Document ID = نفس UID من الخطوة 1 (مهم جداً)
+
+3) الحقول (نفس الأسماء):
+
+   name              string     مثال: Admin Eduzah
+   email             string     نفس بريد تسجيل الدخول
+   role              string     admin
+   status            string     approved
+   avatar            string     مثال: A
+   phone             string     (فارغ أو رقم)
+   enrolledCourses   array      []  (مصفوفة فارغة)
+   assignedCourses   array      []  (مصفوفة فارغة)
+   enrolledCourseIds array      []  (مصفوفة فارغة)
+   createdAt         string     مثال: 2026-04-08T12:00:00.000Z
+
+4) سجّل الدخول من التطبيق بنفس البريد وكلمة المرور.

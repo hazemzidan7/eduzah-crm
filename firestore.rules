@@ -1,0 +1,61 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && userDoc().role == 'admin';
+    }
+
+    function bootstrapAdminEnabled() {
+      return exists(/databases/$(database)/documents/settings/bootstrap)
+        && get(/databases/$(database)/documents/settings/bootstrap).data.enabled == true;
+    }
+
+    /* ── users ───────────────────────────────────────── */
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow create: if isSignedIn()
+        && request.auth.uid == userId
+        && bootstrapAdminEnabled();
+      allow update: if isSignedIn() && (
+        isAdmin()
+        || (request.auth.uid == userId
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.email == resource.data.email)
+      );
+      allow delete: if isAdmin();
+    }
+
+    /* ── settings (bootstrap flag + CRM seedState) ───── */
+    match /settings/{docId} {
+      allow read: if true;
+      allow create, update: if isAdmin() || bootstrapAdminEnabled();
+      allow delete: if isAdmin() || bootstrapAdminEnabled();
+    }
+
+    /* ── CRM v2: Catalog / Statuses / Customer-Engagement model ── */
+    match /catalogNodes/{id}            { allow read, write: if isAdmin(); }
+    match /catalogNodeTypes/{id}        { allow read, write: if isAdmin(); }
+    match /leadStatuses/{id}            { allow read, write: if isAdmin(); }
+    match /customers/{id}               { allow read, write: if isAdmin(); }
+    match /engagements/{id}             { allow read, write: if isAdmin(); }
+    match /tags/{id}                    { allow read, write: if isAdmin(); }
+    match /customFieldDefinitions/{id}  { allow read, write: if isAdmin(); }
+    match /dictionaries/{id}            { allow read, write: if isAdmin(); }
+    match /importProfiles/{id}          { allow read, write: if isAdmin(); }
+    match /importProfileVersions/{id}   { allow read, write: if isAdmin(); }
+    match /importBatches/{id}           { allow read, write: if isAdmin(); }
+
+    match /{document=**} { allow read, write: if false; }
+  }
+}
