@@ -8,11 +8,15 @@ import { useCustomers } from "../../../../context/CustomerContext";
 import ProgramSalesSheet from "./ProgramSalesSheet";
 import ProgramPipelineView from "./ProgramPipelineView";
 import ProgramRemindersView from "./ProgramRemindersView";
+import ImportWizard from "../import/ImportWizard";
+import ImportHistoryList from "../import/ImportHistoryList";
 
 const VIEWS = [
   { v: "students", ar: "الجدول", en: "Sheet" },
   { v: "pipeline", ar: "خط المبيعات", en: "Pipeline" },
   { v: "reminders", ar: "المتابعات", en: "Reminders" },
+  { v: "import", ar: "استيراد طلاب", en: "Import Students" },
+  { v: "importHistory", ar: "سجل الاستيراد", en: "Import History" },
 ];
 
 /**
@@ -98,6 +102,8 @@ export default function ProgramWorkspace({ programId, onBack }) {
           {view === "students" && <ProgramSalesSheet engagements={scopedEngagements} businessUnitId={businessUnitId} ar={ar} tx={tx} />}
           {view === "pipeline" && <ProgramPipelineView engagements={scopedEngagements} statuses={statuses} ar={ar} tx={tx} />}
           {view === "reminders" && <ProgramRemindersView engagements={scopedEngagements} ar={ar} tx={tx} />}
+          {view === "import" && <ImportWizard key={program.id} program={program} />}
+          {view === "importHistory" && <ImportHistoryList programId={program.id} />}
         </>
       )}
     </div>

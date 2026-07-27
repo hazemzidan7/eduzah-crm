@@ -9,14 +9,18 @@ import { useImportCommit } from "../../../../hooks/useImportCommit";
 const th = { textAlign: "start", fontSize: 10.5, letterSpacing: 0.5, textTransform: "uppercase", color: C.muted, fontWeight: 700, padding: "12px 14px", borderBottom: `1px solid ${C.border}` };
 const td = { padding: "11px 14px", fontSize: 12.5, borderBottom: "1px solid rgba(255,255,255,.06)" };
 
-export default function ImportHistoryList() {
+export default function ImportHistoryList({ programId }) {
   const { lang } = useLang();
   const ar = lang === "ar";
   const tx = (a, e) => (ar ? a : e);
-  const { batches, loading } = useImportBatches();
+  const { batches: allBatches, loading } = useImportBatches();
   const { profileById } = useImportProfiles();
   const { rollbackBatch } = useImportCommit();
   const [rollingBackId, setRollingBackId] = useState(null);
+
+  // Contextual to the current Program — opening a different Program shows
+  // only that Program's import runs, never a global list.
+  const batches = programId ? allBatches.filter((b) => b.programId === programId) : allBatches;
 
   const fmt = (iso) => iso ? new Date(iso).toLocaleDateString(ar ? "ar-EG" : "en-US", { day: "numeric", month: "short", year: "numeric" }) : "—";
 

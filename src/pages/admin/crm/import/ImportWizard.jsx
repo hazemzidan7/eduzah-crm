@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Card } from "../../../../components/UI";
 import { C } from "../../../../theme";
 import { useLang } from "../../../../context/LangContext";
+import { useImportProfiles } from "../../../../context/ImportProfileContext";
 import UploadStep from "./steps/UploadStep";
 import SheetSelectStep from "./steps/SheetSelectStep";
 import ColumnMappingStep from "./steps/ColumnMappingStep";
@@ -11,14 +12,24 @@ import ValidationSummaryStep from "./steps/ValidationSummaryStep";
 
 const STEP_KEYS = ["upload", "sheets", "columns", "values", "duplicates", "summary"];
 
-export default function ImportWizard() {
+/**
+ * Always run from inside a Program's workspace now — `program` is required
+ * and fully determines the Business Unit and Import Profile, so nothing
+ * upstream of "pick a file" needs asking.
+ */
+export default function ImportWizard({ program }) {
   const { lang } = useLang();
   const ar = lang === "ar";
   const tx = (a, e) => (ar ? a : e);
+  const { activeProfiles, currentVersionOf } = useImportProfiles();
+
+  const businessUnitId = program.path?.[0] || null;
+  const profile = activeProfiles.find((p) => p.businessUnitId === businessUnitId);
+  const profileVersion = profile ? currentVersionOf(profile.id) : null;
 
   const [step, setStep] = useState(0);
   const [wiz, setWiz] = useState({
-    profile: null, profileVersion: null,
+    businessUnitId, program, profile, profileVersion,
     parsed: null, selectedSheetNames: [],
     rawRows: [], headers: [],
     columnMap: {}, cleanedRecords: [],
@@ -32,6 +43,16 @@ export default function ImportWizard() {
     tx("الرفع", "Upload"), tx("الأوراق", "Sheets"), tx("الأعمدة", "Columns"),
     tx("القيم", "Values"), tx("التكرارات", "Duplicates"), tx("المراجعة النهائية", "Summary"),
   ];
+
+  if (!profile) {
+    return (
+      <Card style={{ padding: 24, textAlign: "center" }}>
+        <div style={{ color: C.muted, fontSize: 12.5 }}>
+          {tx("لا يوجد ملف استيراد مفعّل لوحدة العمل هذه.", "No active Import Profile for this Business Unit.")}
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <div>
@@ -53,7 +74,7 @@ export default function ImportWizard() {
         {step === 2 && <ColumnMappingStep wiz={wiz} patch={patch} onNext={() => goTo(3)} onBack={() => goTo(1)} />}
         {step === 3 && <ValueMappingStep wiz={wiz} patch={patch} onNext={() => goTo(4)} onBack={() => goTo(2)} />}
         {step === 4 && <DuplicateReviewStep wiz={wiz} patch={patch} onNext={() => goTo(5)} onBack={() => goTo(3)} />}
-        {step === 5 && <ValidationSummaryStep wiz={wiz} patch={patch} onBack={() => goTo(4)} />}
+        {step === 5 && <ValidationSummaryStep wiz={wiz} onBack={() => goTo(4)} />}
       </Card>
     </div>
   );

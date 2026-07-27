@@ -3,7 +3,6 @@ import { C } from "../../../theme";
 import { useLang } from "../../../context/LangContext";
 import CrmCatalogTab from "./catalogBrowser/CrmCatalogTab";
 import CrmSettingsTab from "./CrmSettingsTab";
-import ImportTab from "./import/ImportTab";
 
 export default function CrmModule() {
   const { lang } = useLang();
@@ -11,9 +10,10 @@ export default function CrmModule() {
   const tx = (a, e) => (ar ? a : e);
   const [crmSubTab, setCrmSubTab] = useState("catalog");
 
+  // Import lives inside each Program's workspace now (Import Students /
+  // Import History) — there is no global Import page anymore.
   const subTabs = [
     { key: "catalog", ar: "الكتالوج", en: "Catalog" },
-    { key: "import", ar: "الاستيراد", en: "Import" },
     { key: "settings", ar: "الإعدادات", en: "Settings" },
   ];
 
@@ -35,7 +35,6 @@ export default function CrmModule() {
       </div>
 
       {crmSubTab === "catalog" && <CrmCatalogTab />}
-      {crmSubTab === "import" && <ImportTab />}
       {crmSubTab === "settings" && <CrmSettingsTab />}
     </div>
   );

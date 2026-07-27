@@ -52,6 +52,7 @@ export function useImportCommit() {
       fileName: wiz.parsed.fileName,
       importProfileId: wiz.profile.id,
       importProfileVersion: wiz.profileVersion.version,
+      programId: wiz.program.id,
     });
 
     const phoneMap = new Map(customers.filter((c) => c.normalizedPhone).map((c) => [c.normalizedPhone, c.id]));

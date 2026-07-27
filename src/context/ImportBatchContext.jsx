@@ -32,6 +32,9 @@ export function ImportBatchProvider({ children }) {
       fileName: form.fileName,
       importProfileId: form.importProfileId,
       importProfileVersion: form.importProfileVersion,
+      // Which Program this run targeted — lets Import History scope itself
+      // to "just this Program's imports" from inside the Program workspace.
+      programId: form.programId || null,
       importedBy: currentUser?.id || null,
       importedByName: currentUser?.name || null,
       status: "committing",
