@@ -295,3 +295,34 @@ input.edu-datetime-input { position: relative; }
   50%     { transform: translateY(-10px); }
 }
 .pulse { animation: pulse 2s infinite; }
+
+/* ─── CRM Sales Sheet ────────────────────────────────────────── */
+.edu-sheet-row td { transition: background 0.12s; }
+.edu-sheet-row:hover td { background: rgba(255,255,255,.045); }
+.edu-sheet-row:nth-child(even) td { background: rgba(255,255,255,.015); }
+.edu-sheet-row:nth-child(even):hover td { background: rgba(255,255,255,.05); }
+
+/* Inline sheet inputs stay invisible until interacted with, so the table
+   reads as data first and only reveals itself as editable on hover/focus. */
+.edu-sheet-row input,
+.edu-sheet-row select {
+  border-color: transparent !important;
+}
+.edu-sheet-row input:hover,
+.edu-sheet-row select:hover {
+  background: rgba(255,255,255,.05) !important;
+}
+.edu-sheet-row input:focus,
+.edu-sheet-row select:focus {
+  background: rgba(255,255,255,.09) !important;
+  border-color: rgba(255,92,122,.55) !important;
+}
+
+/* ─── Focus-visible ring (keyboard users) ────────────────────── */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+a:focus-visible {
+  outline: 2px solid rgba(255,92,122,.65);
+  outline-offset: 2px;
+}

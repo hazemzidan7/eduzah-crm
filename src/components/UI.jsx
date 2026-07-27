@@ -1,22 +1,16 @@
 import { useState, useRef } from "react";
-import { C, font } from "../theme";
+import { C, font, radius, shadow } from "../theme";
 
-export function Btn({ children, onClick, v="primary", sm, full, disabled, style={}, type = "button", ...rest }) {
-  const [h,setH] = useState(false);
-  const vs = {
-    primary: { bg: h?C.rdark:C.red, color:"#fff" },
-    outline:  { bg: h?C.faint:"transparent", color:"#fff", border:`1.5px solid ${C.border}` },
-    orange:   { bg: h?C.odark:C.orange, color:C.pdark },
-    ghost:    { bg:"transparent", color:C.muted, border:"none" },
-    danger:   { bg: h?"#dc2626":C.danger, color:"#fff" },
-    success:  { bg: h?"#059669":C.success, color:"#fff" },
-    purple:   { bg: h?"#5b21b6":C.purple, color:"#fff" },
-  };
-  const s = vs[v]||vs.primary;
+export function Btn({ children, onClick, v="primary", sm, full, disabled, style={}, type = "button", title, ...rest }) {
+  const cls = `btn-base ${sm ? "btn-sm" : "btn-md"} btn-${v}${full ? " btn-full" : ""}`;
   return (
-    <button type={type} disabled={disabled} onMouseEnter={()=>setH(true)} onMouseLeave={()=>setH(false)} onClick={disabled?undefined:onClick}
-      style={{background:disabled?"#555":s.bg,color:s.color,border:s.border||"none",borderRadius:10,padding:sm?"5px 12px":"9px 20px",fontFamily:font,fontWeight:700,fontSize:sm?12:13,cursor:disabled?"not-allowed":"pointer",transition:"all .2s",width:full?"100%":"auto",opacity:disabled?.6:1,...style}}
-      {...rest}>
+    <button
+      type={type} disabled={disabled} title={title}
+      onClick={disabled ? undefined : onClick}
+      className={cls}
+      style={style}
+      {...rest}
+    >
       {children}
     </button>
   );
@@ -26,7 +20,16 @@ export function Card({ children, style={}, onClick }) {
   const [h,setH] = useState(false);
   return (
     <div onClick={onClick} onMouseEnter={()=>setH(true)} onMouseLeave={()=>setH(false)}
-      style={{color:"rgba(248,250,252,.96)",background:h?"rgba(103,45,134,.22)":"rgba(50,29,61,.58)",border:`1px solid ${h?C.purple+"55":C.border}`,borderRadius:18,padding:20,backdropFilter:"blur(12px)",transition:"all .25s",cursor:onClick?"pointer":"default",...style}}>
+      style={{
+        color:"rgba(248,250,252,.96)",
+        background:h?"rgba(103,45,134,.22)":"rgba(50,29,61,.58)",
+        border:`1px solid ${h?C.purple+"55":C.border}`,
+        borderRadius:radius.lg, padding:20, backdropFilter:"blur(12px)",
+        boxShadow: h ? shadow.md : shadow.sm,
+        transition:"background .2s, border-color .2s, box-shadow .25s",
+        cursor:onClick?"pointer":"default",
+        ...style,
+      }}>
       {children}
     </div>
   );
@@ -34,14 +37,14 @@ export function Card({ children, style={}, onClick }) {
 
 export function PBar({ value, color=C.red, h=6 }) {
   return (
-    <div style={{background:C.faint,borderRadius:99,height:h,overflow:"hidden"}}>
-      <div style={{width:`${value}%`,height:"100%",background:color,borderRadius:99,transition:"width .6s"}}/>
+    <div style={{background:C.faint,borderRadius:radius.pill,height:h,overflow:"hidden"}}>
+      <div style={{width:`${value}%`,height:"100%",background:color,borderRadius:radius.pill,transition:"width .6s"}}/>
     </div>
   );
 }
 
 export function Badge({ children, color=C.red }) {
-  return <span style={{background:color+"44",color:"#fff",border:`1px solid ${color}99`,borderRadius:50,padding:"3px 10px",fontSize:11,fontWeight:700,whiteSpace:"nowrap",letterSpacing:0.3}}>{children}</span>;
+  return <span style={{background:color+"33",color:"#fff",border:`1px solid ${color}80`,borderRadius:radius.pill,padding:"4px 11px",fontSize:11,fontWeight:800,whiteSpace:"nowrap",letterSpacing:0.3,display:"inline-block"}}>{children}</span>;
 }
 
 export function Stars({ n=5 }) {
@@ -159,13 +162,23 @@ export function DarkTimeInput({ value, onChange, style = {}, ...rest }) {
   return <DarkPickerWrap type="time" value={value} onChange={onChange} style={style} {...rest} />;
 }
 
+const fieldBaseSx = (error, focused) => ({
+  background:"rgba(255,255,255,.055)",
+  border:`1.5px solid ${error?C.danger:focused?C.red:C.border}`,
+  borderRadius:radius.md, padding:"10px 13px",
+  color:"#fff", fontFamily:font, fontSize:13, outline:"none",
+  width:"100%", boxSizing:"border-box",
+  boxShadow: focused ? shadow.glowRed : "none",
+  transition:"border-color .18s, box-shadow .18s, background .18s",
+});
+
 export function Input({ label, value, onChange, type="text", placeholder="", error, rows }) {
   const [f,setF] = useState(false);
-  const style = {background:"rgba(255,255,255,.06)",border:`1.5px solid ${error?C.danger:f?C.red:C.border}`,borderRadius:10,padding:"9px 13px",color:"#fff",fontFamily:font,fontSize:13,outline:"none",width:"100%",boxSizing:"border-box",transition:"border-color .2s"};
+  const style = fieldBaseSx(error, f);
   const isPicker = type === "date" || type === "time";
   return (
-    <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:12}}>
-      {label && <label style={{fontSize:12,fontWeight:600,color:C.muted}}>{label}</label>}
+    <div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:14}}>
+      {label && <label style={{fontSize:12,fontWeight:700,color:C.muted}}>{label}</label>}
       {rows
         ? <textarea value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} rows={rows} onFocus={()=>setF(true)} onBlur={()=>setF(false)} style={{...style,resize:"vertical"}}/>
         : isPicker
@@ -178,18 +191,19 @@ export function Input({ label, value, onChange, type="text", placeholder="", err
               onBlur={() => setF(false)}
               style={style}
             />
-          : <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} onFocus={()=>setF(true)} onBlur={()=>setF(false)} style={style}/>}
-      {error && <span style={{color:C.danger,fontSize:11}}>{error}</span>}
+          : <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} onFocus={()=>setF(true)} onBlur={()=>setF(false)} style={style} onMouseEnter={(e)=>{if(!f)e.target.style.borderColor=C.muted;}} onMouseLeave={(e)=>{if(!f)e.target.style.borderColor=error?C.danger:C.border;}}/>}
+      {error && <span style={{color:C.danger,fontSize:11,fontWeight:600}}>{error}</span>}
     </div>
   );
 }
 
 export function Select({ label, value, onChange, options=[] }) {
+  const [f,setF] = useState(false);
   return (
-    <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:12}}>
-      {label && <label style={{fontSize:12,fontWeight:600,color:C.muted}}>{label}</label>}
-      <select value={value} onChange={e=>onChange(e.target.value)}
-        style={{background:"#2a1540",border:`1.5px solid ${C.border}`,borderRadius:10,padding:"9px 13px",color:"#fff",fontFamily:font,fontSize:13,outline:"none"}}>
+    <div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:14}}>
+      {label && <label style={{fontSize:12,fontWeight:700,color:C.muted}}>{label}</label>}
+      <select value={value} onChange={e=>onChange(e.target.value)} onFocus={()=>setF(true)} onBlur={()=>setF(false)}
+        style={{background:"#2a1540",border:`1.5px solid ${f?C.red:C.border}`,borderRadius:radius.md,padding:"10px 13px",color:"#fff",fontFamily:font,fontSize:13,outline:"none",cursor:"pointer",boxShadow:f?shadow.glowRed:"none",transition:"border-color .18s, box-shadow .18s"}}>
         {options.map(o => <option key={o.v} value={o.v} style={{background:"#321d3d"}}>{o.l}</option>)}
       </select>
     </div>
@@ -198,11 +212,14 @@ export function Select({ label, value, onChange, options=[] }) {
 
 export function Modal({ children, onClose, title }) {
   return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.8)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={onClose}>
-      <div style={{background:"#2a1540",border:`1px solid ${C.border}`,borderRadius:20,padding:24,maxWidth:520,width:"100%",maxHeight:"88vh",overflow:"auto"}} onClick={e=>e.stopPropagation()}>
-        {title && <div style={{fontWeight:800,fontSize:16,marginBottom:18,display:"flex",justifyContent:"space-between"}}>
+    <div style={{position:"fixed",inset:0,background:"rgba(10,4,18,.78)",backdropFilter:"blur(3px)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={onClose}>
+      <div style={{background:"#2a1540",border:`1px solid ${C.border}`,borderRadius:radius.lg,padding:24,maxWidth:520,width:"100%",maxHeight:"88vh",overflow:"auto",boxShadow:shadow.lg,animation:"fadeUp .22s ease"}} onClick={e=>e.stopPropagation()}>
+        {title && <div style={{fontWeight:800,fontSize:16,marginBottom:18,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           {title}
-          <button style={{background:"none",border:"none",color:C.muted,fontSize:20,cursor:"pointer",fontFamily:font}} onClick={onClose}>✕</button>
+          <button style={{background:"rgba(255,255,255,.06)",border:"none",borderRadius:radius.pill,width:28,height:28,color:C.muted,fontSize:15,cursor:"pointer",fontFamily:font,transition:"background .15s, color .15s"}}
+            onMouseEnter={(e)=>{e.currentTarget.style.background="rgba(255,255,255,.14)";e.currentTarget.style.color="#fff";}}
+            onMouseLeave={(e)=>{e.currentTarget.style.background="rgba(255,255,255,.06)";e.currentTarget.style.color=C.muted;}}
+            onClick={onClose}>✕</button>
         </div>}
         {children}
       </div>

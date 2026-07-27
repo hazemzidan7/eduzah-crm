@@ -6,14 +6,10 @@
  * stays free text only for Sales Notes and the Additional (student) Comment.
  */
 
-export const CONTACT_STATUS_OPTIONS = [
-  { v: "not_contacted", ar: "لم يتم التواصل", en: "Not Contacted" },
-  { v: "called", ar: "تم الاتصال", en: "Called" },
-  { v: "no_answer", ar: "لا يوجد رد", en: "No Answer" },
-  { v: "wrong_number", ar: "رقم خاطئ", en: "Wrong Number" },
-  { v: "whatsapp_sent", ar: "تم إرسال واتساب", en: "WhatsApp Sent" },
-  { v: "call_back_later", ar: "اتصل لاحقاً", en: "Call Back Later" },
-];
+// Contact-attempt outcomes now live directly in the Lead Status vocabulary
+// (Settings > Lead Statuses: Not Contacted, Called, No Answer, Wrong Number,
+// WhatsApp Sent, alongside Thinking/Interested/Follow-up/Booked/Paid/Lost) —
+// one unified "Contact Status" field, not two separate ones.
 
 export const EDUCATIONAL_LEVEL_OPTIONS = [
   { v: "preparatory", ar: "إعدادي", en: "Preparatory" },

@@ -5,15 +5,14 @@ import { useAuth } from "../../../../context/AuthContext";
 import { useLeadStatus } from "../../../../context/LeadStatusContext";
 import { useCustomers } from "../../../../context/CustomerContext";
 import { toE164Phone } from "../../../../utils/phoneE164";
-import {
-  CONTACT_STATUS_OPTIONS, ATTENDANCE_TYPE_OPTIONS, PAYMENT_PLAN_OPTIONS,
-} from "../../../../constants/crmOptions";
-import { InlineText, InlineNumber, InlineDate, InlineSelect, ComputedMoney } from "./InlineCells";
+import { ATTENDANCE_TYPE_OPTIONS, PAYMENT_PLAN_OPTIONS } from "../../../../constants/crmOptions";
+import { InlineText, InlineNumber, InlineDate, InlineSelect, InlineStatusSelect, ComputedMoney } from "./InlineCells";
 import EngagementDetailModal from "../EngagementDetailModal";
+import AddStudentModal from "./AddStudentModal";
 
-const th = { textAlign: "start", fontSize: 10, letterSpacing: 0.3, textTransform: "uppercase", color: C.muted, fontWeight: 700, padding: "10px 8px", borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap", background: "#241536" };
-const td = { padding: "4px 6px", fontSize: 12.5, borderBottom: "1px solid rgba(255,255,255,.06)", verticalAlign: "middle" };
-const stickyTh = { ...th, position: "sticky", insetInlineStart: 0, zIndex: 2 };
+const th = { textAlign: "start", fontSize: 10, letterSpacing: 0.3, textTransform: "uppercase", color: C.muted, fontWeight: 700, padding: "10px 10px", borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap", background: "#241536", position: "sticky", top: 0, zIndex: 2 };
+const td = { padding: "5px 8px", fontSize: 12.5, borderBottom: "1px solid rgba(255,255,255,.06)", verticalAlign: "middle", whiteSpace: "nowrap" };
+const stickyTh = { ...th, insetInlineStart: 0, zIndex: 3 };
 const stickyTd = { ...td, position: "sticky", insetInlineStart: 0, background: "#2a1540", zIndex: 1 };
 
 function amountPaidOf(payment) {
@@ -27,14 +26,15 @@ function amountPaidOf(payment) {
  * profile. Same component for every Program in the catalog — the workspace
  * just hands it a pre-scoped engagement list.
  */
-export default function ProgramSalesSheet({ engagements, businessUnitId, ar, tx }) {
+export default function ProgramSalesSheet({ engagements, program, businessUnitId, ar, tx }) {
   const { users } = useAuth();
-  const { effectiveStatuses } = useLeadStatus();
+  const { effectiveStatuses, statusById } = useLeadStatus();
   const { customerById, updateCustomer, updateEngagement, changeEngagementStatus, logEngagementActivity } = useCustomers();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [profileEngagementId, setProfileEngagementId] = useState(null);
+  const [addingStudent, setAddingStudent] = useState(false);
 
   const admins = users.filter((u) => u.role === "admin");
   const assigneeOptions = [
@@ -42,7 +42,6 @@ export default function ProgramSalesSheet({ engagements, businessUnitId, ar, tx 
     ...admins.map((a) => ({ v: a.id, l: a.name || a.email })),
   ];
   const statusOptions = effectiveStatuses(businessUnitId).map((s) => ({ v: s.id, l: ar ? s.name_ar : s.name_en }));
-  const contactStatusOptions = CONTACT_STATUS_OPTIONS.map((o) => ({ v: o.v, l: ar ? o.ar : o.en }));
   const attendanceOptions = ATTENDANCE_TYPE_OPTIONS.map((o) => ({ v: o.v, l: ar ? o.ar : o.en }));
   const paymentPlanOptions = PAYMENT_PLAN_OPTIONS.map((o) => ({ v: o.v, l: ar ? o.ar : o.en }));
 
@@ -81,15 +80,16 @@ export default function ProgramSalesSheet({ engagements, businessUnitId, ar, tx 
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={tx("بحث بالاسم أو الهاتف أو البريد…", "Search name, phone, email…")}
-          style={{ background: "rgba(255,255,255,.06)", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "9px 13px", color: "#fff", fontFamily: "'Cairo',sans-serif", fontSize: 12.5, outline: "none", minWidth: 220 }}
+          style={{ background: "rgba(255,255,255,.06)", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "9px 14px", color: "#fff", fontFamily: "'Cairo',sans-serif", fontSize: 12.5, outline: "none", minWidth: 240, transition: "border-color .15s" }}
         />
+        <Btn v="primary" onClick={() => setAddingStudent(true)}>+ {tx("إضافة طالب", "Add Student")}</Btn>
       </div>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
         <button onClick={() => setStatusFilter("all")} style={pillStyle(statusFilter === "all", C.purple)}>
           {tx("الكل", "All")} <span style={{ opacity: 0.7 }}>({engagements.length})</span>
         </button>
@@ -101,31 +101,30 @@ export default function ProgramSalesSheet({ engagements, businessUnitId, ar, tx 
       </div>
 
       {filtered.length === 0 ? (
-        <Card style={{ padding: 32, textAlign: "center" }}><div style={{ color: C.muted }}>{tx("لا يوجد طلاب بعد", "No students yet")}</div></Card>
+        <Card style={{ padding: 40, textAlign: "center" }}><div style={{ color: C.muted }}>{tx("لا يوجد طلاب بعد", "No students yet")}</div></Card>
       ) : (
         <Card style={{ padding: 0, overflow: "hidden" }}>
-          <div style={{ overflowX: "auto", maxWidth: "100%" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <div style={{ overflowX: "auto", maxWidth: "100%", maxHeight: "72vh", overflowY: "auto" }}>
+            <table style={{ width: "auto", minWidth: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
               <thead>
                 <tr>
                   <th style={stickyTh}>{tx("الاسم", "Name")}</th>
-                  <th style={th}>{tx("تاريخ التسجيل", "Registration Date")}</th>
+                  <th style={th}>{tx("تاريخ التسجيل", "Reg. Date")}</th>
                   <th style={th}>{tx("الهاتف", "Phone")}</th>
                   <th style={th}>{tx("البريد", "Email")}</th>
                   <th style={th}>{tx("نوع الحضور", "Attendance")}</th>
                   <th style={th}>{tx("مصدر العميل", "Lead Source")}</th>
-                  <th style={th}>{tx("حالة العميل", "Lead Status")}</th>
                   <th style={th}>{tx("حالة التواصل", "Contact Status")}</th>
                   <th style={th}>{tx("ملاحظات المبيعات", "Sales Notes")}</th>
-                  <th style={th}>{tx("سعر الكورس", "Course Price")}</th>
-                  <th style={th}>{tx("خطة الدفع", "Payment Plan")}</th>
-                  <th style={th}>{tx("عربون الحجز", "Deposit")}</th>
-                  <th style={th}>{tx("قسط 1", "Installment 1")}</th>
-                  <th style={th}>{tx("قسط 2", "Installment 2")}</th>
-                  <th style={th}>{tx("قسط 3", "Installment 3")}</th>
-                  <th style={th}>{tx("المبلغ المدفوع", "Amount Paid")}</th>
+                  <th style={th}>{tx("سعر الكورس", "Price")}</th>
+                  <th style={th}>{tx("خطة الدفع", "Plan")}</th>
+                  <th style={th}>{tx("العربون", "Deposit")}</th>
+                  <th style={th}>{tx("قسط 1", "Inst. 1")}</th>
+                  <th style={th}>{tx("قسط 2", "Inst. 2")}</th>
+                  <th style={th}>{tx("قسط 3", "Inst. 3")}</th>
+                  <th style={th}>{tx("المدفوع", "Paid")}</th>
                   <th style={th}>{tx("المتبقي", "Remaining")}</th>
-                  <th style={th}>{tx("تأكيد الدفع", "Payment Confirmation")}</th>
+                  <th style={th}>{tx("تأكيد الدفع", "Confirmation")}</th>
                   <th style={th}>{tx("آخر تواصل", "Last Contact")}</th>
                   <th style={th}>{tx("المتابعة القادمة", "Next Follow-up")}</th>
                   <th style={th}>{tx("الموظف المسؤول", "Assigned")}</th>
@@ -142,18 +141,19 @@ export default function ProgramSalesSheet({ engagements, businessUnitId, ar, tx 
                   const timeline = [...(e.timeline || [])].sort((a, b) => (b.at || "").localeCompare(a.at || ""));
                   const lastContact = timeline.find((t) => t.type !== "system");
                   const e164 = toE164Phone(customer?.phone);
+                  const status = statusById(e.statusId);
 
                   return (
-                    <tr key={e.id}>
+                    <tr key={e.id} className="edu-sheet-row">
                       <td style={stickyTd}>
-                        <InlineText value={customer?.fullName} onSave={(v) => updateCustomer(customer.id, { fullName: v })} minWidth={140} />
+                        <InlineText value={customer?.fullName} onSave={(v) => updateCustomer(customer.id, { fullName: v })} minWidth={130} size={16} />
                       </td>
                       <td style={td}>
                         <InlineDate value={sp.registrationDate} onSave={(v) => patchStudentProfile(e, "registrationDate", v)} />
                       </td>
                       <td style={td}>
                         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                          <InlineText value={customer?.phone} onSave={(v) => updateCustomer(customer.id, { phone: v })} minWidth={110} />
+                          <InlineText value={customer?.phone} onSave={(v) => updateCustomer(customer.id, { phone: v })} minWidth={100} size={12} />
                           {e164 && (
                             <>
                               <a href={`tel:${e164}`} title={tx("اتصال", "Call")} style={iconLinkSx}>📞</a>
@@ -163,28 +163,25 @@ export default function ProgramSalesSheet({ engagements, businessUnitId, ar, tx 
                         </div>
                       </td>
                       <td style={td}>
-                        <InlineText value={customer?.email} onSave={(v) => updateCustomer(customer.id, { email: v })} minWidth={150} />
+                        <InlineText value={customer?.email} onSave={(v) => updateCustomer(customer.id, { email: v })} minWidth={90} size={16} />
                       </td>
                       <td style={td}>
-                        <InlineSelect value={sp.attendanceType} onSave={(v) => patchStudentProfile(e, "attendanceType", v)} options={[{ v: "", l: "—" }, ...attendanceOptions]} />
+                        <InlineSelect value={sp.attendanceType} onSave={(v) => patchStudentProfile(e, "attendanceType", v)} options={[{ v: "", l: "—" }, ...attendanceOptions]} minWidth={80} />
                       </td>
                       <td style={td}>
-                        <InlineText value={sp.leadSource} onSave={(v) => patchStudentProfile(e, "leadSource", v)} minWidth={110} />
+                        <InlineText value={sp.leadSource} onSave={(v) => patchStudentProfile(e, "leadSource", v)} minWidth={80} size={10} />
                       </td>
                       <td style={td}>
-                        <InlineSelect value={e.statusId} onSave={(v) => changeEngagementStatus(e.id, v)} options={[{ v: "", l: "—" }, ...statusOptions]} />
+                        <InlineStatusSelect value={e.statusId} onSave={(v) => changeEngagementStatus(e.id, v)} options={statusOptions} color={status?.color} />
                       </td>
                       <td style={td}>
-                        <InlineSelect value={e.contactStatus} onSave={(v) => updateEngagement(e.id, { contactStatus: v })} options={contactStatusOptions} />
-                      </td>
-                      <td style={td}>
-                        <InlineText value={e.salesNotes} onSave={(v) => updateEngagement(e.id, { salesNotes: v })} placeholder={tx("ملاحظة...", "Note...")} minWidth={160} />
+                        <InlineText value={e.salesNotes} onSave={(v) => updateEngagement(e.id, { salesNotes: v })} placeholder={tx("ملاحظة...", "Note...")} minWidth={130} size={16} />
                       </td>
                       <td style={td}>
                         <InlineNumber value={payment.coursePrice} onSave={(v) => patchPayment(e, "coursePrice", v)} />
                       </td>
                       <td style={td}>
-                        <InlineSelect value={payment.paymentPlan} onSave={(v) => patchPayment(e, "paymentPlan", v)} options={[{ v: "", l: "—" }, ...paymentPlanOptions]} />
+                        <InlineSelect value={payment.paymentPlan} onSave={(v) => patchPayment(e, "paymentPlan", v)} options={[{ v: "", l: "—" }, ...paymentPlanOptions]} minWidth={80} />
                       </td>
                       <td style={td}>
                         <InlineNumber value={payment.reservationDeposit} onSave={(v) => patchPayment(e, "reservationDeposit", v)} />
@@ -210,7 +207,7 @@ export default function ProgramSalesSheet({ engagements, businessUnitId, ar, tx 
                         <InlineDate value={e.nextFollowUpDate} onSave={(v) => updateEngagement(e.id, { nextFollowUpDate: v })} />
                       </td>
                       <td style={td}>
-                        <InlineSelect value={e.ownerId} onSave={(v) => updateEngagement(e.id, { ownerId: v })} options={assigneeOptions} />
+                        <InlineSelect value={e.ownerId} onSave={(v) => updateEngagement(e.id, { ownerId: v })} options={assigneeOptions} minWidth={90} />
                       </td>
                       <td style={td}>
                         <div style={{ display: "flex", gap: 4 }}>
@@ -241,11 +238,14 @@ export default function ProgramSalesSheet({ engagements, businessUnitId, ar, tx 
           onClose={() => setProfileEngagementId(null)}
         />
       )}
+      {addingStudent && (
+        <AddStudentModal program={program} businessUnitId={businessUnitId} onClose={() => setAddingStudent(false)} />
+      )}
     </div>
   );
 }
 
-const iconLinkSx = { textDecoration: "none", fontSize: 14, padding: "2px 4px", borderRadius: 6, background: "rgba(255,255,255,.06)" };
+const iconLinkSx = { textDecoration: "none", fontSize: 14, padding: "3px 5px", borderRadius: 6, background: "rgba(255,255,255,.06)", transition: "background .15s" };
 
 function pillStyle(active, color) {
   return {

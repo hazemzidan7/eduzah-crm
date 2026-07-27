@@ -10,7 +10,7 @@ import { useCustomFields } from "../../../context/CustomFieldContext";
 import LeadStatusBadge from "../../../components/crm/LeadStatusBadge";
 import { canonicalFieldLabel } from "../../../constants/importCanonicalFields";
 import {
-  CONTACT_STATUS_OPTIONS, EDUCATIONAL_LEVEL_OPTIONS, EMPLOYMENT_STATUS_OPTIONS,
+  EDUCATIONAL_LEVEL_OPTIONS, EMPLOYMENT_STATUS_OPTIONS,
   GOVERNORATE_OPTIONS, PROGRAMMING_LEVEL_OPTIONS, PREFERRED_CONTACT_METHOD_OPTIONS,
   ATTENDANCE_TYPE_OPTIONS, PAYMENT_PLAN_OPTIONS, optionLabel,
 } from "../../../constants/crmOptions";
@@ -159,7 +159,6 @@ export default function EngagementDetailModal({ engagement, onClose }) {
     ...admins.map((a) => ({ v: a.id, l: a.name || a.email })),
   ];
   const priorityOptions = PRIORITY_OPTIONS.map((p) => ({ v: p.v, l: ar ? p.ar : p.en }));
-  const contactStatusOptions = CONTACT_STATUS_OPTIONS.map((p) => ({ v: p.v, l: ar ? p.ar : p.en }));
 
   const timeline = [...(engagement.timeline || [])].sort((a, b) => (b.at || "").localeCompare(a.at || ""));
   // "Last Contact" is derived from the timeline, not stored separately — a
@@ -261,11 +260,10 @@ export default function EngagementDetailModal({ engagement, onClose }) {
 
       {/* ── Section 2: CRM Internal Data — owned and edited by sales staff ── */}
       <div style={sectionTitleSx}>{tx("بيانات إدارة المبيعات (داخلية)", "CRM Internal Data")}</div>
-      <Select label={tx("الحالة", "Status")} value={engagement.statusId || ""} onChange={(v) => changeEngagementStatus(engagement.id, v)} options={statusOptions} />
-      <Select label={tx("الموظف المسؤول", "Assigned employee")} value={engagement.ownerId || ""} onChange={(v) => updateEngagement(engagement.id, { ownerId: v || null })} options={assigneeOptions} />
+      <Select label={tx("حالة التواصل", "Contact Status")} value={engagement.statusId || ""} onChange={(v) => changeEngagementStatus(engagement.id, v)} options={statusOptions} />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
+        <Select label={tx("الموظف المسؤول", "Assigned employee")} value={engagement.ownerId || ""} onChange={(v) => updateEngagement(engagement.id, { ownerId: v || null })} options={assigneeOptions} />
         <Select label={tx("الأولوية", "Priority")} value={engagement.priority || "normal"} onChange={(v) => updateEngagement(engagement.id, { priority: v })} options={priorityOptions} />
-        <Select label={tx("حالة التواصل", "Contact status")} value={engagement.contactStatus || "not_contacted"} onChange={(v) => updateEngagement(engagement.id, { contactStatus: v })} options={contactStatusOptions} />
       </div>
       <Input
         label={tx("تاريخ المتابعة القادم", "Next follow-up date")}

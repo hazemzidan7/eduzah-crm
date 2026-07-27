@@ -15,15 +15,23 @@ import { useAuth } from "./AuthContext";
 
 const LeadStatusCtx = createContext(null);
 
-// Global statuses, seeded once — a flat pipeline, no sub-statuses.
+// Global statuses, seeded once — a flat pipeline, no sub-statuses. Doubles
+// as "Contact Status" in the Sheet: contact-attempt outcomes (Not Contacted
+// through WhatsApp Sent) and pipeline stages (Thinking through Lost) share
+// one vocabulary/one field, there's no separate contactStatus concept anymore.
 const GLOBAL_STATUS_SEED = [
-  { key: "new", name_ar: "جديد", name_en: "New", isDefault: true },
-  { key: "interested", name_ar: "مهتم", name_en: "Interested" },
-  { key: "thinking", name_ar: "بيفكر", name_en: "Thinking" },
-  { key: "follow_up", name_ar: "متابعة", name_en: "Follow-up" },
-  { key: "booked", name_ar: "تم الحجز", name_en: "Booked", isTerminal: true },
-  { key: "paid", name_ar: "تم الدفع", name_en: "Paid", isTerminal: true },
-  { key: "lost", name_ar: "ضائع", name_en: "Lost", isTerminal: true },
+  { key: "new", name_ar: "جديد", name_en: "New", color: "#94a3b8", isDefault: true },
+  { key: "not_contacted", name_ar: "لم يتم التواصل", name_en: "Not Contacted", color: "#9ca3af" },
+  { key: "called", name_ar: "تم الاتصال", name_en: "Called", color: "#60a5fa" },
+  { key: "no_answer", name_ar: "لا يوجد رد", name_en: "No Answer", color: "#fbbf24" },
+  { key: "wrong_number", name_ar: "رقم خاطئ", name_en: "Wrong Number", color: "#fb7185" },
+  { key: "whatsapp_sent", name_ar: "تم إرسال واتساب", name_en: "WhatsApp Sent", color: "#25d366" },
+  { key: "thinking", name_ar: "بيفكر", name_en: "Thinking", color: "#a78bfa" },
+  { key: "interested", name_ar: "مهتم", name_en: "Interested", color: "#ffb84d" },
+  { key: "follow_up", name_ar: "متابعة", name_en: "Follow-up", color: "#22d3ee" },
+  { key: "booked", name_ar: "تم الحجز", name_en: "Booked", color: "#34d399", isTerminal: true },
+  { key: "paid", name_ar: "تم الدفع", name_en: "Paid", color: "#059669", isTerminal: true },
+  { key: "lost", name_ar: "ضائع", name_en: "Lost", color: "#f87171", isTerminal: true },
 ];
 
 // Business-Unit-specific statuses, seeded once, matched to real catalogNodes
@@ -79,7 +87,7 @@ export function LeadStatusProvider({ children }) {
         for (const [i, g] of GLOBAL_STATUS_SEED.entries()) {
           const ref = await addDoc(collection(db, "leadStatuses"), {
             name_ar: g.name_ar, name_en: g.name_en, key: g.key,
-            description: "", color: "", icon: "",
+            description: "", color: g.color || "", icon: "",
             order: i, parentId: null, path: [],
             scope: "global", businessUnitId: null,
             isDefault: !!g.isDefault, isTerminal: !!g.isTerminal,

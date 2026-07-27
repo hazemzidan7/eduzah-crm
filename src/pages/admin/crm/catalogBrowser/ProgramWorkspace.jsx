@@ -99,7 +99,7 @@ export default function ProgramWorkspace({ programId, onBack }) {
         <Card style={{ padding: 32, textAlign: "center" }}><div style={{ color: C.muted }}>{tx("جاري التحميل…", "Loading…")}</div></Card>
       ) : (
         <>
-          {view === "students" && <ProgramSalesSheet engagements={scopedEngagements} businessUnitId={businessUnitId} ar={ar} tx={tx} />}
+          {view === "students" && <ProgramSalesSheet engagements={scopedEngagements} program={program} businessUnitId={businessUnitId} ar={ar} tx={tx} />}
           {view === "pipeline" && <ProgramPipelineView engagements={scopedEngagements} statuses={statuses} ar={ar} tx={tx} />}
           {view === "reminders" && <ProgramRemindersView engagements={scopedEngagements} ar={ar} tx={tx} />}
           {view === "import" && <ImportWizard key={program.id} program={program} />}
