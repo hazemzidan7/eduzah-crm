@@ -79,7 +79,11 @@ export function ImportProfileProvider({ children }) {
           await addDoc(collection(db, "importProfileVersions"), {
             profileId: profileRef.id, version: 1,
             requiredFields: ["fullName", "phone"],
-            optionalFields: ["email", "whatsapp", "city", "leadSource", "contactMethod", "notes", "registrationDate"],
+            optionalFields: [
+              "email", "whatsapp", "registrationDate", "governorate", "educationalLevel",
+              "employmentStatus", "attendanceType", "courseLevel", "hasLaptop",
+              "preferredContactMethod", "leadSource", "studentComment",
+            ],
             customFieldDefIds: fieldDefIds,
             validationRules: [],
             defaultLeadStatusId: defaultStatusId,

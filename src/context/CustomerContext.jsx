@@ -116,9 +116,27 @@ export function CustomerProvider({ children }) {
       businessUnitId: form.businessUnitId,
       catalogNodeId: form.catalogNodeId || null,
       stage: form.stage || "lead",
+      // ── Section 1: Student Profile — registration data, never hand-typed by
+      // sales staff. Comes from an import or (eventually) a form webhook only.
+      studentProfile: {
+        registrationDate: form.studentProfile?.registrationDate || null,
+        governorate: form.studentProfile?.governorate || "",
+        educationalLevel: form.studentProfile?.educationalLevel || "",
+        employmentStatus: form.studentProfile?.employmentStatus || "",
+        attendanceType: form.studentProfile?.attendanceType || "",
+        courseLevel: form.studentProfile?.courseLevel || "",
+        hasLaptop: form.studentProfile?.hasLaptop ?? null,
+        preferredContactMethod: form.studentProfile?.preferredContactMethod || "",
+        leadSource: form.studentProfile?.leadSource || "",
+        studentComment: form.studentProfile?.studentComment || "",
+      },
+      // ── Section 2: CRM Internal Data — owned and edited by sales staff only.
       statusId: form.statusId || null,
       contactStatus: form.contactStatus || "not_contacted",
       ownerId: form.ownerId || null,
+      priority: form.priority || "normal",
+      nextFollowUpDate: form.nextFollowUpDate || null,
+      salesNotes: form.salesNotes || "",
       tagIds: form.tagIds || [],
       customFields: form.customFields || {},
       timeline: [{
@@ -135,6 +153,26 @@ export function CustomerProvider({ children }) {
     };
     const ref = await addDoc(collection(db, "engagements"), ne);
     return ref.id;
+  };
+
+  // Non-destructive: only fills studentProfile fields that are currently
+  // empty. A re-import must never overwrite a value sales already corrected,
+  // and must never touch Section 2 (CRM Internal Data) at all.
+  const mergeStudentProfile = async (engagementId, incoming) => {
+    const current = engagementById(engagementId);
+    if (!current) return;
+    const merged = { ...(current.studentProfile || {}) };
+    let changed = false;
+    for (const [k, v] of Object.entries(incoming || {})) {
+      const empty = merged[k] === "" || merged[k] === null || merged[k] === undefined;
+      if (empty && v !== "" && v !== null && v !== undefined) {
+        merged[k] = v;
+        changed = true;
+      }
+    }
+    if (changed) {
+      await updateDoc(doc(db, "engagements", engagementId), { studentProfile: merged, updatedAt: new Date().toISOString() });
+    }
   };
 
   // Find-or-create: never creates a second engagement for the same
@@ -188,7 +226,7 @@ export function CustomerProvider({ children }) {
       findCustomerByPhone, findCustomerByEmail, customerById,
       addCustomer, resolveOrCreateCustomer, updateCustomer, archiveCustomer, restoreCustomer,
       findEngagement, engagementById, engagementsForCustomer, engagementsForBusinessUnit,
-      addEngagement, resolveOrCreateEngagement, updateEngagement,
+      addEngagement, mergeStudentProfile, resolveOrCreateEngagement, updateEngagement,
       changeEngagementStatus, logEngagementActivity, archiveEngagement, restoreEngagement,
     }}>
       {children}
