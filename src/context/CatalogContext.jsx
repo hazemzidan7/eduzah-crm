@@ -127,6 +127,22 @@ export function CatalogProvider({ children }) {
 
   const nodeById = (id) => nodes.find((n) => n.id === id) || null;
 
+  // Every Program under a node, at any depth, in tree order — Category is an
+  // optional organizational layer in the data, never a required navigation
+  // step. A program directly under the Business Unit and one three
+  // categories deep both come back in this one flat, ordered list.
+  const programsUnder = (nodeId) => {
+    const out = [];
+    const walk = (id) => {
+      for (const child of childrenOf(id)) {
+        if (child.type === "program") out.push(child);
+        else walk(child.id);
+      }
+    };
+    walk(nodeId);
+    return out;
+  };
+
   // Every descendant of a node, via the materialized `path` array — no recursive queries needed.
   const descendantsOf = (nodeId) =>
     nodes.filter((n) => Array.isArray(n.path) && n.path.includes(nodeId));
@@ -236,7 +252,7 @@ export function CatalogProvider({ children }) {
   return (
     <CatalogCtx.Provider value={{
       nodes, nodeTypes, loading,
-      businessUnits, allBusinessUnits, childrenOf, allChildrenOf, nodeById, descendantsOf,
+      businessUnits, allBusinessUnits, childrenOf, allChildrenOf, nodeById, descendantsOf, programsUnder,
       addNodeType, addNode, updateNode, moveNode, archiveNode, restoreNode, deleteNode,
     }}>
       {children}

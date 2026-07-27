@@ -32,7 +32,7 @@ export default function ProgramWorkspace({ programId, onBack }) {
 
   const program = nodeById(programId);
   const businessUnitId = program?.path?.[0] || null;
-  const breadcrumbChain = program ? [...(program.path || []), program.id].map(nodeById).filter(Boolean) : [];
+  const businessUnit = businessUnitId ? nodeById(businessUnitId) : null;
 
   const scopedEngagements = useMemo(() => {
     if (!program) return [];
@@ -65,10 +65,10 @@ export default function ProgramWorkspace({ programId, onBack }) {
           ← {tx("الكتالوج", "Catalog")}
         </button>
         <span style={{ color: C.muted, fontSize: 12.5 }}>
-          {breadcrumbChain.map((n) => (ar ? n.name_ar : n.name_en)).join(" › ")}
+          {businessUnit ? (ar ? businessUnit.name_ar : businessUnit.name_en) : ""} › {program.name_en}
         </span>
       </div>
-      <h2 style={{ fontWeight: 900, fontSize: 18, margin: "4px 0 14px" }}>{ar ? program.name_ar : program.name_en}</h2>
+      <h2 style={{ fontWeight: 900, fontSize: 18, margin: "4px 0 14px" }}>{program.name_en}</h2>
 
       {/* ── Stats ── */}
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>

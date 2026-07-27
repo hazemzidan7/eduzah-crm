@@ -154,7 +154,7 @@ export default function EngagementDetailModal({ engagement, onClose }) {
         <LeadStatusBadge statusId={engagement.statusId} />
         <span style={{ fontSize: 12, color: C.muted }}>
           {businessUnit ? (ar ? businessUnit.name_ar : businessUnit.name_en) : "—"}
-          {program ? ` · ${ar ? program.name_ar : program.name_en}` : ""}
+          {program ? ` · ${program.name_en}` : ""}
         </span>
       </div>
 

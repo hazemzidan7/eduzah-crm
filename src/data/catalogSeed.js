@@ -37,6 +37,7 @@ export const CATALOG_SEED = [
           { type: "program", name_ar: "أندرويد", name_en: "Android" },
         ],
       },
+      { type: "program", name_ar: "تجربة وواجهة المستخدم", name_en: "UI/UX" },
     ],
   },
   {

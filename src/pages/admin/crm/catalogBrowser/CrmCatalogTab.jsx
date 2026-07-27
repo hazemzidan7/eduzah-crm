@@ -6,32 +6,31 @@ import CatalogBrowserGrid from "./CatalogBrowserGrid";
 import ProgramWorkspace from "./ProgramWorkspace";
 
 /**
- * The CRM's main entry point: Business Unit -> Category (optional) -> Program.
- * Purely local drill-down state (no routing) — `parentId` is the node whose
- * children are currently shown (null = root, i.e. Business Units); `programId`
- * switches into the per-program workspace. Nothing here is per-course: every
- * Program in the catalog gets this same workflow automatically.
+ * The CRM's main entry point: Business Unit -> Program -> Students. Category
+ * is an optional organizational field in the data (still fully editable in
+ * Settings > Catalog) but is never a navigation step here — opening a
+ * Business Unit shows every Program under it, flattened, regardless of how
+ * many Category levels deep any of them sit.
  */
 export default function CrmCatalogTab() {
   const { lang } = useLang();
   const ar = lang === "ar";
   const tx = (a, e) => (ar ? a : e);
-  const { businessUnits, childrenOf, nodeById } = useCatalog();
+  const { businessUnits, programsUnder, nodeById } = useCatalog();
 
-  const [parentId, setParentId] = useState(null);
+  const [businessUnitId, setBusinessUnitId] = useState(null);
   const [programId, setProgramId] = useState(null);
 
   if (programId) {
     return <ProgramWorkspace programId={programId} onBack={() => setProgramId(null)} />;
   }
 
-  const currentNode = parentId ? nodeById(parentId) : null;
-  const nodes = parentId ? childrenOf(parentId) : businessUnits;
-  const breadcrumbChain = currentNode ? [...(currentNode.path || []), currentNode.id].map(nodeById).filter(Boolean) : [];
+  const businessUnit = businessUnitId ? nodeById(businessUnitId) : null;
+  const nodes = businessUnit ? programsUnder(businessUnitId) : businessUnits;
 
   const openNode = (node) => {
     if (node.type === "program") setProgramId(node.id);
-    else setParentId(node.id);
+    else setBusinessUnitId(node.id);
   };
 
   return (
@@ -39,22 +38,20 @@ export default function CrmCatalogTab() {
       <div style={{ marginBottom: 4 }}>
         <h2 style={{ fontWeight: 900, fontSize: 18, margin: 0 }}>{tx("الكتالوج", "Catalog")}</h2>
         <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
-          {tx("وحدة العمل ← الفئة (اختياري) ← البرنامج", "Business Unit → Category (optional) → Program")}
+          {tx("وحدة العمل ← البرنامج", "Business Unit → Program")}
         </div>
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", margin: "14px 0" }}>
-        <button onClick={() => setParentId(null)} style={crumbSx(!currentNode)}>
+        <button onClick={() => setBusinessUnitId(null)} style={crumbSx(!businessUnit)}>
           {tx("الرئيسية", "Home")}
         </button>
-        {breadcrumbChain.map((n) => (
-          <span key={n.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        {businessUnit && (
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ color: C.muted }}>›</span>
-            <button onClick={() => setParentId(n.id)} style={crumbSx(n.id === currentNode?.id)}>
-              {ar ? n.name_ar : n.name_en}
-            </button>
+            <button style={crumbSx(true)}>{ar ? businessUnit.name_ar : businessUnit.name_en}</button>
           </span>
-        ))}
+        )}
       </div>
 
       <CatalogBrowserGrid nodes={nodes} onOpenNode={openNode} ar={ar} tx={tx} />
