@@ -39,8 +39,8 @@ export default function AddStudentModal({ program, businessUnitId, onClose }) {
     setSaving(true);
     try {
       const customerId = await resolveOrCreateCustomer({ fullName, phone, email });
-      if (findEngagement(customerId, businessUnitId)) {
-        setError(tx("هذا الرقم مسجّل بالفعل في وحدة العمل هذه", "This phone number already has a record in this Business Unit"));
+      if (findEngagement(customerId, program.id)) {
+        setError(tx("هذا الرقم مسجّل بالفعل في هذا البرنامج", "This phone number already has a record in this Program"));
         return;
       }
       const defaultStatus = globalStatuses.find((s) => s.isDefault);

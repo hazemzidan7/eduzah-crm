@@ -144,14 +144,15 @@ export function useImportEngine() {
     return [...groups.entries()].filter(([, idxs]) => idxs.length > 1).map(([phone, idxs]) => ({ phone, recordIndexes: idxs }));
   };
 
-  // Against the existing CRM — two levels, per the approved architecture:
-  // person-level (does this phone/email already belong to a customer?) and,
-  // if so, engagement-level (does that customer already have a relationship
-  // with this Business Unit?).
-  const findDuplicateAgainstCrm = (record, businessUnitId) => {
+  // Against the existing CRM — two levels: person-level (does this phone/
+  // email already belong to a customer?) and, if so, engagement-level (does
+  // that customer already have a relationship with this specific Program?).
+  // A customer with an existing Front-End engagement importing into Data
+  // Analysis is a new engagement, not a duplicate — same person, different Program.
+  const findDuplicateAgainstCrm = (record, programId) => {
     const customer = findCustomerByPhone(record.phone) || (record.email ? findCustomerByEmail(record.email) : null);
     if (!customer) return { customerMatch: null, engagementMatch: null };
-    const engagement = businessUnitId ? findEngagement(customer.id, businessUnitId) : null;
+    const engagement = programId ? findEngagement(customer.id, programId) : null;
     return { customerMatch: customer, engagementMatch: engagement };
   };
 

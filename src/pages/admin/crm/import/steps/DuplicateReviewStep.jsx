@@ -16,14 +16,14 @@ export default function DuplicateReviewStep({ wiz, patch, onNext, onBack }) {
   const tx = (a, e) => (ar ? a : e);
   const { findDuplicatesWithinBatch, findDuplicateAgainstCrm } = useImportEngine();
 
-  const businessUnitId = wiz.profile.businessUnitId;
+  const programId = wiz.program.id;
 
   const withinBatch = useMemo(() => findDuplicatesWithinBatch(wiz.cleanedRecords), [wiz.cleanedRecords]); // eslint-disable-line react-hooks/exhaustive-deps
   const withinBatchDupeIndexes = new Set(withinBatch.flatMap((g) => g.recordIndexes.slice(1)));
 
   const crmMatches = useMemo(() => wiz.cleanedRecords.map((r, i) => {
     if (withinBatchDupeIndexes.has(i)) return null; // already flagged as an in-file duplicate
-    const { customerMatch, engagementMatch } = findDuplicateAgainstCrm(r, businessUnitId);
+    const { customerMatch, engagementMatch } = findDuplicateAgainstCrm(r, programId);
     return customerMatch ? { index: i, record: r, customerMatch, engagementMatch } : null;
   }).filter(Boolean), [wiz.cleanedRecords]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -87,7 +87,7 @@ export default function DuplicateReviewStep({ wiz, patch, onNext, onBack }) {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div style={{ fontSize: 12.5 }}>
                   <b>{m.record.fullName || "—"}</b> ({m.record.phone}) → {tx("يطابق", "matches")} <b>{m.customerMatch.fullName}</b>
-                  {m.engagementMatch && <span style={{ color: C.orange }}> · {tx("لديه تعامل بالفعل مع هذه الوحدة", "already has an engagement with this unit")}</span>}
+                  {m.engagementMatch && <span style={{ color: C.orange }}> · {tx("لديه تعامل بالفعل مع هذا البرنامج", "already has an engagement with this Program")}</span>}
                 </div>
                 <select value={decisions[m.index] || "merge"} onChange={(e) => setDecision(m.index, e.target.value)}
                   style={{ background: "#2a1540", border: `1px solid ${C.border}`, borderRadius: 6, color: "#fff", fontSize: 11, padding: "2px 6px" }}>

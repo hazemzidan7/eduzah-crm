@@ -101,9 +101,13 @@ export function CustomerProvider({ children }) {
     await updateDoc(doc(db, "customers", id), { archivedAt: null, updatedAt: new Date().toISOString() });
   };
 
-  // ── ENGAGEMENT-LEVEL DEDUP (does this person already have a relationship with this Business Unit?) ──
-  const findEngagement = (customerId, businessUnitId) =>
-    engagements.find((e) => e.customerId === customerId && e.businessUnitId === businessUnitId) || null;
+  // ── ENGAGEMENT-LEVEL DEDUP (does this person already have a relationship with this Program?) ──
+  // Scoped to Program, not Business Unit — one customer can independently
+  // enroll in several Programs of the same Business Unit (e.g. Programming
+  // Fundamentals, then later Front-End), each with its own Contact Status,
+  // Sales Notes, Payment, Follow-ups and Timeline.
+  const findEngagement = (customerId, catalogNodeId) =>
+    engagements.find((e) => e.customerId === customerId && e.catalogNodeId === catalogNodeId) || null;
 
   const engagementById = (id) => engagements.find((e) => e.id === id) || null;
   const engagementsForCustomer = (customerId) => engagements.filter((e) => e.customerId === customerId);
@@ -189,12 +193,12 @@ export function CustomerProvider({ children }) {
   };
 
   // Find-or-create: never creates a second engagement for the same
-  // (customer, Business Unit) pair — callers (like the Import Engine) should
+  // (customer, Program) pair — callers (like the Import Engine) should
   // check findEngagement() first if they need to distinguish merge-vs-create.
-  const resolveOrCreateEngagement = async (customerId, businessUnitId, form) => {
-    const existing = findEngagement(customerId, businessUnitId);
+  const resolveOrCreateEngagement = async (customerId, catalogNodeId, form) => {
+    const existing = findEngagement(customerId, catalogNodeId);
     if (existing) return existing.id;
-    return addEngagement(customerId, { ...form, businessUnitId });
+    return addEngagement(customerId, { ...form, catalogNodeId });
   };
 
   const updateEngagement = async (id, updates) => {

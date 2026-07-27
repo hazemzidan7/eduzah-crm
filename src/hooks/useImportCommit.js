@@ -87,7 +87,7 @@ export function useImportCommit() {
         }
         if (isNewCustomer) createdCustomerIds.push(customerId);
 
-        const existingEngagement = findEngagement(customerId, wiz.profile.businessUnitId);
+        const existingEngagement = findEngagement(customerId, wiz.program.id);
         if (c.status === "duplicateMerge" && existingEngagement) {
           // Section 1 only, and only fills gaps — never overwrites a value
           // sales already has, never touches Section 2 (CRM Internal Data).
