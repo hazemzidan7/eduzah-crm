@@ -3,7 +3,7 @@ export const C = {
   orange:"#faa633", odark:"#e0901f",
   purple:"#672d86", pdark:"#321d3d", pmid:"#844bab",
   /* Brighter muted for WCAG contrast on dark purple backgrounds */
-  muted:"rgba(255,255,255,.72)", faint:"rgba(255,255,255,.09)",
+  muted:"rgba(255,255,255,.80)", faint:"rgba(255,255,255,.09)",
   border:"rgba(255,255,255,.14)",
   success:"#34d399", danger:"#f87171", warning:"#fbbf24",
   /* Status-family colors — used only where the unified status vocabulary
@@ -23,8 +23,8 @@ export const shadow = {
   lg: "0 12px 32px rgba(0,0,0,.32)",
   glowRed: "0 0 0 3px rgba(217,27,91,.24)",
 };
-export const gHero  = `linear-gradient(135deg,#1a0a2e 0%,#321d3d 40%,${C.pmid} 100%)`;
+export const gHero  = `linear-gradient(135deg,#241531 0%,#3a2247 40%,${C.pmid} 100%)`;
 export const gRed   = `linear-gradient(135deg,${C.red},${C.rdark})`;
 export const gOr    = `linear-gradient(135deg,${C.orange},${C.odark})`;
 export const gPur   = `linear-gradient(135deg,${C.purple},${C.pdark})`;
-export const gDash  = `linear-gradient(135deg,#321d3d 0%,${C.pmid} 55%,${C.red}bb 140%)`;
+export const gDash  = `linear-gradient(135deg,#3a2247 0%,${C.pmid} 55%,${C.red}bb 140%)`;

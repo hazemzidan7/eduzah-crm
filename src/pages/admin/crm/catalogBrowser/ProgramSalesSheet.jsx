@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { Card, Btn } from "../../../../components/UI";
 import { C } from "../../../../theme";
 import { useAuth } from "../../../../context/AuthContext";
@@ -10,10 +10,19 @@ import { InlineText, InlineNumber, InlineDate, InlineSelect, InlineStatusSelect,
 import EngagementDetailModal from "../EngagementDetailModal";
 import AddStudentModal from "./AddStudentModal";
 
-const th = { textAlign: "start", fontSize: 10, letterSpacing: 0.3, textTransform: "uppercase", color: C.muted, fontWeight: 700, padding: "11px 12px", borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap", background: "#2c1a3a", position: "sticky", top: 0, zIndex: 2, boxShadow: "0 2px 6px rgba(0,0,0,.25)" };
+const th = { textAlign: "start", fontSize: 10, letterSpacing: 0.3, textTransform: "uppercase", color: "rgba(255,255,255,.88)", fontWeight: 700, padding: "11px 12px", borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap", background: "#2c1a3a", position: "sticky", top: 0, zIndex: 2, boxShadow: "0 2px 6px rgba(0,0,0,.25)" };
 const td = { padding: "7px 10px", fontSize: 12.5, borderBottom: "1px solid rgba(255,255,255,.06)", verticalAlign: "middle", whiteSpace: "nowrap" };
-const stickyTh = { ...th, insetInlineStart: 0, zIndex: 3 };
-const stickyTd = { ...td, position: "sticky", insetInlineStart: 0, background: "#331f42", zIndex: 1 };
+
+// Name + Phone are pinned while scrolling horizontally so a rep never loses
+// track of who they're looking at — they must be adjacent columns (nothing
+// unpinned in between) for their sticky offsets to stack correctly.
+const NAME_COL_W = 170;
+const PHONE_COL_W = 168;
+const stickyTh1 = { ...th, insetInlineStart: 0, zIndex: 3, width: NAME_COL_W, minWidth: NAME_COL_W };
+const stickyTd1 = { ...td, position: "sticky", insetInlineStart: 0, background: "#331f42", zIndex: 1, width: NAME_COL_W, minWidth: NAME_COL_W };
+const pinnedEdgeShadow = "4px 0 8px -2px rgba(0,0,0,.4)";
+const stickyTh2 = { ...th, insetInlineStart: NAME_COL_W, zIndex: 3, width: PHONE_COL_W, minWidth: PHONE_COL_W, boxShadow: `0 2px 6px rgba(0,0,0,.25), ${pinnedEdgeShadow}` };
+const stickyTd2 = { ...td, position: "sticky", insetInlineStart: NAME_COL_W, background: "#331f42", zIndex: 1, width: PHONE_COL_W, minWidth: PHONE_COL_W, boxShadow: pinnedEdgeShadow };
 /* Marks where the payment/financial column group begins, so Price→Confirmation
    reads as one visually grouped block instead of just more columns. */
 const thGroupStart = { ...th, borderInlineStart: "1px solid rgba(250,166,51,.35)" };
@@ -39,6 +48,24 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
   const [statusFilter, setStatusFilter] = useState("all");
   const [profileEngagementId, setProfileEngagementId] = useState(null);
   const [addingStudent, setAddingStudent] = useState(false);
+
+  // Shift+wheel already pans horizontally in most browsers, but not all
+  // mice/trackpads send it consistently — handle it explicitly so it always
+  // works. React's synthetic onWheel is registered passive (preventDefault
+  // is a no-op there), so this needs a real addEventListener with
+  // { passive: false } to actually stop the native vertical scroll.
+  const scrollRef = useRef(null);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onWheel = (ev) => {
+      if (!ev.shiftKey) return;
+      el.scrollLeft += ev.deltaY;
+      ev.preventDefault();
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
 
   const admins = users.filter((u) => u.role === "admin");
   const assigneeOptions = [
@@ -108,13 +135,17 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
         <Card style={{ padding: 40, textAlign: "center" }}><div style={{ color: C.muted }}>{tx("لا يوجد طلاب بعد", "No students yet")}</div></Card>
       ) : (
         <Card style={{ padding: 0, overflow: "hidden" }}>
-          <div style={{ overflowX: "auto", maxWidth: "100%", maxHeight: "72vh", overflowY: "auto" }}>
+          <div
+            ref={scrollRef}
+            className="edu-sheet-scroll"
+            style={{ overflowX: "scroll", maxWidth: "100%", maxHeight: "72vh", overflowY: "auto", scrollBehavior: "smooth" }}
+          >
             <table style={{ width: "auto", minWidth: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
               <thead>
                 <tr>
-                  <th style={stickyTh}>{tx("الاسم", "Name")}</th>
+                  <th style={stickyTh1}>{tx("الاسم", "Name")}</th>
+                  <th style={stickyTh2}>{tx("الهاتف", "Phone")}</th>
                   <th style={th}>{tx("تاريخ التسجيل", "Reg. Date")}</th>
-                  <th style={th}>{tx("الهاتف", "Phone")}</th>
                   <th style={th}>{tx("البريد", "Email")}</th>
                   <th style={th}>{tx("نوع الحضور", "Attendance")}</th>
                   <th style={th}>{tx("مصدر العميل", "Lead Source")}</th>
@@ -149,13 +180,10 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
 
                   return (
                     <tr key={e.id} className="edu-sheet-row">
-                      <td style={stickyTd}>
+                      <td style={stickyTd1}>
                         <InlineText value={customer?.fullName} onSave={(v) => updateCustomer(customer.id, { fullName: v })} minWidth={130} size={16} />
                       </td>
-                      <td style={td}>
-                        <InlineDate value={sp.registrationDate} onSave={(v) => patchStudentProfile(e, "registrationDate", v)} />
-                      </td>
-                      <td style={td}>
+                      <td style={stickyTd2}>
                         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                           <InlineText value={customer?.phone} onSave={(v) => updateCustomer(customer.id, { phone: v })} minWidth={100} size={12} />
                           {e164 && (
@@ -165,6 +193,9 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
                             </>
                           )}
                         </div>
+                      </td>
+                      <td style={td}>
+                        <InlineDate value={sp.registrationDate} onSave={(v) => patchStudentProfile(e, "registrationDate", v)} />
                       </td>
                       <td style={td}>
                         <InlineText value={customer?.email} onSave={(v) => updateCustomer(customer.id, { email: v })} minWidth={90} size={16} />

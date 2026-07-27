@@ -138,5 +138,5 @@ export default function ValidationSummaryStep({ wiz, onBack }) {
   );
 }
 
-const th = { textAlign: "start", fontSize: 10.5, letterSpacing: 0.5, textTransform: "uppercase", color: "#9ca3af", fontWeight: 700, padding: "10px 12px", borderBottom: "1px solid rgba(255,255,255,.14)" };
+const th = { textAlign: "start", fontSize: 10.5, letterSpacing: 0.5, textTransform: "uppercase", color: "rgba(255,255,255,.88)", fontWeight: 700, padding: "10px 12px", borderBottom: "1px solid rgba(255,255,255,.14)" };
 const td = { padding: "9px 12px", fontSize: 12.5, borderBottom: "1px solid rgba(255,255,255,.06)" };

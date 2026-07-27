@@ -22,8 +22,8 @@ export function Card({ children, style={}, onClick }) {
     <div onClick={onClick} onMouseEnter={()=>setH(true)} onMouseLeave={()=>setH(false)}
       style={{
         color:"rgba(248,250,252,.96)",
-        background:h?"rgba(103,45,134,.30)":"rgba(76,38,97,.55)",
-        border:`1px solid ${h?C.purple+"55":C.border}`,
+        background:h?"rgba(116,62,148,.72)":"rgba(94,50,120,.62)",
+        border:`1px solid ${h?C.purple+"66":"rgba(255,255,255,.18)"}`,
         borderRadius:radius.lg, padding:22, backdropFilter:"blur(12px)",
         boxShadow: h ? shadow.md : shadow.sm,
         transition:"background .2s, border-color .2s, box-shadow .25s",
@@ -44,7 +44,7 @@ export function PBar({ value, color=C.red, h=6 }) {
 }
 
 export function Badge({ children, color=C.red }) {
-  return <span style={{background:color+"33",color:"#fff",border:`1px solid ${color}80`,borderRadius:radius.pill,padding:"4px 11px",fontSize:11,fontWeight:800,whiteSpace:"nowrap",letterSpacing:0.3,display:"inline-block"}}>{children}</span>;
+  return <span style={{background:color+"40",color:"#fff",border:`1px solid ${color}b0`,borderRadius:radius.pill,padding:"4.5px 12px",fontSize:11.5,fontWeight:800,whiteSpace:"nowrap",letterSpacing:0.3,display:"inline-block",textShadow:"0 1px 2px rgba(0,0,0,.35)"}}>{children}</span>;
 }
 
 export function Stars({ n=5 }) {

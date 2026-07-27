@@ -6,7 +6,7 @@ import { useImportBatches } from "../../../../context/ImportBatchContext";
 import { useImportProfiles } from "../../../../context/ImportProfileContext";
 import { useImportCommit } from "../../../../hooks/useImportCommit";
 
-const th = { textAlign: "start", fontSize: 10.5, letterSpacing: 0.5, textTransform: "uppercase", color: C.muted, fontWeight: 700, padding: "12px 14px", borderBottom: `1px solid ${C.border}` };
+const th = { textAlign: "start", fontSize: 10.5, letterSpacing: 0.5, textTransform: "uppercase", color: "rgba(255,255,255,.88)", fontWeight: 700, padding: "12px 14px", borderBottom: `1px solid ${C.border}` };
 const td = { padding: "11px 14px", fontSize: 12.5, borderBottom: "1px solid rgba(255,255,255,.06)" };
 
 export default function ImportHistoryList({ programId }) {

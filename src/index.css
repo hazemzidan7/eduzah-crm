@@ -7,9 +7,9 @@
 /* ─── Design tokens ──────────────────────────────────────────── */
 :root {
   /* Page */
-  --page-bg:      #1a0f24;
+  --page-bg:      #241531;
   --page-text:    #f8fafc;
-  --page-muted:   rgba(248, 250, 252, 0.75);
+  --page-muted:   rgba(248, 250, 252, 0.82);
   --page-border:  rgba(255, 255, 255, 0.14);
   --surface:      rgba(50, 29, 61, 0.92);
   --surface-hover:rgba(62, 36, 78, 0.95);
@@ -17,7 +17,7 @@
   /* Inputs */
   --input-bg:          rgba(50, 29, 61, 0.55);
   --input-border:      rgba(255, 255, 255, 0.18);
-  --input-placeholder: rgba(255, 255, 255, 0.4);
+  --input-placeholder: rgba(255, 255, 255, 0.55);
   --select-option-bg:  #321d3d;
 
   /* Chip / filter pills */
@@ -298,6 +298,32 @@ input.edu-datetime-input { position: relative; }
 .pulse { animation: pulse 2s infinite; }
 
 /* ─── CRM Sales Sheet ────────────────────────────────────────── */
+/* A wide sheet needs a scrollbar reps can actually find and grab — force a
+   classic always-rendered (non auto-hiding) bar, oversized, in brand colors,
+   with smooth programmatic scrolling for the Shift+wheel handler in JS. */
+.edu-sheet-scroll {
+  scrollbar-width: auto;
+  scrollbar-color: var(--c-purple-mid) rgba(255,255,255,.06);
+}
+.edu-sheet-scroll::-webkit-scrollbar {
+  height: 16px;
+  width: 16px;
+}
+.edu-sheet-scroll::-webkit-scrollbar-track {
+  background: rgba(255,255,255,.06);
+}
+.edu-sheet-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--c-purple-mid);
+  border-radius: 999px;
+  border: 3px solid #2c1a3a;
+}
+.edu-sheet-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: var(--c-red);
+}
+.edu-sheet-scroll::-webkit-scrollbar-corner {
+  background: #2c1a3a;
+}
+
 .edu-sheet-row td { transition: background 0.12s; }
 .edu-sheet-row:hover td { background: rgba(103,45,134,.10); }
 .edu-sheet-row:nth-child(even) td { background: rgba(103,45,134,.05); }
