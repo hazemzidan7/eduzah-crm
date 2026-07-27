@@ -1,10 +1,7 @@
 import { useState } from "react";
 import { C } from "../../../theme";
 import { useLang } from "../../../context/LangContext";
-import CrmDashboardTab from "./CrmDashboardTab";
-import EngagementsListTab from "./EngagementsListTab";
-import PipelineTab from "./PipelineTab";
-import FollowUpsTab from "./FollowUpsTab";
+import CrmCatalogTab from "./catalogBrowser/CrmCatalogTab";
 import CrmSettingsTab from "./CrmSettingsTab";
 import ImportTab from "./import/ImportTab";
 
@@ -12,13 +9,10 @@ export default function CrmModule() {
   const { lang } = useLang();
   const ar = lang === "ar";
   const tx = (a, e) => (ar ? a : e);
-  const [crmSubTab, setCrmSubTab] = useState("leads");
+  const [crmSubTab, setCrmSubTab] = useState("catalog");
 
   const subTabs = [
-    { key: "dashboard", ar: "نظرة عامة", en: "Dashboard" },
-    { key: "leads", ar: "العملاء المحتملون", en: "Leads" },
-    { key: "pipeline", ar: "خط المبيعات", en: "Pipeline" },
-    { key: "followups", ar: "المتابعات", en: "Follow-ups" },
+    { key: "catalog", ar: "الكتالوج", en: "Catalog" },
     { key: "import", ar: "الاستيراد", en: "Import" },
     { key: "settings", ar: "الإعدادات", en: "Settings" },
   ];
@@ -40,10 +34,7 @@ export default function CrmModule() {
         </div>
       </div>
 
-      {crmSubTab === "dashboard" && <CrmDashboardTab />}
-      {crmSubTab === "leads" && <EngagementsListTab />}
-      {crmSubTab === "pipeline" && <PipelineTab />}
-      {crmSubTab === "followups" && <FollowUpsTab />}
+      {crmSubTab === "catalog" && <CrmCatalogTab />}
       {crmSubTab === "import" && <ImportTab />}
       {crmSubTab === "settings" && <CrmSettingsTab />}
     </div>

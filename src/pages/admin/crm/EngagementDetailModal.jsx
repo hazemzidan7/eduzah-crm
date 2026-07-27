@@ -53,6 +53,20 @@ function StudentProfileField({ fieldKey, value, ar, tx }) {
   );
 }
 
+// hasLaptop is tri-state (true/false/unknown) — a plain checkbox can't
+// represent "not answered", which is the common case for older imports.
+function HasLaptopEditor({ value, onChange, label }) {
+  const v = value === true ? "yes" : value === false ? "no" : "";
+  return (
+    <Select
+      label={label}
+      value={v}
+      onChange={(nv) => onChange(nv === "yes" ? true : nv === "no" ? false : null)}
+      options={[{ v: "", l: "—" }, { v: "yes", l: "Yes" }, { v: "no", l: "No" }]}
+    />
+  );
+}
+
 export default function EngagementDetailModal({ engagement, onClose }) {
   const { lang } = useLang();
   const ar = lang === "ar";
@@ -60,7 +74,7 @@ export default function EngagementDetailModal({ engagement, onClose }) {
   const { users } = useAuth();
   const { nodeById } = useCatalog();
   const { effectiveStatuses } = useLeadStatus();
-  const { customerById, updateEngagement, changeEngagementStatus, logEngagementActivity } = useCustomers();
+  const { customerById, updateCustomer, updateEngagement, changeEngagementStatus, logEngagementActivity } = useCustomers();
   const { fieldDefsForBusinessUnit } = useCustomFields();
 
   const customer = customerById(engagement.customerId);
@@ -74,6 +88,34 @@ export default function EngagementDetailModal({ engagement, onClose }) {
   const [activityText, setActivityText] = useState("");
   const [salesNotesDraft, setSalesNotesDraft] = useState(engagement.salesNotes || "");
   const [saving, setSaving] = useState(false);
+
+  // Editing Section 1 is a deliberate correction, not routine data entry —
+  // it stays import-driven by default, this is just an escape hatch for typos.
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [profileDraft, setProfileDraft] = useState(null);
+
+  const startEditProfile = () => {
+    setProfileDraft({
+      fullName: customer?.fullName || "", phone: customer?.phone || "",
+      email: customer?.email || "", whatsapp: customer?.whatsapp || "",
+      ...studentProfile,
+    });
+    setEditingProfile(true);
+  };
+  const cancelEditProfile = () => { setEditingProfile(false); setProfileDraft(null); };
+  const saveEditProfile = async () => {
+    setSaving(true);
+    try {
+      const { fullName, phone, email, whatsapp, ...sp } = profileDraft;
+      await updateCustomer(customer.id, { fullName, phone, email, whatsapp });
+      await updateEngagement(engagement.id, { studentProfile: sp });
+      setEditingProfile(false);
+      setProfileDraft(null);
+    } finally {
+      setSaving(false);
+    }
+  };
+  const setDraft = (key, value) => setProfileDraft((p) => ({ ...p, [key]: value }));
 
   const statusOptions = effectiveStatuses(engagement.businessUnitId).map((s) => ({ v: s.id, l: ar ? s.name_ar : s.name_en }));
   const assigneeOptions = [
@@ -116,25 +158,57 @@ export default function EngagementDetailModal({ engagement, onClose }) {
         </span>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px", marginBottom: 4 }}>
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 10.5, color: C.muted, fontWeight: 700, textTransform: "uppercase" }}>{tx("الهاتف", "Phone")}</div>
-          <div style={{ fontSize: 13 }}>{customer?.phone || "—"}</div>
+      {!editingProfile && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px", marginBottom: 4 }}>
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 10.5, color: C.muted, fontWeight: 700, textTransform: "uppercase" }}>{tx("الهاتف", "Phone")}</div>
+            <div style={{ fontSize: 13 }}>{customer?.phone || "—"}</div>
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 10.5, color: C.muted, fontWeight: 700, textTransform: "uppercase" }}>{tx("البريد الإلكتروني", "Email")}</div>
+            <div style={{ fontSize: 13 }}>{customer?.email || "—"}</div>
+          </div>
         </div>
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 10.5, color: C.muted, fontWeight: 700, textTransform: "uppercase" }}>{tx("البريد الإلكتروني", "Email")}</div>
-          <div style={{ fontSize: 13 }}>{customer?.email || "—"}</div>
-        </div>
+      )}
+
+      {/* ── Section 1: Student Profile — from registration/import; edit is a
+          deliberate correction escape hatch, not the normal way to fill this in ── */}
+      <div style={{ ...sectionTitleSx, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span>{tx("بيانات الطالب (من التسجيل)", "Student Profile (from registration)")}</span>
+        {!editingProfile && <Btn sm v="ghost" onClick={startEditProfile}>{tx("تعديل", "Edit")}</Btn>}
       </div>
 
-      {/* ── Section 1: Student Profile — read-only, from registration/import ── */}
-      <div style={sectionTitleSx}>{tx("بيانات الطالب (من التسجيل)", "Student Profile (from registration)")}</div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
-        {STUDENT_PROFILE_DISPLAY_ORDER.map((k) => (
-          <StudentProfileField key={k} fieldKey={k} value={studentProfile[k]} ar={ar} tx={tx} />
-        ))}
-      </div>
-      {customFieldDefs.length > 0 && (
+      {editingProfile ? (
+        <div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
+            <Input label={tx("الاسم الكامل", "Full Name")} value={profileDraft.fullName} onChange={(v) => setDraft("fullName", v)} />
+            <Input label={tx("الهاتف", "Phone")} value={profileDraft.phone} onChange={(v) => setDraft("phone", v)} />
+            <Input label={tx("البريد الإلكتروني", "Email")} value={profileDraft.email} onChange={(v) => setDraft("email", v)} />
+            <Input label={tx("واتساب", "WhatsApp")} value={profileDraft.whatsapp} onChange={(v) => setDraft("whatsapp", v)} />
+            <Input label={canonicalFieldLabel("registrationDate", ar ? "ar" : "en")} type="date" value={profileDraft.registrationDate || ""} onChange={(v) => setDraft("registrationDate", v || null)} />
+            <Input label={canonicalFieldLabel("governorate", ar ? "ar" : "en")} value={profileDraft.governorate || ""} onChange={(v) => setDraft("governorate", v)} />
+            <Input label={canonicalFieldLabel("educationalLevel", ar ? "ar" : "en")} value={profileDraft.educationalLevel || ""} onChange={(v) => setDraft("educationalLevel", v)} />
+            <Input label={canonicalFieldLabel("employmentStatus", ar ? "ar" : "en")} value={profileDraft.employmentStatus || ""} onChange={(v) => setDraft("employmentStatus", v)} />
+            <Input label={canonicalFieldLabel("attendanceType", ar ? "ar" : "en")} value={profileDraft.attendanceType || ""} onChange={(v) => setDraft("attendanceType", v)} />
+            <Input label={canonicalFieldLabel("courseLevel", ar ? "ar" : "en")} value={profileDraft.courseLevel || ""} onChange={(v) => setDraft("courseLevel", v)} />
+            <HasLaptopEditor label={canonicalFieldLabel("hasLaptop", ar ? "ar" : "en")} value={profileDraft.hasLaptop} onChange={(v) => setDraft("hasLaptop", v)} />
+            <Input label={canonicalFieldLabel("preferredContactMethod", ar ? "ar" : "en")} value={profileDraft.preferredContactMethod || ""} onChange={(v) => setDraft("preferredContactMethod", v)} />
+            <Input label={canonicalFieldLabel("leadSource", ar ? "ar" : "en")} value={profileDraft.leadSource || ""} onChange={(v) => setDraft("leadSource", v)} />
+          </div>
+          <Input label={canonicalFieldLabel("studentComment", ar ? "ar" : "en")} value={profileDraft.studentComment || ""} onChange={(v) => setDraft("studentComment", v)} rows={2} />
+          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            <Btn sm v="ghost" onClick={cancelEditProfile}>{tx("إلغاء", "Cancel")}</Btn>
+            <Btn sm v="primary" disabled={saving} onClick={saveEditProfile}>{tx("حفظ", "Save")}</Btn>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
+          {STUDENT_PROFILE_DISPLAY_ORDER.map((k) => (
+            <StudentProfileField key={k} fieldKey={k} value={studentProfile[k]} ar={ar} tx={tx} />
+          ))}
+        </div>
+      )}
+      {!editingProfile && customFieldDefs.length > 0 && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
           {customFieldDefs.map((def) => (
             <div key={def.id} style={{ marginBottom: 12 }}>
