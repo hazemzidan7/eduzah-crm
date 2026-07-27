@@ -318,6 +318,65 @@ input.edu-datetime-input { position: relative; }
   border-color: rgba(255,92,122,.55) !important;
 }
 
+/* ─── Catalog / Program breadcrumb ───────────────────────────── */
+.edu-crumb-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--page-border);
+}
+.edu-crumb-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid var(--page-border);
+  border-radius: 999px;
+  padding: 7px 14px 7px 12px;
+  color: #fff;
+  font-family: var(--font);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, transform .15s;
+}
+.edu-crumb-back:hover {
+  background: rgba(255,255,255,.12);
+  border-color: rgba(255,255,255,.28);
+}
+.edu-crumb-back:active { transform: translateY(1px); }
+.edu-crumb-back .edu-crumb-arrow { font-size: 14px; line-height: 1; }
+
+.edu-crumb-trail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+.edu-crumb-sep { color: var(--page-muted); opacity: .45; }
+.edu-crumb-node {
+  color: var(--page-muted);
+  font-weight: 600;
+}
+.edu-crumb-node.is-current {
+  color: #fff;
+  font-weight: 800;
+}
+.edu-crumb-node-btn {
+  background: none;
+  border: none;
+  padding: 3px 6px;
+  border-radius: 6px;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.edu-crumb-node-btn:hover { background: rgba(255,255,255,.08); color: #fff; }
+
 /* ─── Focus-visible ring (keyboard users) ────────────────────── */
 button:focus-visible,
 input:focus-visible,

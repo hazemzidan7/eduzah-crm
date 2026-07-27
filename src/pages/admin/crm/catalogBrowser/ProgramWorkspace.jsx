@@ -64,15 +64,17 @@ export default function ProgramWorkspace({ programId, onBack }) {
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
-        <button onClick={onBack} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 12.5, padding: "5px 10px" }}>
-          ← {tx("الكتالوج", "Catalog")}
+      <div className="edu-crumb-bar">
+        <button onClick={onBack} className="edu-crumb-back">
+          <span className="edu-crumb-arrow" aria-hidden>{ar ? "→" : "←"}</span>
+          {tx("الكتالوج", "Catalog")}
         </button>
-        <span style={{ color: C.muted, fontSize: 12.5 }}>
-          {businessUnit ? (ar ? businessUnit.name_ar : businessUnit.name_en) : ""} › {program.name_en}
-        </span>
+        <div className="edu-crumb-trail">
+          {businessUnit && <span className="edu-crumb-node">{ar ? businessUnit.name_ar : businessUnit.name_en}</span>}
+          <span className="edu-crumb-sep">›</span>
+          <span className="edu-crumb-node is-current">{program.name_en}</span>
+        </div>
       </div>
-      <h2 style={{ fontWeight: 900, fontSize: 18, margin: "4px 0 14px" }}>{program.name_en}</h2>
 
       {/* ── Stats ── */}
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>

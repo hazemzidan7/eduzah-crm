@@ -35,37 +35,27 @@ export default function CrmCatalogTab() {
 
   return (
     <div>
-      <div style={{ marginBottom: 4 }}>
+      <div style={{ marginBottom: 14 }}>
         <h2 style={{ fontWeight: 900, fontSize: 18, margin: 0 }}>{tx("الكتالوج", "Catalog")}</h2>
         <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
           {tx("وحدة العمل ← البرنامج", "Business Unit → Program")}
         </div>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", margin: "14px 0" }}>
-        <button onClick={() => setBusinessUnitId(null)} style={crumbSx(!businessUnit)}>
+      <div className="edu-crumb-bar">
+        <button onClick={() => setBusinessUnitId(null)} className="edu-crumb-back" disabled={!businessUnit} style={!businessUnit ? { opacity: .5, cursor: "default" } : undefined}>
+          <span className="edu-crumb-arrow" aria-hidden>🏠</span>
           {tx("الرئيسية", "Home")}
         </button>
         {businessUnit && (
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ color: C.muted }}>›</span>
-            <button style={crumbSx(true)}>{ar ? businessUnit.name_ar : businessUnit.name_en}</button>
-          </span>
+          <div className="edu-crumb-trail">
+            <span className="edu-crumb-sep">›</span>
+            <span className="edu-crumb-node is-current">{ar ? businessUnit.name_ar : businessUnit.name_en}</span>
+          </div>
         )}
       </div>
 
       <CatalogBrowserGrid nodes={nodes} onOpenNode={openNode} ar={ar} tx={tx} />
     </div>
   );
-}
-
-function crumbSx(active) {
-  return {
-    background: active ? "rgba(255,255,255,.1)" : "none",
-    border: "none", cursor: "pointer",
-    color: active ? "#fff" : C.muted,
-    fontWeight: active ? 800 : 600, fontSize: 12.5,
-    fontFamily: "'Cairo',sans-serif",
-    padding: "5px 10px", borderRadius: 8,
-  };
 }
