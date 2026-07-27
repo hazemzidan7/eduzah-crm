@@ -4,6 +4,7 @@ import {
   doc,
   addDoc,
   updateDoc,
+  deleteDoc,
   setDoc,
   getDoc,
   getDocs,
@@ -80,6 +81,20 @@ export function CatalogProvider({ children }) {
         const snap = await getDocs(collection(db, "catalogNodes"));
         if (snap.empty) {
           const now = new Date().toISOString();
+          // Recursive so the seed shape (Business Unit -> Category (optional,
+          // any depth) -> Program) matches exactly what the Catalog UI itself
+          // can produce — no separate one-level-only seeding logic to drift.
+          const seedChildren = async (parentRef, parentPath, defs) => {
+            for (const [order, def] of defs.entries()) {
+              const ref = await addDoc(collection(db, "catalogNodes"), {
+                type: def.type || "category", name_ar: def.name_ar, name_en: def.name_en,
+                code: "", icon: "", color: "", description: "",
+                parentId: parentRef.id, path: parentPath, order, isActive: true, archivedAt: null,
+                createdAt: now, updatedAt: now,
+              });
+              if (def.children?.length) await seedChildren(ref, [...parentPath, ref.id], def.children);
+            }
+          };
           for (const [buOrder, bu] of CATALOG_SEED.entries()) {
             const buRef = await addDoc(collection(db, "catalogNodes"), {
               type: "business_unit", name_ar: bu.name_ar, name_en: bu.name_en,
@@ -87,14 +102,7 @@ export function CatalogProvider({ children }) {
               parentId: null, path: [], order: buOrder, isActive: true, archivedAt: null,
               createdAt: now, updatedAt: now,
             });
-            for (const [childOrder, child] of bu.children.entries()) {
-              await addDoc(collection(db, "catalogNodes"), {
-                type: "category", name_ar: child.name_ar, name_en: child.name_en,
-                code: "", icon: "", color: "", description: "",
-                parentId: buRef.id, path: [buRef.id], order: childOrder, isActive: true, archivedAt: null,
-                createdAt: now, updatedAt: now,
-              });
-            }
+            if (bu.children?.length) await seedChildren(buRef, [buRef.id], bu.children);
           }
         }
         await markSeeded({ catalogSeeded: true });
@@ -215,11 +223,21 @@ export function CatalogProvider({ children }) {
     await updateDoc(doc(db, "catalogNodes", id), { isActive: true, archivedAt: null, updatedAt: new Date().toISOString() });
   };
 
+  // ── DELETE (permanent) — leaf nodes only ─────────────
+  // Archive is the normal way to retire a node (reversible, keeps history).
+  // Delete is for genuine mistakes — a node created by accident, never used.
+  // Restricted to nodes with zero children (active or archived) so a delete
+  // can never silently orphan a whole subtree; move or delete the children first.
+  const deleteNode = async (id) => {
+    if (allChildrenOf(id).length > 0) throw new Error("HAS_CHILDREN");
+    await deleteDoc(doc(db, "catalogNodes", id));
+  };
+
   return (
     <CatalogCtx.Provider value={{
       nodes, nodeTypes, loading,
       businessUnits, allBusinessUnits, childrenOf, allChildrenOf, nodeById, descendantsOf,
-      addNodeType, addNode, updateNode, moveNode, archiveNode, restoreNode,
+      addNodeType, addNode, updateNode, moveNode, archiveNode, restoreNode, deleteNode,
     }}>
       {children}
     </CatalogCtx.Provider>

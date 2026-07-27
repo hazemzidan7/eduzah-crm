@@ -10,16 +10,19 @@ import CatalogNodeModal from "./CatalogNodeModal";
  * Expand state is controlled from CatalogManager (not local), so Expand All /
  * Collapse All and search-driven auto-expand can all share one source of truth. */
 export default function CatalogNodeRow({ node, depth, expandedIds, onToggleExpand, showArchived, visibleIds }) {
-  const { nodeTypes, childrenOf, allChildrenOf, archiveNode, restoreNode } = useCatalog();
+  const { nodeTypes, childrenOf, allChildrenOf, archiveNode, restoreNode, deleteNode } = useCatalog();
   const { lang } = useLang();
   const ar = lang === "ar";
   const tx = (a, e) => (ar ? a : e);
 
   const [modal, setModal] = useState(null); // "addChild" | "edit" | null
   const [archiveState, setArchiveState] = useState(null); // null | {activeDescendants: [...]}
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   const rawKids = showArchived ? allChildrenOf(node.id) : childrenOf(node.id);
   const kids = visibleIds ? rawKids.filter((k) => visibleIds.has(k.id)) : rawKids;
+  const hasAnyChildren = allChildrenOf(node.id).length > 0;
   // A search/filter in progress forces full expansion of whatever's visible.
   const expanded = visibleIds ? true : expandedIds.has(node.id);
 
@@ -36,6 +39,17 @@ export default function CatalogNodeRow({ node, depth, expandedIds, onToggleExpan
       } else {
         setArchiveState({ error: e.message });
       }
+    }
+  };
+
+  const tryDelete = async () => {
+    try {
+      await deleteNode(node.id);
+      setConfirmDelete(false);
+    } catch (e) {
+      setDeleteError(e.message === "HAS_CHILDREN"
+        ? tx("لا يمكن حذف عنصر له عناصر فرعية — احذف أو انقل الفرعية أولاً", "Cannot delete a node that has children — delete or move its children first")
+        : e.message);
     }
   };
 
@@ -81,6 +95,9 @@ export default function CatalogNodeRow({ node, depth, expandedIds, onToggleExpan
           ) : (
             <Btn sm v="success" onClick={() => restoreNode(node.id)}>{tx("استعادة", "Restore")}</Btn>
           )}
+          {!hasAnyChildren && (
+            <Btn sm v="danger" onClick={() => { setDeleteError(""); setConfirmDelete(true); }}>{tx("حذف", "Delete")}</Btn>
+          )}
         </div>
       </div>
 
@@ -114,6 +131,22 @@ export default function CatalogNodeRow({ node, depth, expandedIds, onToggleExpan
       {archiveState?.error && (
         <Modal title={tx("خطأ", "Error")} onClose={() => setArchiveState(null)}>
           <p style={{ fontSize: 13, color: "#f87171" }}>{archiveState.error}</p>
+        </Modal>
+      )}
+
+      {confirmDelete && (
+        <Modal title={tx("حذف نهائي", "Permanent Delete")} onClose={() => setConfirmDelete(false)}>
+          <p style={{ fontSize: 13, color: C.muted, marginBottom: 12 }}>
+            {tx(
+              `سيتم حذف "${node.name_ar || node.name_en}" نهائياً ولا يمكن التراجع عن ذلك. للاحتفاظ بالسجل، استخدم "أرشفة" بدلاً من ذلك.`,
+              `"${node.name_en || node.name_ar}" will be permanently deleted — this cannot be undone. To keep a record, use Archive instead.`,
+            )}
+          </p>
+          {deleteError && <p style={{ fontSize: 12, color: "#f87171", marginBottom: 12 }}>{deleteError}</p>}
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <Btn v="ghost" onClick={() => setConfirmDelete(false)}>{tx("إلغاء", "Cancel")}</Btn>
+            <Btn v="danger" onClick={tryDelete}>{tx("حذف نهائي", "Delete permanently")}</Btn>
+          </div>
         </Modal>
       )}
     </div>
