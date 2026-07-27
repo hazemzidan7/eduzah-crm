@@ -701,9 +701,9 @@ export function ForgotPasswordPage() {
 
   const iconCircle = (child) => (
     <div style={{
-      width: 56, height: 56, borderRadius: "50%", background: "rgba(16,185,129,.15)",
-      border: "2px solid rgba(16,185,129,.4)", display: "flex", alignItems: "center", justifyContent: "center",
-      margin: "0 auto 16px", fontSize: 22, fontWeight: 900, color: "#10b981",
+      width: 56, height: 56, borderRadius: "50%", background: "rgba(52,211,153,.15)",
+      border: "2px solid rgba(52,211,153,.4)", display: "flex", alignItems: "center", justifyContent: "center",
+      margin: "0 auto 16px", fontSize: 22, fontWeight: 900, color: C.success,
     }}>{child}</div>
   );
 
@@ -904,7 +904,7 @@ export function ResetPasswordPage() {
           <p style={{ color: C.danger, textAlign: "center", lineHeight: 1.7 }}>{ar ? "رابط غير صالح. افتح الرابط من البريد الإلكتروني." : "Invalid link. Open the link from your email."}</p>
         ) : ok ? (
           <>
-            <div style={{ width: 56, height: 56, borderRadius: "50%", background: "rgba(16,185,129,.15)", border: "2px solid rgba(16,185,129,.4)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 24, color: "#10b981", fontWeight: 900 }}>✓</div>
+            <div style={{ width: 56, height: 56, borderRadius: "50%", background: "rgba(52,211,153,.15)", border: "2px solid rgba(52,211,153,.4)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 24, color: C.success, fontWeight: 900 }}>✓</div>
             <h1 style={{ fontSize: 20, marginBottom: 12, textAlign: "center" }}>{ar ? "تم التحديث" : "Password updated"}</h1>
             <Btn children={ar ? "تسجيل الدخول" : "Login"} full onClick={() => navigate("/login")} style={{ boxShadow: "0 8px 25px rgba(217,27,91,.35)" }} />
           </>

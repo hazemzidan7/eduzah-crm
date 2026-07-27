@@ -22,9 +22,9 @@ export function Card({ children, style={}, onClick }) {
     <div onClick={onClick} onMouseEnter={()=>setH(true)} onMouseLeave={()=>setH(false)}
       style={{
         color:"rgba(248,250,252,.96)",
-        background:h?"rgba(103,45,134,.22)":"rgba(50,29,61,.58)",
+        background:h?"rgba(103,45,134,.30)":"rgba(76,38,97,.55)",
         border:`1px solid ${h?C.purple+"55":C.border}`,
-        borderRadius:radius.lg, padding:20, backdropFilter:"blur(12px)",
+        borderRadius:radius.lg, padding:22, backdropFilter:"blur(12px)",
         boxShadow: h ? shadow.md : shadow.sm,
         transition:"background .2s, border-color .2s, box-shadow .25s",
         cursor:onClick?"pointer":"default",
@@ -165,7 +165,7 @@ export function DarkTimeInput({ value, onChange, style = {}, ...rest }) {
 const fieldBaseSx = (error, focused) => ({
   background:"rgba(255,255,255,.055)",
   border:`1.5px solid ${error?C.danger:focused?C.red:C.border}`,
-  borderRadius:radius.md, padding:"10px 13px",
+  borderRadius:radius.md, padding:"11px 14px",
   color:"#fff", fontFamily:font, fontSize:13, outline:"none",
   width:"100%", boxSizing:"border-box",
   boxShadow: focused ? shadow.glowRed : "none",
@@ -177,7 +177,7 @@ export function Input({ label, value, onChange, type="text", placeholder="", err
   const style = fieldBaseSx(error, f);
   const isPicker = type === "date" || type === "time";
   return (
-    <div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:14}}>
+    <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:16}}>
       {label && <label style={{fontSize:12,fontWeight:700,color:C.muted}}>{label}</label>}
       {rows
         ? <textarea value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} rows={rows} onFocus={()=>setF(true)} onBlur={()=>setF(false)} style={{...style,resize:"vertical"}}/>
@@ -200,10 +200,10 @@ export function Input({ label, value, onChange, type="text", placeholder="", err
 export function Select({ label, value, onChange, options=[] }) {
   const [f,setF] = useState(false);
   return (
-    <div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:14}}>
+    <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:16}}>
       {label && <label style={{fontSize:12,fontWeight:700,color:C.muted}}>{label}</label>}
       <select value={value} onChange={e=>onChange(e.target.value)} onFocus={()=>setF(true)} onBlur={()=>setF(false)}
-        style={{background:"#2a1540",border:`1.5px solid ${f?C.red:C.border}`,borderRadius:radius.md,padding:"10px 13px",color:"#fff",fontFamily:font,fontSize:13,outline:"none",cursor:"pointer",boxShadow:f?shadow.glowRed:"none",transition:"border-color .18s, box-shadow .18s"}}>
+        style={{background:"#2a1540",border:`1.5px solid ${f?C.red:C.border}`,borderRadius:radius.md,padding:"11px 14px",color:"#fff",fontFamily:font,fontSize:13,outline:"none",cursor:"pointer",boxShadow:f?shadow.glowRed:"none",transition:"border-color .18s, box-shadow .18s"}}>
         {options.map(o => <option key={o.v} value={o.v} style={{background:"#321d3d"}}>{o.l}</option>)}
       </select>
     </div>
@@ -213,8 +213,8 @@ export function Select({ label, value, onChange, options=[] }) {
 export function Modal({ children, onClose, title }) {
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(10,4,18,.78)",backdropFilter:"blur(3px)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={onClose}>
-      <div style={{background:"#2a1540",border:`1px solid ${C.border}`,borderRadius:radius.lg,padding:24,maxWidth:520,width:"100%",maxHeight:"88vh",overflow:"auto",boxShadow:shadow.lg,animation:"fadeUp .22s ease"}} onClick={e=>e.stopPropagation()}>
-        {title && <div style={{fontWeight:800,fontSize:16,marginBottom:18,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      <div style={{background:"#2a1540",border:`1px solid ${C.border}`,borderRadius:radius.lg,padding:26,maxWidth:520,width:"100%",maxHeight:"88vh",overflow:"auto",boxShadow:shadow.lg,animation:"fadeUp .22s ease"}} onClick={e=>e.stopPropagation()}>
+        {title && <div style={{fontWeight:800,fontSize:16,marginBottom:20,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           {title}
           <button style={{background:"rgba(255,255,255,.06)",border:"none",borderRadius:radius.pill,width:28,height:28,color:C.muted,fontSize:15,cursor:"pointer",fontFamily:font,transition:"background .15s, color .15s"}}
             onMouseEnter={(e)=>{e.currentTarget.style.background="rgba(255,255,255,.14)";e.currentTarget.style.color="#fff";}}

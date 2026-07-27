@@ -20,35 +20,37 @@ const LeadStatusCtx = createContext(null);
 // through WhatsApp Sent) and pipeline stages (Thinking through Lost) share
 // one vocabulary/one field, there's no separate contactStatus concept anymore.
 const GLOBAL_STATUS_SEED = [
-  { key: "new", name_ar: "جديد", name_en: "New", color: "#94a3b8", isDefault: true },
-  { key: "not_contacted", name_ar: "لم يتم التواصل", name_en: "Not Contacted", color: "#9ca3af" },
-  { key: "called", name_ar: "تم الاتصال", name_en: "Called", color: "#60a5fa" },
-  { key: "no_answer", name_ar: "لا يوجد رد", name_en: "No Answer", color: "#fbbf24" },
-  { key: "wrong_number", name_ar: "رقم خاطئ", name_en: "Wrong Number", color: "#fb7185" },
-  { key: "whatsapp_sent", name_ar: "تم إرسال واتساب", name_en: "WhatsApp Sent", color: "#25d366" },
-  { key: "thinking", name_ar: "بيفكر", name_en: "Thinking", color: "#a78bfa" },
-  { key: "interested", name_ar: "مهتم", name_en: "Interested", color: "#ffb84d" },
-  { key: "follow_up", name_ar: "متابعة", name_en: "Follow-up", color: "#22d3ee" },
-  { key: "booked", name_ar: "تم الحجز", name_en: "Booked", color: "#34d399", isTerminal: true },
-  { key: "paid", name_ar: "تم الدفع", name_en: "Paid", color: "#059669", isTerminal: true },
-  { key: "lost", name_ar: "ضائع", name_en: "Lost", color: "#f87171", isTerminal: true },
+  { key: "new", name_ar: "جديد", name_en: "New", color: "#672d86", isDefault: true },
+  { key: "not_contacted", name_ar: "لم يتم التواصل", name_en: "Not Contacted", color: "#6b7280" },
+  { key: "called", name_ar: "تم الاتصال", name_en: "Called", color: "#94a3b8" },
+  { key: "no_answer", name_ar: "لا يوجد رد", name_en: "No Answer", color: "#94a3b8" },
+  { key: "wrong_number", name_ar: "رقم خاطئ", name_en: "Wrong Number", color: "#6b7280" },
+  { key: "whatsapp_sent", name_ar: "تم إرسال واتساب", name_en: "WhatsApp Sent", color: "#94a3b8" },
+  { key: "thinking", name_ar: "بيفكر", name_en: "Thinking", color: "#faa633" },
+  { key: "interested", name_ar: "مهتم", name_en: "Interested", color: "#d91b5b" },
+  { key: "follow_up", name_ar: "متابعة", name_en: "Follow-up", color: "#3b82f6" },
+  { key: "booked", name_ar: "تم الحجز", name_en: "Booked", color: "#22c55e", isTerminal: true },
+  { key: "paid", name_ar: "تم الدفع", name_en: "Paid", color: "#10b981", isTerminal: true },
+  { key: "lost", name_ar: "ضائع", name_en: "Lost", color: "#6b7280", isTerminal: true },
 ];
 
 // Business-Unit-specific statuses, seeded once, matched to real catalogNodes
 // business_unit docs by name_en at seed time (ids are Firestore-generated,
 // never hardcoded). A unit not found in the catalog yet is skipped, not fatal.
+// Colors follow the same family as the global seed: orange for "waiting on
+// someone" states, blue for "scheduled" states.
 const BUSINESS_UNIT_STATUS_SEED = {
   Language: [
-    { key: "placement_test", name_ar: "اختبار تحديد المستوى", name_en: "Placement Test" },
-    { key: "waiting_level_assessment", name_ar: "بانتظار تقييم المستوى", name_en: "Waiting Level Assessment" },
+    { key: "placement_test", name_ar: "اختبار تحديد المستوى", name_en: "Placement Test", color: "#faa633" },
+    { key: "waiting_level_assessment", name_ar: "بانتظار تقييم المستوى", name_en: "Waiting Level Assessment", color: "#faa633" },
   ],
   Corporate: [
-    { key: "waiting_contract", name_ar: "بانتظار العقد", name_en: "Waiting Contract" },
-    { key: "meeting_scheduled", name_ar: "تم تحديد موعد اجتماع", name_en: "Meeting Scheduled" },
+    { key: "waiting_contract", name_ar: "بانتظار العقد", name_en: "Waiting Contract", color: "#faa633" },
+    { key: "meeting_scheduled", name_ar: "تم تحديد موعد اجتماع", name_en: "Meeting Scheduled", color: "#3b82f6" },
   ],
   Technology: [
-    { key: "technical_interview", name_ar: "مقابلة تقنية", name_en: "Technical Interview" },
-    { key: "waiting_batch", name_ar: "بانتظار الدفعة", name_en: "Waiting Batch" },
+    { key: "technical_interview", name_ar: "مقابلة تقنية", name_en: "Technical Interview", color: "#3b82f6" },
+    { key: "waiting_batch", name_ar: "بانتظار الدفعة", name_en: "Waiting Batch", color: "#faa633" },
   ],
 };
 

@@ -63,7 +63,7 @@ export default function ImportHistoryList({ programId }) {
           </thead>
           <tbody>
             {batches.map((b) => (
-              <tr key={b.id}>
+              <tr key={b.id} className="edu-sheet-row">
                 <td style={td}>{b.fileName}</td>
                 <td style={td}>{profileById(b.importProfileId)?.name || "—"} (v{b.importProfileVersion})</td>
                 <td style={td}>{b.importedByName || "—"}</td>

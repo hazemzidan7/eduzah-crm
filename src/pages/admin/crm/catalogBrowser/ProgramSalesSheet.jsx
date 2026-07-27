@@ -10,10 +10,14 @@ import { InlineText, InlineNumber, InlineDate, InlineSelect, InlineStatusSelect,
 import EngagementDetailModal from "../EngagementDetailModal";
 import AddStudentModal from "./AddStudentModal";
 
-const th = { textAlign: "start", fontSize: 10, letterSpacing: 0.3, textTransform: "uppercase", color: C.muted, fontWeight: 700, padding: "10px 10px", borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap", background: "#241536", position: "sticky", top: 0, zIndex: 2 };
-const td = { padding: "5px 8px", fontSize: 12.5, borderBottom: "1px solid rgba(255,255,255,.06)", verticalAlign: "middle", whiteSpace: "nowrap" };
+const th = { textAlign: "start", fontSize: 10, letterSpacing: 0.3, textTransform: "uppercase", color: C.muted, fontWeight: 700, padding: "11px 12px", borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap", background: "#2c1a3a", position: "sticky", top: 0, zIndex: 2, boxShadow: "0 2px 6px rgba(0,0,0,.25)" };
+const td = { padding: "7px 10px", fontSize: 12.5, borderBottom: "1px solid rgba(255,255,255,.06)", verticalAlign: "middle", whiteSpace: "nowrap" };
 const stickyTh = { ...th, insetInlineStart: 0, zIndex: 3 };
-const stickyTd = { ...td, position: "sticky", insetInlineStart: 0, background: "#2a1540", zIndex: 1 };
+const stickyTd = { ...td, position: "sticky", insetInlineStart: 0, background: "#331f42", zIndex: 1 };
+/* Marks where the payment/financial column group begins, so Price→Confirmation
+   reads as one visually grouped block instead of just more columns. */
+const thGroupStart = { ...th, borderInlineStart: "1px solid rgba(250,166,51,.35)" };
+const tdGroupStart = { ...td, borderInlineStart: "1px solid rgba(250,166,51,.18)" };
 
 function amountPaidOf(payment) {
   const p = payment || {};
@@ -116,7 +120,7 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
                   <th style={th}>{tx("مصدر العميل", "Lead Source")}</th>
                   <th style={th}>{tx("حالة التواصل", "Contact Status")}</th>
                   <th style={th}>{tx("ملاحظات المبيعات", "Sales Notes")}</th>
-                  <th style={th}>{tx("سعر الكورس", "Price")}</th>
+                  <th style={thGroupStart}>{tx("سعر الكورس", "Price")}</th>
                   <th style={th}>{tx("خطة الدفع", "Plan")}</th>
                   <th style={th}>{tx("العربون", "Deposit")}</th>
                   <th style={th}>{tx("قسط 1", "Inst. 1")}</th>
@@ -177,7 +181,7 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
                       <td style={td}>
                         <InlineText value={e.salesNotes} onSave={(v) => updateEngagement(e.id, { salesNotes: v })} placeholder={tx("ملاحظة...", "Note...")} minWidth={130} size={16} />
                       </td>
-                      <td style={td}>
+                      <td style={tdGroupStart}>
                         <InlineNumber value={payment.coursePrice} onSave={(v) => patchPayment(e, "coursePrice", v)} />
                       </td>
                       <td style={td}>

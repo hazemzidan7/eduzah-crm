@@ -33,10 +33,11 @@
   --nav-border:     rgba(255, 255, 255, 0.10);
 
   /* Brand colours (mirrors theme.js) */
-  --c-red:     #ff5c7a;
-  --c-red-dark:#e8486a;
-  --c-orange:  #ffb84d;
-  --c-purple:  #7d3d9e;
+  --c-red:     #d91b5b;
+  --c-red-dark:#b81650;
+  --c-orange:  #faa633;
+  --c-purple:  #672d86;
+  --c-purple-mid: #844bab;
   --c-success: #34d399;
   --c-danger:  #f87171;
   --c-warning: #fbbf24;
@@ -135,19 +136,19 @@ input.edu-datetime-input { position: relative; }
 .btn-base:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-base:not(:disabled):active { transform: translateY(1px); }
 
-.btn-sm  { padding: 5px 14px;  font-size: 12px; }
-.btn-md  { padding: 9px 22px;  font-size: 13px; }
-.btn-lg  { padding: 13px 28px; font-size: 15px; border-radius: 14px; }
+.btn-sm  { padding: 6px 15px;  font-size: 12px; }
+.btn-md  { padding: 10px 24px; font-size: 13px; }
+.btn-lg  { padding: 14px 30px; font-size: 15px; border-radius: 14px; }
 .btn-full { width: 100%; }
 
 .btn-primary { background: var(--c-red);    color: #fff; }
-.btn-primary:not(:disabled):hover { background: var(--c-red-dark); transform: translateY(-1px); }
+.btn-primary:not(:disabled):hover { background: var(--c-red-dark); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(217,27,91,.35); }
 
 .btn-outline { background: transparent; color: #fff; border: 1.5px solid rgba(255,255,255,.2); }
-.btn-outline:not(:disabled):hover { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.4); }
+.btn-outline:not(:disabled):hover { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.4); transform: translateY(-1px); }
 
 .btn-orange { background: var(--c-orange); color: #321d3d; }
-.btn-orange:not(:disabled):hover { background: #e8920f; transform: translateY(-1px); }
+.btn-orange:not(:disabled):hover { background: #e0901f; transform: translateY(-1px); }
 
 .btn-ghost  { background: transparent; color: rgba(255,255,255,.72); border: none; }
 .btn-ghost:not(:disabled):hover  { color: #fff; }
@@ -159,7 +160,7 @@ input.edu-datetime-input { position: relative; }
 .btn-success:not(:disabled):hover { background: #059669; transform: translateY(-1px); }
 
 .btn-purple  { background: var(--c-purple); color: #fff; }
-.btn-purple:not(:disabled):hover { background: #5b21b6; transform: translateY(-1px); }
+.btn-purple:not(:disabled):hover { background: #522a6b; transform: translateY(-1px); }
 
 /* Google OAuth button */
 .btn-google {
@@ -211,8 +212,8 @@ input.edu-datetime-input { position: relative; }
 }
 .nav-link.active {
   color:      var(--c-red);
-  background: rgba(255, 92, 122, 0.12);
-  border-color: rgba(255, 92, 122, 0.25);
+  background: rgba(217, 27, 91, 0.12);
+  border-color: rgba(217, 27, 91, 0.25);
 }
 
 /* ─── Streak badge ───────────────────────────────────────────── */
@@ -220,13 +221,13 @@ input.edu-datetime-input { position: relative; }
   display:      inline-flex;
   align-items:  center;
   gap:          4px;
-  background:   rgba(255, 130, 0, 0.15);
-  border:       1px solid rgba(255, 130, 0, 0.4);
+  background:   rgba(250, 166, 51, 0.15);
+  border:       1px solid rgba(250, 166, 51, 0.4);
   border-radius:20px;
   padding:      4px 12px;
   font-size:    14px;
   font-weight:  800;
-  color:        #ffb84d;
+  color:        var(--c-orange);
   font-family:  var(--font);
 }
 
@@ -240,14 +241,14 @@ input.edu-datetime-input { position: relative; }
   bottom:       28px;
   inset-inline-end: 28px;
   z-index:      9500;
-  background:   linear-gradient(135deg, #ffb84d, #ff9d00);
+  background:   linear-gradient(135deg, var(--c-orange), #e0901f);
   color:        #1a0a2e;
   border-radius:40px;
   padding:      10px 22px;
   font-weight:  800;
   font-size:    16px;
   font-family:  var(--font);
-  box-shadow:   0 6px 24px rgba(255,184,77,.45);
+  box-shadow:   0 6px 24px rgba(250,166,51,.45);
   animation:    xpSlideUp 0.3s ease;
   pointer-events: none;
 }
@@ -266,7 +267,7 @@ input.edu-datetime-input { position: relative; }
 }
 .levelup-card {
   background:    linear-gradient(135deg, #1a0a2e, #321d3d);
-  border:        2px solid #ffb84d;
+  border:        2px solid var(--c-orange);
   border-radius: 24px;
   padding:       44px 52px;
   text-align:    center;
@@ -298,24 +299,29 @@ input.edu-datetime-input { position: relative; }
 
 /* ─── CRM Sales Sheet ────────────────────────────────────────── */
 .edu-sheet-row td { transition: background 0.12s; }
-.edu-sheet-row:hover td { background: rgba(255,255,255,.045); }
-.edu-sheet-row:nth-child(even) td { background: rgba(255,255,255,.015); }
-.edu-sheet-row:nth-child(even):hover td { background: rgba(255,255,255,.05); }
+.edu-sheet-row:hover td { background: rgba(103,45,134,.10); }
+.edu-sheet-row:nth-child(even) td { background: rgba(103,45,134,.05); }
+.edu-sheet-row:nth-child(even):hover td { background: rgba(103,45,134,.16); }
 
 /* Inline sheet inputs stay invisible until interacted with, so the table
-   reads as data first and only reveals itself as editable on hover/focus. */
+   reads as data first and only reveals itself as editable on hover/focus.
+   A faint underline hints a cell is editable before it's focused. */
 .edu-sheet-row input,
 .edu-sheet-row select {
   border-color: transparent !important;
+  border-bottom: 1px dashed rgba(255,255,255,.14) !important;
+  border-radius: 4px !important;
 }
 .edu-sheet-row input:hover,
 .edu-sheet-row select:hover {
   background: rgba(255,255,255,.05) !important;
+  border-bottom-color: rgba(255,255,255,.32) !important;
 }
 .edu-sheet-row input:focus,
 .edu-sheet-row select:focus {
   background: rgba(255,255,255,.09) !important;
-  border-color: rgba(255,92,122,.55) !important;
+  border-color: rgba(217,27,91,.55) !important;
+  border-bottom-style: solid !important;
 }
 
 /* ─── Catalog / Program breadcrumb ───────────────────────────── */
@@ -382,6 +388,6 @@ button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 a:focus-visible {
-  outline: 2px solid rgba(255,92,122,.65);
+  outline: 2px solid rgba(217,27,91,.65);
   outline-offset: 2px;
 }

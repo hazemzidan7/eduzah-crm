@@ -21,11 +21,11 @@ function classifyRecord(record, index, wiz) {
 }
 
 const STATUS_META = {
-  ready: { ar: "جاهز", en: "Ready", color: "#34d399" },
-  duplicateMerge: { ar: "سيتم الدمج", en: "Will merge", color: "#7d3d9e" },
-  skipped: { ar: "متخطى", en: "Skipped", color: "#9ca3af" },
-  missingRequired: { ar: "حقل مطلوب ناقص", en: "Missing required field", color: "#f87171" },
-  unknownValue: { ar: "قيمة غير محلولة", en: "Unresolved value", color: "#fbbf24" },
+  ready: { ar: "جاهز", en: "Ready", color: C.success },
+  duplicateMerge: { ar: "سيتم الدمج", en: "Will merge", color: C.pmid },
+  skipped: { ar: "متخطى", en: "Skipped", color: C.muted },
+  missingRequired: { ar: "حقل مطلوب ناقص", en: "Missing required field", color: C.danger },
+  unknownValue: { ar: "قيمة غير محلولة", en: "Unresolved value", color: C.warning },
 };
 
 export default function ValidationSummaryStep({ wiz, onBack }) {
@@ -64,10 +64,10 @@ export default function ValidationSummaryStep({ wiz, onBack }) {
       <div>
         <h3 style={{ fontWeight: 800, fontSize: 15, marginTop: 0 }}>{tx("تم الاستيراد", "Import Complete")}</h3>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 10, marginBottom: 16 }}>
-          <Card style={{ padding: "12px 14px" }}><div style={{ fontSize: 22, fontWeight: 900, color: "#34d399" }}>{report.createdCount}</div><div style={{ fontSize: 11.5, color: C.muted }}>{tx("منشأ", "Created")}</div></Card>
-          <Card style={{ padding: "12px 14px" }}><div style={{ fontSize: 22, fontWeight: 900, color: "#7d3d9e" }}>{report.updatedCount}</div><div style={{ fontSize: 11.5, color: C.muted }}>{tx("محدّث (دمج)", "Updated (merged)")}</div></Card>
-          <Card style={{ padding: "12px 14px" }}><div style={{ fontSize: 22, fontWeight: 900, color: "#9ca3af" }}>{report.skippedCount}</div><div style={{ fontSize: 11.5, color: C.muted }}>{tx("متخطى", "Skipped")}</div></Card>
-          <Card style={{ padding: "12px 14px" }}><div style={{ fontSize: 22, fontWeight: 900, color: "#f87171" }}>{report.errorCount}</div><div style={{ fontSize: 11.5, color: C.muted }}>{tx("أخطاء", "Errors")}</div></Card>
+          <Card style={{ padding: "12px 14px" }}><div style={{ fontSize: 22, fontWeight: 900, color: C.success }}>{report.createdCount}</div><div style={{ fontSize: 11.5, color: C.muted }}>{tx("منشأ", "Created")}</div></Card>
+          <Card style={{ padding: "12px 14px" }}><div style={{ fontSize: 22, fontWeight: 900, color: C.pmid }}>{report.updatedCount}</div><div style={{ fontSize: 11.5, color: C.muted }}>{tx("محدّث (دمج)", "Updated (merged)")}</div></Card>
+          <Card style={{ padding: "12px 14px" }}><div style={{ fontSize: 22, fontWeight: 900, color: C.muted }}>{report.skippedCount}</div><div style={{ fontSize: 11.5, color: C.muted }}>{tx("متخطى", "Skipped")}</div></Card>
+          <Card style={{ padding: "12px 14px" }}><div style={{ fontSize: 22, fontWeight: 900, color: C.danger }}>{report.errorCount}</div><div style={{ fontSize: 11.5, color: C.muted }}>{tx("أخطاء", "Errors")}</div></Card>
         </div>
         <p style={{ fontSize: 12.5, color: C.muted }}>
           {tx("يمكنك مراجعة هذه العملية أو التراجع عنها لاحقاً من سجل الاستيراد.", "You can review or roll back this import later from Import History.")}
