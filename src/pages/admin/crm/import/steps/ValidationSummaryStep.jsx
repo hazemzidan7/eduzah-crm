@@ -13,11 +13,9 @@ function classifyRecord(record, index, wiz) {
   if (decision === "skip") return { status: "skipped", detail: null };
   if (decision === "merge") return { status: "duplicateMerge", detail: null };
 
-  for (const [field, dictionaryType] of [["statusRaw", "status"], ["programRaw", "program"]]) {
-    if (record[field]) {
-      const resolved = wiz.valueMap[`${dictionaryType}:${record[field]}`];
-      if (!resolved || !resolved.targetId) return { status: "unknownValue", detail: record[field] };
-    }
+  if (record.statusRaw) {
+    const resolved = wiz.valueMap[`status:${record.statusRaw}`];
+    if (!resolved || !resolved.targetId) return { status: "unknownValue", detail: record.statusRaw };
   }
   return { status: "ready", detail: null };
 }

@@ -99,7 +99,9 @@ export function useImportCommit() {
         } else {
           const engagementId = await addEngagement(customerId, {
             businessUnitId: wiz.profile.businessUnitId,
-            catalogNodeId: resolveTargetId(wiz, record, "programRaw", "program"),
+            // The Program picked in the Upload step, not per-row - every
+            // record in this import run lands in the same Program.
+            catalogNodeId: wiz.program.id,
             statusId: resolveTargetId(wiz, record, "statusRaw", "status") || wiz.profileVersion.defaultLeadStatusId,
             tagIds: wiz.profileVersion.defaultTagIds || [],
             studentProfile: extractStudentProfile(record),

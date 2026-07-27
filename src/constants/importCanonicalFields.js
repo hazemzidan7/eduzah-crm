@@ -30,8 +30,10 @@ export const CANONICAL_FIELDS = [
   { key: "leadSource", label_ar: "مصدر العميل", label_en: "Lead Source", section: "studentProfile" },
   { key: "studentComment", label_ar: "تعليق الطالب", label_en: "Student Comment", section: "studentProfile" },
 
+  // Program is picked once in the Upload step and applies to every row in
+  // that import run (see UploadStep.jsx) — there's deliberately no per-row
+  // "programRaw" column anymore.
   { key: "statusRaw", label_ar: "الحالة (نص خام)", label_en: "Status (raw text)", section: "resolved" },
-  { key: "programRaw", label_ar: "البرنامج (نص خام)", label_en: "Program (raw text)", section: "resolved" },
   { key: "businessUnitRaw", label_ar: "وحدة العمل (نص خام)", label_en: "Business Unit (raw text)", section: "resolved" },
 ];
 
