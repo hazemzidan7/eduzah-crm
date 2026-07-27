@@ -6,6 +6,7 @@ import { useLeadStatus } from "../../../../context/LeadStatusContext";
 import { useCustomers } from "../../../../context/CustomerContext";
 import LeadStatusBadge from "../../../../components/crm/LeadStatusBadge";
 import EngagementDetailModal from "../EngagementDetailModal";
+import { CONTACT_STATUS_OPTIONS, optionLabel } from "../../../../constants/crmOptions";
 
 const th = { textAlign: "start", fontSize: 10.5, letterSpacing: 0.5, textTransform: "uppercase", color: C.muted, fontWeight: 700, padding: "12px 14px", borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap" };
 const td = { padding: "11px 14px", fontSize: 12.5, borderBottom: "1px solid rgba(255,255,255,.06)", verticalAlign: "middle", whiteSpace: "nowrap" };
@@ -104,7 +105,7 @@ export default function ProgramStudentsList({ engagements, ar, tx }) {
                       <td style={td}><div style={{ fontWeight: 800, color: "#fff" }}>{customer?.fullName || "—"}</div></td>
                       <td style={td}>{customer?.phone || "—"}</td>
                       <td style={td}><LeadStatusBadge statusId={e.statusId} /></td>
-                      <td style={td}>{contactStatusLabel(e.contactStatus, tx)}</td>
+                      <td style={td}>{optionLabel(CONTACT_STATUS_OPTIONS, e.contactStatus, ar) || tx("لم يتم", "Not Contacted")}</td>
                       <td style={td}><span style={{ color: PRIORITY_COLOR[e.priority] || C.muted, fontWeight: e.priority === "high" ? 800 : 500 }}>{priorityLabel(e.priority, tx)}</span></td>
                       <td style={td}>{employeeName(e.ownerId)}</td>
                       <td style={td}>{fmtDate(e.nextFollowUpDate)}</td>
@@ -138,12 +139,6 @@ function priorityLabel(p, tx) {
   if (p === "low") return tx("منخفضة", "Low");
   return tx("عادية", "Normal");
 }
-function contactStatusLabel(cs, tx) {
-  if (cs === "contacted") return tx("تم التواصل", "Contacted");
-  if (cs === "awaiting_contact") return tx("بانتظار", "Awaiting");
-  return tx("لم يتم", "Not yet");
-}
-
 function pillStyle(active, color) {
   return {
     padding: "6px 13px", borderRadius: 99, border: "none", cursor: "pointer",

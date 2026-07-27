@@ -78,12 +78,13 @@ export function ImportProfileProvider({ children }) {
           });
           await addDoc(collection(db, "importProfileVersions"), {
             profileId: profileRef.id, version: 1,
+            // Kept deliberately minimal: Full Name + Phone (required) and
+            // Email + Attendance Type (optional) is the whole expected import
+            // file. Everything else in the Student Profile is filled in by
+            // sales after contacting the student, via predefined dropdowns
+            // in the profile UI, not typed into the spreadsheet.
             requiredFields: ["fullName", "phone"],
-            optionalFields: [
-              "email", "whatsapp", "registrationDate", "governorate", "educationalLevel",
-              "employmentStatus", "attendanceType", "courseLevel", "hasLaptop",
-              "preferredContactMethod", "leadSource", "studentComment",
-            ],
+            optionalFields: ["email", "attendanceType"],
             customFieldDefIds: fieldDefIds,
             validationRules: [],
             defaultLeadStatusId: defaultStatusId,

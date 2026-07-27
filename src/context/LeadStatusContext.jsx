@@ -15,24 +15,15 @@ import { useAuth } from "./AuthContext";
 
 const LeadStatusCtx = createContext(null);
 
-// Global statuses, seeded once. "Interested" gets 3 children per the agreed
-// hierarchy (children inherit their parent's reporting category) — Thinking/
-// Call Later/Waiting Decision are sub-states of Interested, not siblings of it.
+// Global statuses, seeded once — a flat pipeline, no sub-statuses.
 const GLOBAL_STATUS_SEED = [
   { key: "new", name_ar: "جديد", name_en: "New", isDefault: true },
-  {
-    key: "interested", name_ar: "مهتم", name_en: "Interested",
-    children: [
-      { key: "thinking", name_ar: "بيفكر", name_en: "Thinking" },
-      { key: "call_later", name_ar: "اتصل لاحقاً", name_en: "Call Later" },
-      { key: "waiting_decision", name_ar: "بانتظار القرار", name_en: "Waiting Decision" },
-    ],
-  },
-  { key: "confirmed", name_ar: "مؤكد", name_en: "Confirmed" },
-  { key: "waiting_payment", name_ar: "بانتظار الدفع", name_en: "Waiting Payment" },
+  { key: "interested", name_ar: "مهتم", name_en: "Interested" },
+  { key: "thinking", name_ar: "بيفكر", name_en: "Thinking" },
+  { key: "follow_up", name_ar: "متابعة", name_en: "Follow-up" },
   { key: "booked", name_ar: "تم الحجز", name_en: "Booked", isTerminal: true },
+  { key: "paid", name_ar: "تم الدفع", name_en: "Paid", isTerminal: true },
   { key: "lost", name_ar: "ضائع", name_en: "Lost", isTerminal: true },
-  { key: "rejected", name_ar: "مرفوض", name_en: "Rejected", isTerminal: true },
 ];
 
 // Business-Unit-specific statuses, seeded once, matched to real catalogNodes

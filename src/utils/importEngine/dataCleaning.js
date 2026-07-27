@@ -37,3 +37,18 @@ export function cleanBoolean(raw) {
   if (FALSE_WORDS.has(s)) return false;
   return null;
 }
+
+const ONLINE_WORDS = new Set(["online", "اونلاين", "أونلاين", "اون لاين", "أون لاين"]);
+const OFFLINE_WORDS = new Set(["offline", "حضوري", "أوفلاين", "اوفلاين", "حضورى"]);
+
+/** Normalizes the Attendance Type column to the "online"/"offline" codes the
+ * Student Profile Select expects. Unrecognized text is left as cleaned raw
+ * text rather than guessed — it'll just show blank in the dropdown until
+ * sales picks the right value. */
+export function cleanAttendanceType(raw) {
+  const s = cleanWhitespace(raw).toLowerCase();
+  if (!s) return "";
+  if (ONLINE_WORDS.has(s)) return "online";
+  if (OFFLINE_WORDS.has(s)) return "offline";
+  return cleanWhitespace(raw);
+}

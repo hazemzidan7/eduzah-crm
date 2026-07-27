@@ -5,7 +5,7 @@ import { useDictionary } from "../context/DictionaryContext";
 import { useCustomers } from "../context/CustomerContext";
 import { parseWorkbookFile } from "../utils/importEngine/fileParser";
 import { bestFuzzyMatch } from "../utils/importEngine/similarity";
-import { cleanPhone, cleanEmail, cleanWhitespace, cleanBoolean, splitMultiValue } from "../utils/importEngine/dataCleaning";
+import { cleanPhone, cleanEmail, cleanWhitespace, cleanBoolean, cleanAttendanceType, splitMultiValue } from "../utils/importEngine/dataCleaning";
 import { CANONICAL_FIELDS } from "../constants/importCanonicalFields";
 
 const FUZZY_THRESHOLD = 0.72;
@@ -109,6 +109,7 @@ export function useImportEngine() {
     if (fieldKey === "phone" || fieldKey === "secondaryPhone" || fieldKey === "whatsapp") return cleanPhone(rawValue);
     if (fieldKey === "email") return cleanEmail(rawValue);
     if (fieldKey === "hasLaptop") return cleanBoolean(rawValue);
+    if (fieldKey === "attendanceType") return cleanAttendanceType(rawValue);
     return cleanWhitespace(rawValue);
   };
 

@@ -9,6 +9,11 @@ import { useCustomers } from "../../../context/CustomerContext";
 import { useCustomFields } from "../../../context/CustomFieldContext";
 import LeadStatusBadge from "../../../components/crm/LeadStatusBadge";
 import { canonicalFieldLabel } from "../../../constants/importCanonicalFields";
+import {
+  CONTACT_STATUS_OPTIONS, EDUCATIONAL_LEVEL_OPTIONS, EMPLOYMENT_STATUS_OPTIONS,
+  GOVERNORATE_OPTIONS, PROGRAMMING_LEVEL_OPTIONS, PREFERRED_CONTACT_METHOD_OPTIONS,
+  ATTENDANCE_TYPE_OPTIONS, optionLabel,
+} from "../../../constants/crmOptions";
 
 const ACTIVITY_TYPES = [
   { v: "note", ar: "ملاحظة", en: "Note" },
@@ -22,26 +27,31 @@ const PRIORITY_OPTIONS = [
   { v: "high", ar: "عالية", en: "High" },
 ];
 
-const CONTACT_STATUS_OPTIONS = [
-  { v: "not_contacted", ar: "لم يتم التواصل", en: "Not contacted" },
-  { v: "contacted", ar: "تم التواصل", en: "Contacted" },
-  { v: "awaiting_contact", ar: "بانتظار التواصل", en: "Awaiting contact" },
-];
-
-// Section 1 fields shown in a fixed, sensible order — hasLaptop rendered
-// specially (yes/no/unknown) rather than as raw text.
+// Section 1 fields shown in a fixed, sensible order. Fields with a
+// predefined vocabulary resolve code -> label via `options`; hasLaptop is
+// tri-state; the rest (registrationDate, leadSource, studentComment) render
+// as plain text/date.
 const STUDENT_PROFILE_DISPLAY_ORDER = [
-  "registrationDate", "governorate", "educationalLevel", "employmentStatus",
-  "attendanceType", "courseLevel", "hasLaptop", "preferredContactMethod",
-  "leadSource", "studentComment",
+  { key: "registrationDate" },
+  { key: "governorate", options: GOVERNORATE_OPTIONS },
+  { key: "educationalLevel", options: EDUCATIONAL_LEVEL_OPTIONS },
+  { key: "employmentStatus", options: EMPLOYMENT_STATUS_OPTIONS },
+  { key: "attendanceType", options: ATTENDANCE_TYPE_OPTIONS },
+  { key: "courseLevel", options: PROGRAMMING_LEVEL_OPTIONS },
+  { key: "hasLaptop" },
+  { key: "preferredContactMethod", options: PREFERRED_CONTACT_METHOD_OPTIONS },
+  { key: "leadSource" },
+  { key: "studentComment" },
 ];
 
-function StudentProfileField({ fieldKey, value, ar, tx }) {
+function StudentProfileField({ fieldKey, value, options, ar, tx }) {
   let display = value;
   if (fieldKey === "hasLaptop") {
     display = value === true ? tx("نعم", "Yes") : value === false ? tx("لا", "No") : "—";
   } else if (fieldKey === "registrationDate" && value) {
     display = new Date(value).toLocaleDateString(ar ? "ar-EG" : "en-US");
+  } else if (options) {
+    display = optionLabel(options, value, ar) || "—";
   } else if (!value) {
     display = "—";
   }
@@ -50,6 +60,18 @@ function StudentProfileField({ fieldKey, value, ar, tx }) {
       <div style={{ fontSize: 10.5, color: C.muted, fontWeight: 700, textTransform: "uppercase" }}>{canonicalFieldLabel(fieldKey, ar ? "ar" : "en")}</div>
       <div style={{ fontSize: 13 }}>{display}</div>
     </div>
+  );
+}
+
+// A predefined-vocabulary field as a Select, with a blank "not set" option.
+function CodeSelect({ label, value, onChange, options, ar }) {
+  return (
+    <Select
+      label={label}
+      value={value || ""}
+      onChange={(v) => onChange(v || null)}
+      options={[{ v: "", l: "—" }, ...options.map((o) => ({ v: o.v, l: ar ? o.ar : o.en }))]}
+    />
   );
 }
 
@@ -186,13 +208,13 @@ export default function EngagementDetailModal({ engagement, onClose }) {
             <Input label={tx("البريد الإلكتروني", "Email")} value={profileDraft.email} onChange={(v) => setDraft("email", v)} />
             <Input label={tx("واتساب", "WhatsApp")} value={profileDraft.whatsapp} onChange={(v) => setDraft("whatsapp", v)} />
             <Input label={canonicalFieldLabel("registrationDate", ar ? "ar" : "en")} type="date" value={profileDraft.registrationDate || ""} onChange={(v) => setDraft("registrationDate", v || null)} />
-            <Input label={canonicalFieldLabel("governorate", ar ? "ar" : "en")} value={profileDraft.governorate || ""} onChange={(v) => setDraft("governorate", v)} />
-            <Input label={canonicalFieldLabel("educationalLevel", ar ? "ar" : "en")} value={profileDraft.educationalLevel || ""} onChange={(v) => setDraft("educationalLevel", v)} />
-            <Input label={canonicalFieldLabel("employmentStatus", ar ? "ar" : "en")} value={profileDraft.employmentStatus || ""} onChange={(v) => setDraft("employmentStatus", v)} />
-            <Input label={canonicalFieldLabel("attendanceType", ar ? "ar" : "en")} value={profileDraft.attendanceType || ""} onChange={(v) => setDraft("attendanceType", v)} />
-            <Input label={canonicalFieldLabel("courseLevel", ar ? "ar" : "en")} value={profileDraft.courseLevel || ""} onChange={(v) => setDraft("courseLevel", v)} />
+            <CodeSelect ar={ar} label={canonicalFieldLabel("governorate", ar ? "ar" : "en")} value={profileDraft.governorate} onChange={(v) => setDraft("governorate", v)} options={GOVERNORATE_OPTIONS} />
+            <CodeSelect ar={ar} label={canonicalFieldLabel("educationalLevel", ar ? "ar" : "en")} value={profileDraft.educationalLevel} onChange={(v) => setDraft("educationalLevel", v)} options={EDUCATIONAL_LEVEL_OPTIONS} />
+            <CodeSelect ar={ar} label={canonicalFieldLabel("employmentStatus", ar ? "ar" : "en")} value={profileDraft.employmentStatus} onChange={(v) => setDraft("employmentStatus", v)} options={EMPLOYMENT_STATUS_OPTIONS} />
+            <CodeSelect ar={ar} label={canonicalFieldLabel("attendanceType", ar ? "ar" : "en")} value={profileDraft.attendanceType} onChange={(v) => setDraft("attendanceType", v)} options={ATTENDANCE_TYPE_OPTIONS} />
+            <CodeSelect ar={ar} label={canonicalFieldLabel("courseLevel", ar ? "ar" : "en")} value={profileDraft.courseLevel} onChange={(v) => setDraft("courseLevel", v)} options={PROGRAMMING_LEVEL_OPTIONS} />
             <HasLaptopEditor label={canonicalFieldLabel("hasLaptop", ar ? "ar" : "en")} value={profileDraft.hasLaptop} onChange={(v) => setDraft("hasLaptop", v)} />
-            <Input label={canonicalFieldLabel("preferredContactMethod", ar ? "ar" : "en")} value={profileDraft.preferredContactMethod || ""} onChange={(v) => setDraft("preferredContactMethod", v)} />
+            <CodeSelect ar={ar} label={canonicalFieldLabel("preferredContactMethod", ar ? "ar" : "en")} value={profileDraft.preferredContactMethod} onChange={(v) => setDraft("preferredContactMethod", v)} options={PREFERRED_CONTACT_METHOD_OPTIONS} />
             <Input label={canonicalFieldLabel("leadSource", ar ? "ar" : "en")} value={profileDraft.leadSource || ""} onChange={(v) => setDraft("leadSource", v)} />
           </div>
           <Input label={canonicalFieldLabel("studentComment", ar ? "ar" : "en")} value={profileDraft.studentComment || ""} onChange={(v) => setDraft("studentComment", v)} rows={2} />
@@ -203,8 +225,8 @@ export default function EngagementDetailModal({ engagement, onClose }) {
         </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
-          {STUDENT_PROFILE_DISPLAY_ORDER.map((k) => (
-            <StudentProfileField key={k} fieldKey={k} value={studentProfile[k]} ar={ar} tx={tx} />
+          {STUDENT_PROFILE_DISPLAY_ORDER.map(({ key, options }) => (
+            <StudentProfileField key={key} fieldKey={key} value={studentProfile[key]} options={options} ar={ar} tx={tx} />
           ))}
         </div>
       )}

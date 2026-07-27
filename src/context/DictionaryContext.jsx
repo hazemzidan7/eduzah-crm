@@ -19,9 +19,9 @@ const COLUMN_SYNONYM_SEED = {
   phone: ["Phone", "Mobile", "رقم الهاتف", "الموبايل"],
 };
 const STATUS_SYNONYM_SEED = {
-  booked: ["تم الدفع", "حجز", "Booked"],
+  booked: ["حجز", "Booked"],
+  paid: ["تم الدفع", "دفع", "Paid"],
   thinking: ["هيرد", "بيفكر", "راجع بعدين", "Thinking"],
-  confirmed: ["أكد", "موافق", "Confirmed"],
 };
 
 /**
