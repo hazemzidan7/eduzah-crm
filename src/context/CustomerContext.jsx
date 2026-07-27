@@ -137,6 +137,19 @@ export function CustomerProvider({ children }) {
       priority: form.priority || "normal",
       nextFollowUpDate: form.nextFollowUpDate || null,
       salesNotes: form.salesNotes || "",
+      // Course Price/Amount Paid/Remaining Balance are never stored directly —
+      // Amount Paid and Remaining Balance are always derived from these at
+      // display time, so there's exactly one source of truth for each.
+      payment: {
+        coursePrice: form.payment?.coursePrice ?? null,
+        paymentPlan: form.payment?.paymentPlan || "",
+        reservationDeposit: form.payment?.reservationDeposit ?? null,
+        installment1: form.payment?.installment1 ?? null,
+        installment2: form.payment?.installment2 ?? null,
+        installment3: form.payment?.installment3 ?? null,
+        confirmed: form.payment?.confirmed ?? false,
+        confirmedAt: form.payment?.confirmedAt || null,
+      },
       tagIds: form.tagIds || [],
       customFields: form.customFields || {},
       timeline: [{

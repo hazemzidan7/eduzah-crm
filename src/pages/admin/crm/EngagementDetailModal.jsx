@@ -12,7 +12,7 @@ import { canonicalFieldLabel } from "../../../constants/importCanonicalFields";
 import {
   CONTACT_STATUS_OPTIONS, EDUCATIONAL_LEVEL_OPTIONS, EMPLOYMENT_STATUS_OPTIONS,
   GOVERNORATE_OPTIONS, PROGRAMMING_LEVEL_OPTIONS, PREFERRED_CONTACT_METHOD_OPTIONS,
-  ATTENDANCE_TYPE_OPTIONS, optionLabel,
+  ATTENDANCE_TYPE_OPTIONS, PAYMENT_PLAN_OPTIONS, optionLabel,
 } from "../../../constants/crmOptions";
 
 const ACTIVITY_TYPES = [
@@ -75,6 +75,15 @@ function CodeSelect({ label, value, onChange, options, ar }) {
   );
 }
 
+function PaymentField({ label, value, bold }) {
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: 10.5, color: C.muted, fontWeight: 700, textTransform: "uppercase" }}>{label}</div>
+      <div style={{ fontSize: 13, fontWeight: bold ? 800 : 400 }}>{value || value === 0 ? (typeof value === "number" ? value.toLocaleString() : value) : "—"}</div>
+    </div>
+  );
+}
+
 // hasLaptop is tri-state (true/false/unknown) — a plain checkbox can't
 // represent "not answered", which is the common case for older imports.
 function HasLaptopEditor({ value, onChange, label }) {
@@ -105,6 +114,11 @@ export default function EngagementDetailModal({ engagement, onClose }) {
   const admins = users.filter((u) => u.role === "admin");
   const studentProfile = engagement.studentProfile || {};
   const customFieldDefs = fieldDefsForBusinessUnit(engagement.businessUnitId);
+  const payment = engagement.payment || {};
+  // Amount Paid / Remaining Balance are never stored — always derived here,
+  // same formula the Program sheet uses, so the two views can't disagree.
+  const amountPaid = (payment.reservationDeposit || 0) + (payment.installment1 || 0) + (payment.installment2 || 0) + (payment.installment3 || 0);
+  const remainingBalance = (payment.coursePrice || 0) - amountPaid;
 
   const [activityType, setActivityType] = useState("note");
   const [activityText, setActivityText] = useState("");
@@ -280,6 +294,25 @@ export default function EngagementDetailModal({ engagement, onClose }) {
       {salesNotesDraft !== (engagement.salesNotes || "") && (
         <Btn sm v="ghost" onClick={saveSalesNotes} style={{ marginBottom: 12 }}>{tx("حفظ الملاحظات", "Save notes")}</Btn>
       )}
+
+      {/* ── Payment — read-only here; edited inline in the Program sheet ── */}
+      <div style={sectionTitleSx}>{tx("الدفع", "Payment")}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
+        <PaymentField label={tx("سعر الكورس", "Course Price")} value={payment.coursePrice} />
+        <PaymentField label={tx("خطة الدفع", "Payment Plan")} value={optionLabel(PAYMENT_PLAN_OPTIONS, payment.paymentPlan, ar)} />
+        <PaymentField label={tx("عربون الحجز", "Reservation Deposit")} value={payment.reservationDeposit} />
+        <PaymentField label={tx("قسط 1", "Installment 1")} value={payment.installment1} />
+        <PaymentField label={tx("قسط 2", "Installment 2")} value={payment.installment2} />
+        <PaymentField label={tx("قسط 3", "Installment 3")} value={payment.installment3} />
+        <PaymentField label={tx("المبلغ المدفوع", "Amount Paid")} value={amountPaid} bold />
+        <PaymentField label={tx("المتبقي", "Remaining Balance")} value={remainingBalance} bold />
+      </div>
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: 10.5, color: C.muted, fontWeight: 700, textTransform: "uppercase" }}>{tx("تأكيد الدفع", "Payment Confirmation")}</div>
+        <div style={{ fontSize: 13, color: payment.confirmed ? C.success : C.muted, fontWeight: 700 }}>
+          {payment.confirmed ? tx("مؤكد", "Confirmed") : tx("معلّق", "Pending")}
+        </div>
+      </div>
 
       <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, margin: "16px 0 8px", textTransform: "uppercase" }}>{tx("إضافة نشاط", "Log activity")}</div>
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>

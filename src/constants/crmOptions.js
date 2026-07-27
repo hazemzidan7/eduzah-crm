@@ -46,6 +46,11 @@ export const ATTENDANCE_TYPE_OPTIONS = [
   { v: "offline", ar: "حضوري", en: "Offline" },
 ];
 
+export const PAYMENT_PLAN_OPTIONS = [
+  { v: "full", ar: "دفعة كاملة", en: "Full Payment" },
+  { v: "installments", ar: "تقسيط", en: "Installments" },
+];
+
 export const GOVERNORATE_OPTIONS = [
   { v: "cairo", ar: "القاهرة", en: "Cairo" },
   { v: "giza", ar: "الجيزة", en: "Giza" },

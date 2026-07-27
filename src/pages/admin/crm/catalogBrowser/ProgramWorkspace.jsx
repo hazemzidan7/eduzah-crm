@@ -5,12 +5,12 @@ import { useLang } from "../../../../context/LangContext";
 import { useCatalog } from "../../../../context/CatalogContext";
 import { useLeadStatus } from "../../../../context/LeadStatusContext";
 import { useCustomers } from "../../../../context/CustomerContext";
-import ProgramStudentsList from "./ProgramStudentsList";
+import ProgramSalesSheet from "./ProgramSalesSheet";
 import ProgramPipelineView from "./ProgramPipelineView";
 import ProgramRemindersView from "./ProgramRemindersView";
 
 const VIEWS = [
-  { v: "students", ar: "الطلاب", en: "Students" },
+  { v: "students", ar: "الجدول", en: "Sheet" },
   { v: "pipeline", ar: "خط المبيعات", en: "Pipeline" },
   { v: "reminders", ar: "المتابعات", en: "Reminders" },
 ];
@@ -95,7 +95,7 @@ export default function ProgramWorkspace({ programId, onBack }) {
         <Card style={{ padding: 32, textAlign: "center" }}><div style={{ color: C.muted }}>{tx("جاري التحميل…", "Loading…")}</div></Card>
       ) : (
         <>
-          {view === "students" && <ProgramStudentsList engagements={scopedEngagements} ar={ar} tx={tx} />}
+          {view === "students" && <ProgramSalesSheet engagements={scopedEngagements} businessUnitId={businessUnitId} ar={ar} tx={tx} />}
           {view === "pipeline" && <ProgramPipelineView engagements={scopedEngagements} statuses={statuses} ar={ar} tx={tx} />}
           {view === "reminders" && <ProgramRemindersView engagements={scopedEngagements} ar={ar} tx={tx} />}
         </>
