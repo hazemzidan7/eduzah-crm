@@ -1,35 +1,59 @@
-import { C, gHero } from "../../theme";
-import { useAuth } from "../../context/AuthContext";
+import { useEffect } from "react";
+import { C } from "../../theme";
 import { useLang } from "../../context/LangContext";
-import CrmModule from "./crm/CrmModule";
+import { CrmNavProvider, useCrmNav } from "../../context/CrmNavContext";
+import { Card } from "../../components/UI";
+import Sidebar from "../../components/layout/Sidebar";
+import TopBar from "../../components/layout/TopBar";
+import CrmCatalogTab from "./crm/catalogBrowser/CrmCatalogTab";
+import ProgramWorkspace from "./crm/catalogBrowser/ProgramWorkspace";
+import CrmSettingsTab from "./crm/CrmSettingsTab";
+
+function ComingSoon({ label }) {
+  return (
+    <Card style={{ padding: 40, textAlign: "center" }}>
+      <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 6 }}>{label}</div>
+      <div style={{ color: C.muted, fontSize: 12.5 }}>Coming soon</div>
+    </Card>
+  );
+}
+
+const PROGRAM_SECTIONS = new Set(["leads", "pipeline", "reminders", "importHistory", "import"]);
+
+function AdminContent() {
+  const { lang } = useLang();
+  const ar = lang === "ar";
+  const { programId, section, goToCatalog } = useCrmNav();
+  const strandedOnProgramSection = PROGRAM_SECTIONS.has(section) && !programId;
+
+  // Defensive guard only — the sidebar disables these items without a
+  // Program selected, so this shouldn't normally trigger. Runs as an effect
+  // (not during render) since it updates a different component's state.
+  useEffect(() => {
+    if (strandedOnProgramSection) goToCatalog();
+  }, [strandedOnProgramSection, goToCatalog]);
+
+  if (section === "settings") return <CrmSettingsTab />;
+  if (section === "reports") return <ComingSoon label={ar ? "التقارير" : "Reports"} />;
+  if (section === "users") return <ComingSoon label={ar ? "المستخدمون" : "Users"} />;
+  if (strandedOnProgramSection) return null;
+  if (PROGRAM_SECTIONS.has(section)) return <ProgramWorkspace />;
+
+  return <CrmCatalogTab />;
+}
 
 export default function AdminShell() {
-  const { currentUser, logout } = useAuth();
-  const { lang, toggle } = useLang();
-  const ar = lang === "ar";
-
   return (
-    <div style={{ minHeight: "100vh", background: gHero, color: "#fff" }}>
-      <header style={{
-        display: "flex", justifyContent: "space-between", alignItems: "center",
-        padding: "14px 24px", borderBottom: `1px solid ${C.border}`,
-      }}>
-        <div style={{ fontWeight: 900, fontSize: 18 }}>Eduzah CRM</div>
-        <div style={{ display: "flex", gap: 12, alignItems: "center", fontSize: 13 }}>
-          <span style={{ color: C.muted }}>{currentUser?.name || currentUser?.email}</span>
-          <button onClick={toggle} style={{
-            background: "rgba(255,255,255,.08)", border: "none", color: "#fff",
-            borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontWeight: 700,
-          }}>{ar ? "EN" : "AR"}</button>
-          <button onClick={logout} style={{
-            background: C.purple, border: "none", color: "#fff",
-            borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontWeight: 700,
-          }}>{ar ? "خروج" : "Logout"}</button>
+    <CrmNavProvider>
+      <div style={{ minHeight: "100vh", background: "#241531", color: "#fff", display: "flex" }}>
+        <Sidebar />
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+          <TopBar />
+          <main style={{ padding: 24, flex: 1, minWidth: 0 }}>
+            <AdminContent />
+          </main>
         </div>
-      </header>
-      <main style={{ padding: 24 }}>
-        <CrmModule />
-      </main>
-    </div>
+      </div>
+    </CrmNavProvider>
   );
 }

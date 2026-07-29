@@ -1,0 +1,40 @@
+import { createContext, useContext, useState } from "react";
+
+const CrmNavCtx = createContext(null);
+
+/**
+ * Cross-cutting CRM navigation state — which Program is selected and which
+ * section of it is showing. Lifted above CrmCatalogTab/ProgramWorkspace
+ * because the Sidebar (outside that tree) needs to both read and drive it.
+ */
+export function CrmNavProvider({ children }) {
+  const [businessUnitId, setBusinessUnitId] = useState(null);
+  const [programId, setProgramId] = useState(null);
+  const [section, setSection] = useState("catalog");
+
+  const selectProgram = (progId, buId) => {
+    setProgramId(progId);
+    setBusinessUnitId(buId);
+    setSection("leads");
+  };
+
+  const goToCatalog = () => {
+    setSection("catalog");
+  };
+
+  return (
+    <CrmNavCtx.Provider value={{
+      businessUnitId, programId, section,
+      setBusinessUnitId, setProgramId, setSection,
+      selectProgram, goToCatalog,
+    }}>
+      {children}
+    </CrmNavCtx.Provider>
+  );
+}
+
+export function useCrmNav() {
+  const ctx = useContext(CrmNavCtx);
+  if (!ctx) throw new Error("useCrmNav must be used within CrmNavProvider");
+  return ctx;
+}

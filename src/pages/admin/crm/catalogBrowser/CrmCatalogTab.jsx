@@ -2,34 +2,32 @@ import { useState } from "react";
 import { C } from "../../../../theme";
 import { useLang } from "../../../../context/LangContext";
 import { useCatalog } from "../../../../context/CatalogContext";
+import { useCrmNav } from "../../../../context/CrmNavContext";
 import CatalogBrowserGrid from "./CatalogBrowserGrid";
-import ProgramWorkspace from "./ProgramWorkspace";
 
 /**
- * The CRM's main entry point: Business Unit -> Program -> Students. Category
- * is an optional organizational field in the data (still fully editable in
+ * The CRM's landing page: Business Unit -> Program grid. Category is an
+ * optional organizational field in the data (still fully editable in
  * Settings > Catalog) but is never a navigation step here — opening a
  * Business Unit shows every Program under it, flattened, regardless of how
- * many Category levels deep any of them sit.
+ * many Category levels deep any of them sit. Picking a Program hands off to
+ * CrmNavContext, which switches the app shell into that Program's workspace
+ * (the sidebar is the other way to reach the same place).
  */
 export default function CrmCatalogTab() {
   const { lang } = useLang();
   const ar = lang === "ar";
   const tx = (a, e) => (ar ? a : e);
   const { businessUnits, programsUnder, nodeById } = useCatalog();
+  const { selectProgram } = useCrmNav();
 
   const [businessUnitId, setBusinessUnitId] = useState(null);
-  const [programId, setProgramId] = useState(null);
-
-  if (programId) {
-    return <ProgramWorkspace programId={programId} onBack={() => setProgramId(null)} />;
-  }
 
   const businessUnit = businessUnitId ? nodeById(businessUnitId) : null;
   const nodes = businessUnit ? programsUnder(businessUnitId) : businessUnits;
 
   const openNode = (node) => {
-    if (node.type === "program") setProgramId(node.id);
+    if (node.type === "program") selectProgram(node.id, businessUnitId);
     else setBusinessUnitId(node.id);
   };
 
