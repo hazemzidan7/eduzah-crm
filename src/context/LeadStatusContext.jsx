@@ -16,22 +16,20 @@ import { useAuth } from "./AuthContext";
 const LeadStatusCtx = createContext(null);
 
 // Global statuses, seeded once — a flat pipeline, no sub-statuses. Doubles
-// as "Contact Status" in the Sheet: contact-attempt outcomes (Not Contacted
-// through WhatsApp Sent) and pipeline stages (Thinking through Lost) share
-// one vocabulary/one field, there's no separate contactStatus concept anymore.
+// as "Contact Status" in the Sheet. Deliberately kept short (8 values) per
+// the sales team's request to simplify — the earlier, more granular set
+// (New/Called/WhatsApp Sent/Interested/Lost/Call Later/Confirmed/Waiting
+// Payment/Rejected/Waiting Decision) was retired and its ~411 existing
+// engagement records were remapped onto this list directly in Firestore.
 const GLOBAL_STATUS_SEED = [
-  { key: "new", name_ar: "جديد", name_en: "New", color: "#672d86", isDefault: true },
-  { key: "not_contacted", name_ar: "لم يتم التواصل", name_en: "Not Contacted", color: "#94a3b8" },
-  { key: "called", name_ar: "تم الاتصال", name_en: "Called", color: "#94a3b8" },
-  { key: "no_answer", name_ar: "لا يوجد رد", name_en: "No Answer", color: "#94a3b8" },
-  { key: "wrong_number", name_ar: "رقم خاطئ", name_en: "Wrong Number", color: "#4b5563" },
-  { key: "whatsapp_sent", name_ar: "تم إرسال واتساب", name_en: "WhatsApp Sent", color: "#94a3b8" },
-  { key: "thinking", name_ar: "بيفكر", name_en: "Thinking", color: "#faa633" },
-  { key: "interested", name_ar: "مهتم", name_en: "Interested", color: "#d91b5b" },
+  { key: "not_contacted", name_ar: "لم يتم التواصل", name_en: "Not Contacted", color: "#94a3b8", isDefault: true },
   { key: "follow_up", name_ar: "متابعة", name_en: "Follow-up", color: "#844bab" },
+  { key: "thinking", name_ar: "بيفكر", name_en: "Thinking", color: "#faa633" },
+  { key: "not_interested", name_ar: "غير مهتم", name_en: "Not Interested", color: "#6b7280", isTerminal: true },
+  { key: "wrong_number", name_ar: "رقم خاطئ", name_en: "Wrong Number", color: "#4b5563" },
+  { key: "no_answer", name_ar: "لا يرد", name_en: "No Answer", color: "#94a3b8" },
   { key: "booked", name_ar: "تم الحجز", name_en: "Booked", color: "#22c55e", isTerminal: true },
   { key: "paid", name_ar: "تم الدفع", name_en: "Paid", color: "#10b981", isTerminal: true },
-  { key: "lost", name_ar: "ضائع", name_en: "Lost", color: "#6b7280", isTerminal: true },
 ];
 
 // Business-Unit-specific statuses, seeded once, matched to real catalogNodes

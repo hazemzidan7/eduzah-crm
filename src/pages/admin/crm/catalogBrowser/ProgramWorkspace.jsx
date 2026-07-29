@@ -6,7 +6,7 @@ import { useCatalog } from "../../../../context/CatalogContext";
 import { useLeadStatus } from "../../../../context/LeadStatusContext";
 import { useCustomers } from "../../../../context/CustomerContext";
 import { useCrmNav } from "../../../../context/CrmNavContext";
-import { IconPeople, IconSend, IconThinking, IconCalendarCheck, IconMoney, IconPhone, IconBell } from "../../../../components/Icons";
+import { IconPeople, IconSend, IconThinking, IconCalendarCheck, IconMoney, IconBell } from "../../../../components/Icons";
 import ProgramSalesSheet from "./ProgramSalesSheet";
 import ProgramPipelineView from "./ProgramPipelineView";
 import ProgramRemindersView from "./ProgramRemindersView";
@@ -14,8 +14,8 @@ import ImportWizard from "../import/ImportWizard";
 import ImportHistoryList from "../import/ImportHistoryList";
 
 const STATUS_ICONS = {
-  new: IconSend, thinking: IconThinking, booked: IconCalendarCheck, paid: IconMoney,
-  interested: IconPhone, follow_up: IconBell,
+  not_contacted: IconSend, thinking: IconThinking, booked: IconCalendarCheck, paid: IconMoney,
+  follow_up: IconBell,
 };
 
 /**
