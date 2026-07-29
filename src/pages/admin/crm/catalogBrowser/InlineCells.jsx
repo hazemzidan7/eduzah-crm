@@ -14,7 +14,7 @@ const cellFocusSx = { background: "rgba(255,255,255,.08)", border: `1px solid ${
  * change (select/date), then lets the prop value reconcile afterward.
  * Widths are floors, not fixed sizes — columns shrink to fit short content
  * (an "Online/Offline" cell shouldn't reserve the same space as an email). */
-export function InlineText({ value, onSave, placeholder, minWidth = 80, size = 12 }) {
+export function InlineText({ value, onSave, placeholder, minWidth = 80, size = 12, dir }) {
   const [draft, setDraft] = useState(value || "");
   const [focused, setFocused] = useState(false);
   useEffect(() => { if (!focused) setDraft(value || ""); }, [value, focused]);
@@ -23,6 +23,7 @@ export function InlineText({ value, onSave, placeholder, minWidth = 80, size = 1
       value={draft}
       placeholder={placeholder}
       size={size}
+      dir={dir}
       onChange={(e) => setDraft(e.target.value)}
       onFocus={() => setFocused(true)}
       onBlur={() => { setFocused(false); if (draft !== (value || "")) onSave(draft); }}
@@ -31,6 +32,8 @@ export function InlineText({ value, onSave, placeholder, minWidth = 80, size = 1
   );
 }
 
+// Always numeric — forced LTR regardless of page direction so digits never
+// pick up RTL grouping/ordering quirks.
 export function InlineNumber({ value, onSave, minWidth = 64 }) {
   const [draft, setDraft] = useState(value ?? "");
   const [focused, setFocused] = useState(false);
@@ -42,7 +45,7 @@ export function InlineNumber({ value, onSave, minWidth = 64 }) {
   };
   return (
     <input
-      type="number" value={draft} size={6}
+      type="number" value={draft} size={6} dir="ltr"
       onChange={(e) => setDraft(e.target.value)}
       onFocus={() => setFocused(true)}
       onBlur={commit}
@@ -54,7 +57,7 @@ export function InlineNumber({ value, onSave, minWidth = 64 }) {
 export function InlineDate({ value, onSave }) {
   return (
     <input
-      type="date" value={value || ""}
+      type="date" value={value || ""} dir="ltr"
       onChange={(e) => onSave(e.target.value || null)}
       style={{ ...cellSx, minWidth: 112, colorScheme: "dark" }}
     />
@@ -79,6 +82,7 @@ export function InlineSelect({ value, onSave, options, minWidth = 84 }) {
 export function InlineStatusSelect({ value, onSave, options, color }) {
   return (
     <select
+      className="edu-status-select"
       value={value || ""}
       onChange={(e) => onSave(e.target.value || null)}
       style={{
@@ -103,7 +107,7 @@ export function InlineStatusSelect({ value, onSave, options, color }) {
 /** A derived (formula) cell — never directly editable, just displayed. */
 export function ComputedMoney({ value, color }) {
   return (
-    <div style={{ padding: "5px 6px", fontSize: 12.5, fontWeight: 700, color: color || C.muted, minWidth: 70, textAlign: "center", fontVariantNumeric: "tabular-nums" }}>
+    <div dir="ltr" style={{ padding: "5px 6px", fontSize: 12.5, fontWeight: 700, color: color || C.muted, minWidth: 70, textAlign: "center", fontVariantNumeric: "tabular-nums" }}>
       {(value || 0).toLocaleString()}
     </div>
   );

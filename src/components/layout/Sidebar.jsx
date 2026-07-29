@@ -5,15 +5,18 @@ import { useAuth } from "../../context/AuthContext";
 import { useCatalog } from "../../context/CatalogContext";
 import { useCrmNav } from "../../context/CrmNavContext";
 import {
-  IconPeople, IconGrid, IconBell, IconHistory, IconBox, IconBarChart,
+  IconPeople, IconBell, IconHistory, IconBox, IconBarChart,
   IconGear, IconChevronDown, IconChevronRight, IconChevronsCollapse,
 } from "../Icons";
 
+// Ordered by daily workflow priority, not feature grouping: the customer
+// list and reminders are what a rep lives in; Import History is an
+// occasional utility, so it gets the muted "normal" tone, not the same
+// primary emphasis as Customers/Reminders.
 const primaryItems = [
-  { key: "leads", ar: "العملاء", en: "Leads", Icon: IconPeople },
-  { key: "pipeline", ar: "خط المبيعات", en: "Pipeline", Icon: IconGrid },
-  { key: "reminders", ar: "المتابعات", en: "Reminders", Icon: IconBell },
-  { key: "importHistory", ar: "سجل الاستيراد", en: "Import History", Icon: IconHistory },
+  { key: "leads", ar: "العملاء", en: "Customers", Icon: IconPeople, tone: "primary" },
+  { key: "reminders", ar: "المتابعات", en: "Reminders", Icon: IconBell, tone: "primary" },
+  { key: "importHistory", ar: "سجل الاستيراد", en: "Import History", Icon: IconHistory, tone: "normal" },
 ];
 
 const bottomItems = [
@@ -22,8 +25,24 @@ const bottomItems = [
   { key: "settings", ar: "الإعدادات", en: "Settings", Icon: IconGear },
 ];
 
-function NavRow({ active, disabled, indent = 0, onClick, icon, label, title, trailing }) {
+/** "Collapsed, click to expand toward reading direction" — points right in
+ * LTR, mirrors to point left in RTL, matching standard disclosure-arrow
+ * convention in Arabic UIs. */
+function DisclosureChevron({ ar, size }) {
+  return (
+    <span style={{ display: "inline-flex", transform: ar ? "scaleX(-1)" : "none" }}>
+      <IconChevronRight size={size} />
+    </span>
+  );
+}
+
+// tone="primary" (default) highlights the active state in Red, for the true
+// daily-workflow destinations. tone="normal" is for everything else (Import
+// History, Reports, Users, Settings) — active still reads clearly, just as
+// a quieter Purple tint instead of competing with the primary items.
+function NavRow({ active, disabled, indent = 0, onClick, icon, label, labelDir, title, trailing, tone = "primary" }) {
   const [hover, setHover] = useState(false);
+  const activeBg = tone === "primary" ? C.red : `${C.purple}4d`;
   return (
     <button
       onClick={disabled ? undefined : onClick}
@@ -35,14 +54,14 @@ function NavRow({ active, disabled, indent = 0, onClick, icon, label, title, tra
         display: "flex", alignItems: "center", gap: 10, width: "100%",
         padding: `9px 12px 9px ${12 + indent}px`, marginBottom: 2,
         border: "none", borderRadius: 10, cursor: disabled ? "not-allowed" : "pointer",
-        background: active ? C.red : (hover && !disabled ? "rgba(255,255,255,.07)" : "transparent"),
+        background: active ? activeBg : (hover && !disabled ? "rgba(255,255,255,.07)" : "transparent"),
         color: active ? "#fff" : disabled ? "rgba(255,255,255,.32)" : "rgba(255,255,255,.82)",
         fontFamily: "'Cairo',sans-serif", fontSize: 13, fontWeight: active ? 800 : 600,
         transition: "background .15s, color .15s", textAlign: "start",
       }}
     >
       {icon}
-      <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</span>
+      <span dir={labelDir} style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</span>
       {trailing}
     </button>
   );
@@ -83,6 +102,7 @@ export default function Sidebar() {
         {primaryItems.map((it) => (
           <NavRow
             key={it.key}
+            tone={it.tone}
             active={section === it.key}
             disabled={!hasProgram}
             title={!hasProgram ? tx("اختر برنامجًا أولًا", "Select a Program first") : undefined}
@@ -99,7 +119,7 @@ export default function Sidebar() {
           onClick={() => { setCatalogOpen((o) => !o); goToCatalog(); }}
           icon={<IconBox size={18} />}
           label={collapsed ? "" : tx("الكتالوج", "Catalog")}
-          trailing={!collapsed ? (catalogOpen ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />) : null}
+          trailing={!collapsed ? (catalogOpen ? <IconChevronDown size={14} /> : <DisclosureChevron ar={ar} size={14} />) : null}
         />
 
         {!collapsed && catalogOpen && (
@@ -114,7 +134,7 @@ export default function Sidebar() {
                     onClick={() => setExpandedBU(open ? null : bu.id)}
                     icon={null}
                     label={ar ? bu.name_ar : bu.name_en}
-                    trailing={open ? <IconChevronDown size={12} /> : <IconChevronRight size={12} />}
+                    trailing={open ? <IconChevronDown size={12} /> : <DisclosureChevron ar={ar} size={12} />}
                   />
                   {open && programsUnder(bu.id).map((p) => (
                     <NavRow
@@ -124,6 +144,7 @@ export default function Sidebar() {
                       onClick={() => selectProgram(p.id, bu.id)}
                       icon={null}
                       label={p.name_en}
+                      labelDir="ltr"
                     />
                   ))}
                 </div>
@@ -144,6 +165,7 @@ export default function Sidebar() {
         {bottomItems.map((it) => (
           <NavRow
             key={it.key}
+            tone="normal"
             active={section === it.key}
             onClick={() => setSection(it.key)}
             icon={<it.Icon size={18} />}
@@ -173,7 +195,10 @@ export default function Sidebar() {
             background: "transparent", color: C.muted, cursor: "pointer",
           }}
         >
-          <span style={{ transform: collapsed ? "rotate(180deg)" : "none", display: "flex" }}><IconChevronsCollapse size={16} /></span>
+          {/* The icon always points toward the sidebar's own screen edge (collapse
+              direction) — since the sidebar itself flips sides between LTR/RTL via
+              flexbox, this flip is an XOR of "collapsed" and "ar", not just "collapsed". */}
+          <span style={{ transform: (collapsed !== ar) ? "rotate(180deg)" : "none", display: "flex" }}><IconChevronsCollapse size={16} /></span>
         </button>
       </div>
     </aside>

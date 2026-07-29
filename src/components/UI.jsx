@@ -172,7 +172,7 @@ const fieldBaseSx = (error, focused) => ({
   transition:"border-color .18s, box-shadow .18s, background .18s",
 });
 
-export function Input({ label, value, onChange, type="text", placeholder="", error, rows }) {
+export function Input({ label, value, onChange, type="text", placeholder="", error, rows, dir }) {
   const [f,setF] = useState(false);
   const style = fieldBaseSx(error, f);
   const isPicker = type === "date" || type === "time";
@@ -180,7 +180,7 @@ export function Input({ label, value, onChange, type="text", placeholder="", err
     <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:16}}>
       {label && <label style={{fontSize:12,fontWeight:700,color:C.muted}}>{label}</label>}
       {rows
-        ? <textarea value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} rows={rows} onFocus={()=>setF(true)} onBlur={()=>setF(false)} style={{...style,resize:"vertical"}}/>
+        ? <textarea value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} rows={rows} dir={dir} onFocus={()=>setF(true)} onBlur={()=>setF(false)} style={{...style,resize:"vertical"}}/>
         : isPicker
           ? <DarkPickerWrap
               type={type}
@@ -191,7 +191,7 @@ export function Input({ label, value, onChange, type="text", placeholder="", err
               onBlur={() => setF(false)}
               style={style}
             />
-          : <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} onFocus={()=>setF(true)} onBlur={()=>setF(false)} style={style} onMouseEnter={(e)=>{if(!f)e.target.style.borderColor=C.muted;}} onMouseLeave={(e)=>{if(!f)e.target.style.borderColor=error?C.danger:C.border;}}/>}
+          : <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} dir={dir} onFocus={()=>setF(true)} onBlur={()=>setF(false)} style={style} onMouseEnter={(e)=>{if(!f)e.target.style.borderColor=C.muted;}} onMouseLeave={(e)=>{if(!f)e.target.style.borderColor=error?C.danger:C.border;}}/>}
       {error && <span style={{color:C.danger,fontSize:11,fontWeight:600}}>{error}</span>}
     </div>
   );

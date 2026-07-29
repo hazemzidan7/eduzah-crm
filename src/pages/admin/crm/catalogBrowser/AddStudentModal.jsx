@@ -62,12 +62,12 @@ export default function AddStudentModal({ program, businessUnitId, onClose }) {
   return (
     <Modal title={tx("إضافة طالب", "Add Student")} onClose={onClose}>
       <Input label={tx("الاسم الكامل", "Full Name")} value={fullName} onChange={setFullName} />
-      <Input label={tx("رقم الهاتف", "Phone Number")} value={phone} onChange={setPhone} />
-      <Input label={tx("البريد الإلكتروني (اختياري)", "Email (optional)")} value={email} onChange={setEmail} />
+      <Input label={tx("رقم الهاتف", "Phone Number")} value={phone} onChange={setPhone} dir="ltr" />
+      <Input label={tx("البريد الإلكتروني (اختياري)", "Email (optional)")} value={email} onChange={setEmail} dir="ltr" />
       <Select label={tx("نوع الحضور", "Attendance Type")} value={attendanceType} onChange={setAttendanceType} options={attendanceOptions} />
       <div style={{ marginBottom: 12 }}>
         <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 4 }}>{tx("البرنامج", "Program")}</label>
-        <div style={{ background: "rgba(255,255,255,.04)", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "9px 13px", fontSize: 13 }}>
+        <div dir="ltr" style={{ background: "rgba(255,255,255,.04)", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "9px 13px", fontSize: 13 }}>
           {program.name_en}
         </div>
       </div>

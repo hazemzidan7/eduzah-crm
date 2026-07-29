@@ -86,7 +86,7 @@ export default function DuplicateReviewStep({ wiz, patch, onNext, onBack }) {
             <Card key={m.index} style={{ padding: "10px 14px", marginBottom: 8 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div style={{ fontSize: 12.5 }}>
-                  <b>{m.record.fullName || "—"}</b> ({m.record.phone}) → {tx("يطابق", "matches")} <b>{m.customerMatch.fullName}</b>
+                  <b>{m.record.fullName || "—"}</b> (<bdi dir="ltr">{m.record.phone}</bdi>) → {tx("يطابق", "matches")} <b>{m.customerMatch.fullName}</b>
                   {m.engagementMatch && <span style={{ color: C.orange }}> · {tx("لديه تعامل بالفعل مع هذا البرنامج", "already has an engagement with this Program")}</span>}
                 </div>
                 <select value={decisions[m.index] || "merge"} onChange={(e) => setDecision(m.index, e.target.value)}

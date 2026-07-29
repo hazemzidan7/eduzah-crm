@@ -41,7 +41,7 @@ export default function ProgramRemindersView({ engagements, ar, tx }) {
             const customer = customerById(e.customerId);
             return (
               <tr key={e.id} className="edu-sheet-row" onClick={() => setOpenEngagementId(e.id)} style={{ cursor: "pointer" }}>
-                <td style={td}><div style={{ fontWeight: 800 }}>{customer?.fullName || "—"}</div><div style={{ fontSize: 11, color: C.muted }}>{customer?.phone || "—"}</div></td>
+                <td style={td}><div style={{ fontWeight: 800 }}>{customer?.fullName || "—"}</div><div dir="ltr" style={{ fontSize: 11, color: C.muted }}>{customer?.phone || "—"}</div></td>
                 <td style={td}>{fmtDate(e.nextFollowUpDate)}</td>
                 <td style={td}><LeadStatusBadge statusId={e.statusId} /></td>
               </tr>

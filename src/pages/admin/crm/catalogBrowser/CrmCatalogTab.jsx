@@ -47,7 +47,7 @@ export default function CrmCatalogTab() {
         </button>
         {businessUnit && (
           <div className="edu-crumb-trail">
-            <span className="edu-crumb-sep">›</span>
+            <span className="edu-crumb-sep">{ar ? "‹" : "›"}</span>
             <span className="edu-crumb-node is-current">{ar ? businessUnit.name_ar : businessUnit.name_en}</span>
           </div>
         )}

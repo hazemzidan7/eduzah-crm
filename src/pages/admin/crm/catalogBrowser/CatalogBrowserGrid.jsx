@@ -40,7 +40,7 @@ export default function CatalogBrowserGrid({ nodes, onOpenNode, ar, tx }) {
           >
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
               {n.icon && <span style={{ fontSize: 18 }}>{n.icon}</span>}
-              <div style={{ fontWeight: 800, fontSize: 14.5 }}>{isProgram ? n.name_en : (ar ? n.name_ar : n.name_en)}</div>
+              <div dir={isProgram ? "ltr" : undefined} style={{ fontWeight: 800, fontSize: 14.5 }}>{isProgram ? n.name_en : (ar ? n.name_ar : n.name_en)}</div>
             </div>
             <div style={{ fontSize: 12, color: C.muted }}>
               {isProgram

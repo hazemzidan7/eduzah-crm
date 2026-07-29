@@ -7,7 +7,7 @@ import { IconChevronDown } from "../Icons";
 
 const SECTION_LABELS = {
   catalog: { ar: "الكتالوج", en: "Catalog" },
-  leads: { ar: "العملاء", en: "Leads" },
+  leads: { ar: "العملاء", en: "Customers" },
   pipeline: { ar: "خط المبيعات", en: "Pipeline" },
   reminders: { ar: "المتابعات", en: "Reminders" },
   importHistory: { ar: "سجل الاستيراد", en: "Import History" },
@@ -45,7 +45,7 @@ export default function TopBar() {
                 cursor: siblings.length > 1 ? "pointer" : "default", padding: "4px 6px", borderRadius: 6,
               }}
             >
-              {program.name_en}
+              <span dir="ltr">{program.name_en}</span>
               {siblings.length > 1 && <IconChevronDown size={13} />}
             </button>
             {switcherOpen && (
@@ -60,6 +60,7 @@ export default function TopBar() {
                     <button
                       key={p.id}
                       onClick={() => { selectProgram(p.id, businessUnitId); setSwitcherOpen(false); }}
+                      dir="ltr"
                       style={{
                         display: "block", width: "100%", textAlign: "start", background: p.id === programId ? `${C.red}2e` : "transparent",
                         border: "none", color: "#fff", padding: "7px 10px", borderRadius: 6, cursor: "pointer",
@@ -74,9 +75,9 @@ export default function TopBar() {
             )}
           </div>
         )}
-        {businessUnit && <span style={{ color: C.muted, opacity: 0.5 }}>›</span>}
+        {businessUnit && <span style={{ color: C.muted, opacity: 0.5 }}>{ar ? "‹" : "›"}</span>}
         {businessUnit && <span style={{ color: C.muted }}>{ar ? businessUnit.name_ar : businessUnit.name_en}</span>}
-        {(program || businessUnit) && <span style={{ color: C.muted, opacity: 0.5 }}>›</span>}
+        {(program || businessUnit) && <span style={{ color: C.muted, opacity: 0.5 }}>{ar ? "‹" : "›"}</span>}
         <span style={{ color: "#fff" }}>{sectionLabel ? (ar ? sectionLabel.ar : sectionLabel.en) : ""}</span>
       </div>
 

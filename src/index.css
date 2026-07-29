@@ -64,7 +64,10 @@ body {
   font-family: var(--font);
   background:  var(--page-bg);
   color:       var(--page-text);
-  direction:   rtl;
+  /* direction is intentionally NOT set here — it must inherit from
+     <html dir>, which LangContext.jsx toggles per language. A hardcoded
+     value here would override that and break layout whenever the language
+     doesn't match this hardcoded direction. */
   overflow-x:  hidden;
   transition:  background-color 0.25s ease, color 0.2s ease;
 }
@@ -296,6 +299,16 @@ input.edu-datetime-input { position: relative; }
   50%     { transform: translateY(-10px); }
 }
 .pulse { animation: pulse 2s infinite; }
+
+/* ─── RTL/LTR polish ─────────────────────────────────────────── */
+/* InlineStatusSelect's caret is a background-image positioned with a
+   physical offset (inline styles can't express a logical background-
+   position), so it needs an explicit mirror for RTL — otherwise the arrow
+   sits on the wrong side and crowds the pill's text in Arabic. */
+[dir="rtl"] .edu-status-select {
+  background-position: left 6px center !important;
+  padding: 5.5px 11px 5.5px 22px !important;
+}
 
 /* ─── CRM Sales Sheet ────────────────────────────────────────── */
 /* A wide sheet needs a scrollbar reps can actually find and grab — force a

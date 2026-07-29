@@ -155,7 +155,7 @@ export default function BootstrapAdmin() {
               <input value={name} onChange={(e) => setName(e.target.value)} style={inputSx(false)} autoComplete="name" />
             </Field>
             <Field label={ar ? "البريد" : "Email"}>
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputSx(false)} autoComplete="email" />
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputSx(false)} dir="ltr" autoComplete="email" />
             </Field>
             <Field label={ar ? "كلمة المرور" : "Password"}>
               <input type="password" value={pass} onChange={(e) => setPass(e.target.value)} style={inputSx(false)} autoComplete="new-password" />
@@ -174,7 +174,7 @@ export default function BootstrapAdmin() {
 
         <div style={{ marginTop: 20 }}>
           <button type="button" onClick={() => navigate("/login")} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 12 }}>
-            ← {ar ? "تسجيل الدخول" : "Login"}
+            {ar ? "→" : "←"} {ar ? "تسجيل الدخول" : "Login"}
           </button>
         </div>
       </div>

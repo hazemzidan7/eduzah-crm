@@ -193,6 +193,7 @@ function PhoneAuthBlock({ mode, lang, name = "", onSuccess }) {
                   placeholder={ar ? "01012345678" : "01012345678"}
                   style={inputSx(false)}
                   type="tel"
+                  dir="ltr"
                   disabled={busy}
                   autoComplete="tel"
                 />
@@ -215,6 +216,7 @@ function PhoneAuthBlock({ mode, lang, name = "", onSuccess }) {
                   onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 8))}
                   inputMode="numeric"
                   style={inputSx(false)}
+                  dir="ltr"
                   disabled={busy}
                   placeholder="••••••"
                   autoComplete="one-time-code"
@@ -223,7 +225,7 @@ function PhoneAuthBlock({ mode, lang, name = "", onSuccess }) {
               {err && <div role="alert" style={{ color: C.danger, fontSize: 12, marginBottom: 8 }}>{err}</div>}
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
                 <Btn
-                  children={ar ? "← رجوع" : "← Back"}
+                  children={ar ? "→ رجوع" : "← Back"}
                   v="outline"
                   sm
                   onClick={() => {
@@ -369,7 +371,7 @@ export function LoginPage() {
 
         <Field label={ar ? "البريد الإلكتروني" : "Email"}>
           <input type="email" value={email} onChange={e => { setEmail(e.target.value); setNoProfile(false); }}
-            placeholder="email@example.com" style={inputSx(false)}
+            placeholder="email@example.com" style={inputSx(false)} dir="ltr"
             aria-label="Email" />
         </Field>
 
@@ -539,13 +541,13 @@ export function RegisterPage() {
           </Field>
           <Field label={lang === "ar" ? "الهاتف *" : "Phone *"} error={errs.phone}>
             <input value={f.phone} onChange={e => set("phone", e.target.value)}
-              type="tel" placeholder="+201..." style={inputSx(errs.phone)} />
+              type="tel" dir="ltr" placeholder="+201..." style={inputSx(errs.phone)} />
           </Field>
         </div>
 
         <Field label={lang === "ar" ? "البريد الإلكتروني *" : "Email *"} error={errs.email}>
           <input value={f.email} onChange={e => set("email", e.target.value)}
-            type="email" placeholder="email@example.com" style={inputSx(!!errs.email)} autoComplete="email" />
+            type="email" dir="ltr" placeholder="email@example.com" style={inputSx(!!errs.email)} autoComplete="email" />
         </Field>
 
         {emailTaken && (
@@ -736,7 +738,7 @@ export function ForgotPasswordPage() {
                 : "Enter your registered email. If email is configured on the server, you will get an 8-digit code; otherwise a reset link. Check spam."}
             </p>
             <Field label={ar ? "البريد الإلكتروني" : "Email"}>
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputSx(!!err)} disabled={loading} autoComplete="email" />
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputSx(!!err)} dir="ltr" disabled={loading} autoComplete="email" />
             </Field>
             {err && <div role="alert" style={{ color: C.danger, fontSize: 12, marginBottom: 12 }}>{err}</div>}
             <Btn children={loading ? "…" : (ar ? "إرسال رمز التحقق" : "Send verification code")} full onClick={submitEmail} style={{ boxShadow: "0 8px 25px rgba(217,27,91,.35)" }} />
@@ -747,14 +749,15 @@ export function ForgotPasswordPage() {
           <>
             <p style={{ color: C.muted, fontSize: 13, marginBottom: 14, lineHeight: 1.7 }}>
               {ar
-                ? `تم إرسال رمز مكوّن من 8 أرقام إلى ${email}. أدخل الرمز ثم اختر كلمة مرور جديدة.`
-                : `We sent an 8-digit code to ${email}. Enter it and choose a new password.`}
+                ? <>تم إرسال رمز مكوّن من 8 أرقام إلى <bdi dir="ltr">{email}</bdi>. أدخل الرمز ثم اختر كلمة مرور جديدة.</>
+                : <>We sent an 8-digit code to <bdi dir="ltr">{email}</bdi>. Enter it and choose a new password.</>}
             </p>
             <Field label={ar ? "رمز التحقق (8 أرقام)" : "Verification code (8 digits)"}>
               <input
                 inputMode="numeric"
                 autoComplete="one-time-code"
                 maxLength={8}
+                dir="ltr"
                 value={otp}
                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 8))}
                 placeholder="••••••••"
@@ -777,7 +780,7 @@ export function ForgotPasswordPage() {
             </div>
             {err && <div role="alert" style={{ color: C.danger, fontSize: 12, margin: "12px 0" }}>{err}</div>}
             <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-              <Btn children={ar ? "← تغيير البريد" : "← Change email"} v="outline" onClick={() => { setView("formEmail"); setErr(""); }} style={{ flex: "0 1 auto", padding: "11px 16px" }} />
+              <Btn children={ar ? "→ تغيير البريد" : "← Change email"} v="outline" onClick={() => { setView("formEmail"); setErr(""); }} style={{ flex: "0 1 auto", padding: "11px 16px" }} />
               <Btn children={loading ? "…" : (ar ? "حفظ كلمة المرور" : "Save password")} onClick={submitOtp} style={{ flex: 1, minWidth: 160, boxShadow: "0 8px 25px rgba(217,27,91,.35)" }} disabled={loading} />
             </div>
           </>
@@ -822,7 +825,7 @@ export function ForgotPasswordPage() {
         {view !== "msgSuccess" && (
           <div style={{ marginTop: 20, textAlign: "center" }}>
             <button type="button" onClick={() => navigate("/login")} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 12 }}>
-              ← {ar ? "العودة لتسجيل الدخول" : "Back to login"}
+              {ar ? "→" : "←"} {ar ? "العودة لتسجيل الدخول" : "Back to login"}
             </button>
           </div>
         )}

@@ -75,11 +75,17 @@ function CodeSelect({ label, value, onChange, options, ar }) {
   );
 }
 
-function PaymentField({ label, value, bold }) {
+function PaymentField({ label, value, bold, ar }) {
+  const isNumeric = typeof value === "number";
   return (
     <div style={{ marginBottom: 12 }}>
       <div style={{ fontSize: 10.5, color: C.muted, fontWeight: 700, textTransform: "uppercase" }}>{label}</div>
-      <div style={{ fontSize: 13, fontWeight: bold ? 800 : 400 }}>{value || value === 0 ? (typeof value === "number" ? value.toLocaleString() : value) : "—"}</div>
+      <div
+        dir={isNumeric ? "ltr" : undefined}
+        style={{ fontSize: 13, fontWeight: bold ? 800 : 400, textAlign: isNumeric && ar ? "end" : "start" }}
+      >
+        {value || value === 0 ? (isNumeric ? value.toLocaleString() : value) : "—"}
+      </div>
     </div>
   );
 }
@@ -189,7 +195,7 @@ export default function EngagementDetailModal({ engagement, onClose }) {
         <LeadStatusBadge statusId={engagement.statusId} />
         <span style={{ fontSize: 12, color: C.muted }}>
           {businessUnit ? (ar ? businessUnit.name_ar : businessUnit.name_en) : "—"}
-          {program ? ` · ${program.name_en}` : ""}
+          {program ? <> · <span dir="ltr">{program.name_en}</span></> : ""}
         </span>
       </div>
 
@@ -197,11 +203,11 @@ export default function EngagementDetailModal({ engagement, onClose }) {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px", marginBottom: 4 }}>
           <div style={{ marginBottom: 12 }}>
             <div style={{ fontSize: 10.5, color: C.muted, fontWeight: 700, textTransform: "uppercase" }}>{tx("الهاتف", "Phone")}</div>
-            <div style={{ fontSize: 13 }}>{customer?.phone || "—"}</div>
+            <div dir="ltr" style={{ fontSize: 13, textAlign: ar ? "end" : "start" }}>{customer?.phone || "—"}</div>
           </div>
           <div style={{ marginBottom: 12 }}>
             <div style={{ fontSize: 10.5, color: C.muted, fontWeight: 700, textTransform: "uppercase" }}>{tx("البريد الإلكتروني", "Email")}</div>
-            <div style={{ fontSize: 13 }}>{customer?.email || "—"}</div>
+            <div dir="ltr" style={{ fontSize: 13, textAlign: ar ? "end" : "start" }}>{customer?.email || "—"}</div>
           </div>
         </div>
       )}
@@ -217,9 +223,9 @@ export default function EngagementDetailModal({ engagement, onClose }) {
         <div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
             <Input label={tx("الاسم الكامل", "Full Name")} value={profileDraft.fullName} onChange={(v) => setDraft("fullName", v)} />
-            <Input label={tx("الهاتف", "Phone")} value={profileDraft.phone} onChange={(v) => setDraft("phone", v)} />
-            <Input label={tx("البريد الإلكتروني", "Email")} value={profileDraft.email} onChange={(v) => setDraft("email", v)} />
-            <Input label={tx("واتساب", "WhatsApp")} value={profileDraft.whatsapp} onChange={(v) => setDraft("whatsapp", v)} />
+            <Input label={tx("الهاتف", "Phone")} value={profileDraft.phone} onChange={(v) => setDraft("phone", v)} dir="ltr" />
+            <Input label={tx("البريد الإلكتروني", "Email")} value={profileDraft.email} onChange={(v) => setDraft("email", v)} dir="ltr" />
+            <Input label={tx("واتساب", "WhatsApp")} value={profileDraft.whatsapp} onChange={(v) => setDraft("whatsapp", v)} dir="ltr" />
             <Input label={canonicalFieldLabel("registrationDate", ar ? "ar" : "en")} type="date" value={profileDraft.registrationDate || ""} onChange={(v) => setDraft("registrationDate", v || null)} />
             <CodeSelect ar={ar} label={canonicalFieldLabel("governorate", ar ? "ar" : "en")} value={profileDraft.governorate} onChange={(v) => setDraft("governorate", v)} options={GOVERNORATE_OPTIONS} />
             <CodeSelect ar={ar} label={canonicalFieldLabel("educationalLevel", ar ? "ar" : "en")} value={profileDraft.educationalLevel} onChange={(v) => setDraft("educationalLevel", v)} options={EDUCATIONAL_LEVEL_OPTIONS} />
@@ -296,14 +302,14 @@ export default function EngagementDetailModal({ engagement, onClose }) {
       {/* ── Payment — read-only here; edited inline in the Program sheet ── */}
       <div style={sectionTitleSx}>{tx("الدفع", "Payment")}</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
-        <PaymentField label={tx("سعر الكورس", "Course Price")} value={payment.coursePrice} />
-        <PaymentField label={tx("خطة الدفع", "Payment Plan")} value={optionLabel(PAYMENT_PLAN_OPTIONS, payment.paymentPlan, ar)} />
-        <PaymentField label={tx("عربون الحجز", "Reservation Deposit")} value={payment.reservationDeposit} />
-        <PaymentField label={tx("قسط 1", "Installment 1")} value={payment.installment1} />
-        <PaymentField label={tx("قسط 2", "Installment 2")} value={payment.installment2} />
-        <PaymentField label={tx("قسط 3", "Installment 3")} value={payment.installment3} />
-        <PaymentField label={tx("المبلغ المدفوع", "Amount Paid")} value={amountPaid} bold />
-        <PaymentField label={tx("المتبقي", "Remaining Balance")} value={remainingBalance} bold />
+        <PaymentField ar={ar} label={tx("سعر الكورس", "Course Price")} value={payment.coursePrice} />
+        <PaymentField ar={ar} label={tx("خطة الدفع", "Payment Plan")} value={optionLabel(PAYMENT_PLAN_OPTIONS, payment.paymentPlan, ar)} />
+        <PaymentField ar={ar} label={tx("عربون الحجز", "Reservation Deposit")} value={payment.reservationDeposit} />
+        <PaymentField ar={ar} label={tx("قسط 1", "Installment 1")} value={payment.installment1} />
+        <PaymentField ar={ar} label={tx("قسط 2", "Installment 2")} value={payment.installment2} />
+        <PaymentField ar={ar} label={tx("قسط 3", "Installment 3")} value={payment.installment3} />
+        <PaymentField ar={ar} label={tx("المبلغ المدفوع", "Amount Paid")} value={amountPaid} bold />
+        <PaymentField ar={ar} label={tx("المتبقي", "Remaining Balance")} value={remainingBalance} bold />
       </div>
       <div style={{ marginBottom: 12 }}>
         <div style={{ fontSize: 10.5, color: C.muted, fontWeight: 700, textTransform: "uppercase" }}>{tx("تأكيد الدفع", "Payment Confirmation")}</div>

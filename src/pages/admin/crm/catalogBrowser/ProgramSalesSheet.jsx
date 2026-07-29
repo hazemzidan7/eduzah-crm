@@ -295,7 +295,7 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
                       </td>
                       <td style={stickyTd2}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
-                          <InlineText value={customer?.phone} onSave={(v) => updateCustomer(customer.id, { phone: v })} minWidth={100} size={12} />
+                          <InlineText value={customer?.phone} onSave={(v) => updateCustomer(customer.id, { phone: v })} minWidth={100} size={12} dir="ltr" />
                           {e164 && (
                             <>
                               <a href={`tel:${e164}`} title={tx("اتصال", "Call")} style={iconLinkSx}><IconPhone size={13} /></a>
@@ -308,7 +308,7 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
                         <InlineDate value={sp.registrationDate} onSave={(v) => patchStudentProfile(e, "registrationDate", v)} />
                       </td>
                       <td style={td}>
-                        <InlineText value={customer?.email} onSave={(v) => updateCustomer(customer.id, { email: v })} minWidth={90} size={16} />
+                        <InlineText value={customer?.email} onSave={(v) => updateCustomer(customer.id, { email: v })} minWidth={90} size={16} dir="ltr" />
                       </td>
                       <td style={td}>
                         <InlineSelect value={sp.attendanceType} onSave={(v) => patchStudentProfile(e, "attendanceType", v)} options={[{ v: "", l: "—" }, ...attendanceOptions]} minWidth={80} />
