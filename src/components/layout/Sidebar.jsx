@@ -5,16 +5,17 @@ import { useAuth } from "../../context/AuthContext";
 import { useCatalog } from "../../context/CatalogContext";
 import { useCrmNav } from "../../context/CrmNavContext";
 import {
-  IconPeople, IconBell, IconHistory, IconBox, IconBarChart,
+  IconPeople, IconGrid, IconBell, IconHistory, IconBox, IconBarChart,
   IconGear, IconChevronDown, IconChevronRight, IconChevronsCollapse,
 } from "../Icons";
 
 // Ordered by daily workflow priority, not feature grouping: the customer
-// list and reminders are what a rep lives in; Import History is an
-// occasional utility, so it gets the muted "normal" tone, not the same
-// primary emphasis as Customers/Reminders.
+// list, Sales Sheet, and reminders are what a rep lives in; Import History
+// is an occasional utility, so it gets the muted "normal" tone, not the
+// same primary emphasis as the others.
 const primaryItems = [
   { key: "leads", ar: "العملاء", en: "Customers", Icon: IconPeople, tone: "primary" },
+  { key: "pipeline", ar: "خط المبيعات", en: "Sales Sheet", Icon: IconGrid, tone: "primary" },
   { key: "reminders", ar: "المتابعات", en: "Reminders", Icon: IconBell, tone: "primary" },
   { key: "importHistory", ar: "سجل الاستيراد", en: "Import History", Icon: IconHistory, tone: "normal" },
 ];

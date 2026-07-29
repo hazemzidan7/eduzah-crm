@@ -8,7 +8,7 @@ import { IconChevronDown } from "../Icons";
 const SECTION_LABELS = {
   catalog: { ar: "الكتالوج", en: "Catalog" },
   leads: { ar: "العملاء", en: "Customers" },
-  pipeline: { ar: "خط المبيعات", en: "Pipeline" },
+  pipeline: { ar: "خط المبيعات", en: "Sales Sheet" },
   reminders: { ar: "المتابعات", en: "Reminders" },
   importHistory: { ar: "سجل الاستيراد", en: "Import History" },
   import: { ar: "استيراد طلاب", en: "Import Students" },
