@@ -61,7 +61,7 @@ export default function ValueMappingStep({ wiz, patch, onNext, onBack }) {
           <div style={{ color: C.muted, fontSize: 12.5 }}>{tx("لا يوجد عمود حالة لمطابقته", "No status column to map")}</div>
         </Card>
         <div style={{ display: "flex", gap: 8 }}>
-          <Btn v="ghost" onClick={onBack}>{tx("رجوع", "Back")}</Btn>
+          <Btn v="purple" onClick={onBack}>{tx("رجوع", "Back")}</Btn>
           <Btn v="primary" onClick={() => { patch({ valueMap: {} }); onNext(); }}>{tx("التالي", "Next")}</Btn>
         </div>
       </div>
@@ -91,7 +91,7 @@ export default function ValueMappingStep({ wiz, patch, onNext, onBack }) {
         </div>
       </div>
       <div style={{ display: "flex", gap: 8 }}>
-        <Btn v="ghost" onClick={onBack}>{tx("رجوع", "Back")}</Btn>
+        <Btn v="purple" onClick={onBack}>{tx("رجوع", "Back")}</Btn>
         <Btn v="primary" disabled={!allResolved} onClick={continueNext}>{tx("التالي", "Next")}</Btn>
       </div>
     </div>

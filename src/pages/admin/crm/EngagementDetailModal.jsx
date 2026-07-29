@@ -232,7 +232,7 @@ export default function EngagementDetailModal({ engagement, onClose }) {
           </div>
           <Input label={canonicalFieldLabel("studentComment", ar ? "ar" : "en")} value={profileDraft.studentComment || ""} onChange={(v) => setDraft("studentComment", v)} rows={2} />
           <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-            <Btn sm v="ghost" onClick={cancelEditProfile}>{tx("إلغاء", "Cancel")}</Btn>
+            <Btn sm v="purple" onClick={cancelEditProfile}>{tx("إلغاء", "Cancel")}</Btn>
             <Btn sm v="primary" disabled={saving} onClick={saveEditProfile}>{tx("حفظ", "Save")}</Btn>
           </div>
         </div>

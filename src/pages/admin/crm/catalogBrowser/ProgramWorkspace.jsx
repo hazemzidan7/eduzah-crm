@@ -91,7 +91,7 @@ export default function ProgramWorkspace({ programId, onBack }) {
           <button key={v.v} onClick={() => setView(v.v)} style={{
             padding: "7px 16px", borderRadius: 8, border: "none", cursor: "pointer",
             fontWeight: 700, fontSize: 12.5, fontFamily: "'Cairo',sans-serif",
-            background: view === v.v ? C.purple : "rgba(255,255,255,.08)",
+            background: view === v.v ? C.red : `${C.purple}26`,
             color: view === v.v ? "#fff" : C.muted,
           }}>{ar ? v.ar : v.en}</button>
         ))}

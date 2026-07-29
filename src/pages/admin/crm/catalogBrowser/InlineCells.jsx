@@ -3,7 +3,7 @@ import { C } from "../../../../theme";
 
 const cellSx = {
   width: "100%", background: "transparent", border: "1px solid transparent",
-  borderRadius: 6, padding: "5px 6px", color: "#fff",
+  borderRadius: 6, padding: "5px 6px", color: "#fff", textAlign: "center",
   fontFamily: "'Cairo',sans-serif", fontSize: 12.5, outline: "none",
   boxSizing: "border-box", transition: "background .15s, border-color .15s",
 };
@@ -46,7 +46,7 @@ export function InlineNumber({ value, onSave, minWidth = 64 }) {
       onChange={(e) => setDraft(e.target.value)}
       onFocus={() => setFocused(true)}
       onBlur={commit}
-      style={{ ...cellSx, ...(focused ? cellFocusSx : {}), minWidth, width: "auto", textAlign: "end" }}
+      style={{ ...cellSx, ...(focused ? cellFocusSx : {}), minWidth, width: "auto", fontVariantNumeric: "tabular-nums" }}
     />
   );
 }
@@ -86,7 +86,7 @@ export function InlineStatusSelect({ value, onSave, options, color }) {
         minWidth: 108, width: "100%", boxSizing: "border-box",
         background: color ? `${color}40` : "rgba(255,255,255,.08)",
         border: `1px solid ${color ? color + "b0" : C.border}`,
-        color: "#fff", fontWeight: 800, fontSize: 11.5, letterSpacing: 0.2,
+        color: "#fff", fontWeight: 800, fontSize: 11.5, letterSpacing: 0.2, textAlign: "center",
         borderRadius: 999, padding: "5.5px 22px 5.5px 11px",
         fontFamily: "'Cairo',sans-serif", outline: "none",
         textShadow: "0 1px 2px rgba(0,0,0,.35)",
@@ -103,7 +103,7 @@ export function InlineStatusSelect({ value, onSave, options, color }) {
 /** A derived (formula) cell — never directly editable, just displayed. */
 export function ComputedMoney({ value, color }) {
   return (
-    <div style={{ padding: "5px 6px", fontSize: 12.5, fontWeight: 700, color: color || C.muted, minWidth: 70, textAlign: "end" }}>
+    <div style={{ padding: "5px 6px", fontSize: 12.5, fontWeight: 700, color: color || C.muted, minWidth: 70, textAlign: "center", fontVariantNumeric: "tabular-nums" }}>
       {(value || 0).toLocaleString()}
     </div>
   );

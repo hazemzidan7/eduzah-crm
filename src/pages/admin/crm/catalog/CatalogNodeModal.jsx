@@ -118,7 +118,7 @@ export default function CatalogNodeModal({ parentNode, editNode, onClose }) {
           <Input label={tx("اسم النوع بالعربي", "Type name (Arabic)")} value={newTypeAr} onChange={setNewTypeAr} />
           <Input label={tx("اسم النوع بالإنجليزي", "Type name (English)")} value={newTypeEn} onChange={setNewTypeEn} />
           <div style={{ display: "flex", gap: 8 }}>
-            <Btn sm v="ghost" onClick={() => setShowNewType(false)}>{tx("إلغاء", "Cancel")}</Btn>
+            <Btn sm v="purple" onClick={() => setShowNewType(false)}>{tx("إلغاء", "Cancel")}</Btn>
             <Btn sm v="primary" onClick={registerNewType}>{tx("تسجيل واختيار", "Register & select")}</Btn>
           </div>
         </div>
@@ -137,7 +137,7 @@ export default function CatalogNodeModal({ parentNode, editNode, onClose }) {
 
       {error && <div style={{ color: "#f87171", fontSize: 12, marginBottom: 10 }}>{error}</div>}
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
-        <Btn v="ghost" onClick={onClose}>{tx("إلغاء", "Cancel")}</Btn>
+        <Btn v="purple" onClick={onClose}>{tx("إلغاء", "Cancel")}</Btn>
         <Btn v="primary" disabled={saving} onClick={submit}>{tx("حفظ", "Save")}</Btn>
       </div>
     </Modal>

@@ -74,7 +74,7 @@ export default function AddStudentModal({ program, businessUnitId, onClose }) {
       <Input label={tx("تاريخ التسجيل", "Registration Date")} type="date" value={registrationDate} onChange={setRegistrationDate} />
       {error && <div style={{ color: "#f87171", fontSize: 12, marginBottom: 10 }}>{error}</div>}
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-        <Btn v="ghost" onClick={onClose}>{tx("إلغاء", "Cancel")}</Btn>
+        <Btn v="purple" onClick={onClose}>{tx("إلغاء", "Cancel")}</Btn>
         <Btn v="primary" disabled={saving} onClick={submit}>{saving ? tx("جاري الإضافة…", "Adding…") : tx("إضافة الطالب", "Add Student")}</Btn>
       </div>
     </Modal>

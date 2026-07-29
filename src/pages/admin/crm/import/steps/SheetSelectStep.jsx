@@ -50,7 +50,7 @@ export default function SheetSelectStep({ wiz, patch, onNext, onBack }) {
         ))}
       </div>
       <div style={{ display: "flex", gap: 8 }}>
-        <Btn v="ghost" onClick={onBack}>{tx("رجوع", "Back")}</Btn>
+        <Btn v="purple" onClick={onBack}>{tx("رجوع", "Back")}</Btn>
         <Btn v="primary" disabled={selected.size === 0} onClick={continueNext}>{tx("التالي", "Next")}</Btn>
       </div>
     </div>

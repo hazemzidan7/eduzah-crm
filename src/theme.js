@@ -6,10 +6,6 @@ export const C = {
   muted:"rgba(255,255,255,.80)", faint:"rgba(255,255,255,.09)",
   border:"rgba(255,255,255,.14)",
   success:"#34d399", danger:"#f87171", warning:"#fbbf24",
-  /* Status-family colors — used only where the unified status vocabulary
-     explicitly calls for a hue outside the 4 brand colors. */
-  info:"#3b82f6", statusGreen:"#22c55e", statusEmerald:"#10b981",
-  statusGray:"#6b7280", statusSlate:"#94a3b8",
 };
 export const font = "'Cairo',sans-serif";
 

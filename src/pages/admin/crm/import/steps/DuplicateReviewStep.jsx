@@ -100,7 +100,7 @@ export default function DuplicateReviewStep({ wiz, patch, onNext, onBack }) {
       )}
 
       <div style={{ display: "flex", gap: 8 }}>
-        <Btn v="ghost" onClick={onBack}>{tx("رجوع", "Back")}</Btn>
+        <Btn v="purple" onClick={onBack}>{tx("رجوع", "Back")}</Btn>
         <Btn v="primary" onClick={continueNext}>{tx("التالي", "Next")}</Btn>
       </div>
     </div>

@@ -26,7 +26,7 @@ export default function CrmModule() {
             <button key={st.key} onClick={() => setCrmSubTab(st.key)} style={{
               padding: "6px 14px", borderRadius: 8, border: "none", cursor: "pointer",
               fontWeight: 700, fontSize: 12, fontFamily: "'Cairo',sans-serif",
-              background: crmSubTab === st.key ? C.purple : "rgba(255,255,255,.08)",
+              background: crmSubTab === st.key ? C.red : `${C.purple}26`,
               color: crmSubTab === st.key ? "#fff" : C.muted,
               transition: "all .2s",
             }}>{ar ? st.ar : st.en}</button>

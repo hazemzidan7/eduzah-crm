@@ -121,7 +121,7 @@ export default function CatalogNodeRow({ node, depth, expandedIds, onToggleExpan
             )}
           </p>
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-            <Btn v="ghost" onClick={() => setArchiveState(null)}>{tx("إلغاء", "Cancel")}</Btn>
+            <Btn v="purple" onClick={() => setArchiveState(null)}>{tx("إلغاء", "Cancel")}</Btn>
             <Btn v="danger" onClick={async () => { await archiveNode(node.id, { cascade: true }); setArchiveState(null); }}>
               {tx("أرشفة الكل", "Archive all")}
             </Btn>
@@ -144,7 +144,7 @@ export default function CatalogNodeRow({ node, depth, expandedIds, onToggleExpan
           </p>
           {deleteError && <p style={{ fontSize: 12, color: "#f87171", marginBottom: 12 }}>{deleteError}</p>}
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-            <Btn v="ghost" onClick={() => setConfirmDelete(false)}>{tx("إلغاء", "Cancel")}</Btn>
+            <Btn v="purple" onClick={() => setConfirmDelete(false)}>{tx("إلغاء", "Cancel")}</Btn>
             <Btn v="danger" onClick={tryDelete}>{tx("حذف نهائي", "Delete permanently")}</Btn>
           </div>
         </Modal>

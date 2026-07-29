@@ -129,8 +129,8 @@ export default function ValidationSummaryStep({ wiz, onBack }) {
       {error && <div style={{ color: "#f87171", fontSize: 12, marginBottom: 10 }}>{error}</div>}
 
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        <Btn v="ghost" disabled={committing} onClick={onBack}>{tx("رجوع", "Back")}</Btn>
-        <Btn v="success" disabled={committing || !committable} onClick={runCommit}>
+        <Btn v="purple" disabled={committing} onClick={onBack}>{tx("رجوع", "Back")}</Btn>
+        <Btn v="primary" disabled={committing || !committable} onClick={runCommit}>
           {committing ? tx("جاري التنفيذ…", "Committing…") : tx("تنفيذ الاستيراد", "Commit Import")}
         </Btn>
       </div>
@@ -138,5 +138,5 @@ export default function ValidationSummaryStep({ wiz, onBack }) {
   );
 }
 
-const th = { textAlign: "start", fontSize: 10.5, letterSpacing: 0.5, textTransform: "uppercase", color: "rgba(255,255,255,.88)", fontWeight: 700, padding: "10px 12px", borderBottom: "1px solid rgba(255,255,255,.14)" };
-const td = { padding: "9px 12px", fontSize: 12.5, borderBottom: "1px solid rgba(255,255,255,.06)" };
+const th = { textAlign: "center", fontSize: 10.5, letterSpacing: 0.5, textTransform: "uppercase", color: "rgba(255,255,255,.88)", fontWeight: 800, padding: "10px 12px", borderBottom: "1px solid rgba(255,255,255,.14)" };
+const td = { padding: "9px 12px", fontSize: 12.5, textAlign: "center", borderBottom: "1px solid rgba(255,255,255,.09)" };

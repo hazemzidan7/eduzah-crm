@@ -108,7 +108,7 @@ export default function StatusRow({ node, depth, expandedIds, onToggleExpand, sh
             )}
           </p>
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-            <Btn v="ghost" onClick={() => setArchiveState(null)}>{tx("إلغاء", "Cancel")}</Btn>
+            <Btn v="purple" onClick={() => setArchiveState(null)}>{tx("إلغاء", "Cancel")}</Btn>
             <Btn v="danger" onClick={async () => { await archiveStatus(node.id, { cascade: true }); setArchiveState(null); }}>
               {tx("أرشفة الكل", "Archive all")}
             </Btn>

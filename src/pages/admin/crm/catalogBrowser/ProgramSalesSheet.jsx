@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { Card, Btn } from "../../../../components/UI";
-import { C } from "../../../../theme";
+import { C, radius, shadow } from "../../../../theme";
 import { useAuth } from "../../../../context/AuthContext";
 import { useLeadStatus } from "../../../../context/LeadStatusContext";
 import { useCustomers } from "../../../../context/CustomerContext";
@@ -10,8 +10,8 @@ import { InlineText, InlineNumber, InlineDate, InlineSelect, InlineStatusSelect,
 import EngagementDetailModal from "../EngagementDetailModal";
 import AddStudentModal from "./AddStudentModal";
 
-const th = { textAlign: "start", fontSize: 10, letterSpacing: 0.3, textTransform: "uppercase", color: "rgba(255,255,255,.88)", fontWeight: 700, padding: "11px 12px", borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap", background: "#2c1a3a", position: "sticky", top: 0, zIndex: 2, boxShadow: "0 2px 6px rgba(0,0,0,.25)" };
-const td = { padding: "7px 10px", fontSize: 12.5, borderBottom: "1px solid rgba(255,255,255,.06)", verticalAlign: "middle", whiteSpace: "nowrap" };
+const th = { textAlign: "center", fontSize: 10, letterSpacing: 0.3, textTransform: "uppercase", color: "rgba(255,255,255,.88)", fontWeight: 800, padding: "11px 12px", borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap", background: "#2c1a3a", position: "sticky", top: 0, zIndex: 2, boxShadow: "0 2px 6px rgba(0,0,0,.25)" };
+const td = { padding: "8px 10px", fontSize: 12.5, textAlign: "center", borderBottom: "1px solid rgba(255,255,255,.09)", verticalAlign: "middle", whiteSpace: "nowrap" };
 
 // Name + Phone are pinned while scrolling horizontally so a rep never loses
 // track of who they're looking at — they must be adjacent columns (nothing
@@ -48,6 +48,16 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
   const [statusFilter, setStatusFilter] = useState("all");
   const [profileEngagementId, setProfileEngagementId] = useState(null);
   const [addingStudent, setAddingStudent] = useState(false);
+  // Compact overflow menu for the row's less-frequent actions (confirm
+  // payment, schedule follow-up) — only View Profile stays always visible.
+  const [rowMenu, setRowMenu] = useState(null); // { id, top, left }
+  const openRowMenu = (ev, id) => {
+    const r = ev.currentTarget.getBoundingClientRect();
+    const menuWidth = 190;
+    const left = ar ? r.left : Math.max(8, r.right - menuWidth);
+    setRowMenu({ id, top: r.bottom + 4, left });
+  };
+  const closeRowMenu = () => setRowMenu(null);
 
   // Shift+wheel already pans horizontally in most browsers, but not all
   // mice/trackpads send it consistently — handle it explicitly so it always
@@ -121,11 +131,11 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
         <Btn v="primary" onClick={() => setAddingStudent(true)}>+ {tx("إضافة طالب", "Add Student")}</Btn>
       </div>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
-        <button onClick={() => setStatusFilter("all")} style={pillStyle(statusFilter === "all", C.purple)}>
+        <button onClick={() => setStatusFilter("all")} style={pillStyle(statusFilter === "all")}>
           {tx("الكل", "All")} <span style={{ opacity: 0.7 }}>({engagements.length})</span>
         </button>
         {statusOptions.map((s) => (
-          <button key={s.v} onClick={() => setStatusFilter(s.v)} style={pillStyle(statusFilter === s.v, C.purple)}>
+          <button key={s.v} onClick={() => setStatusFilter(s.v)} style={pillStyle(statusFilter === s.v)}>
             {s.l} <span style={{ opacity: 0.7 }}>({engagements.filter((e) => e.statusId === s.v).length})</span>
           </button>
         ))}
@@ -163,7 +173,7 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
                   <th style={th}>{tx("آخر تواصل", "Last Contact")}</th>
                   <th style={th}>{tx("المتابعة القادمة", "Next Follow-up")}</th>
                   <th style={th}>{tx("الموظف المسؤول", "Assigned")}</th>
-                  <th style={th}>{tx("إجراءات", "Actions")}</th>
+                  <th style={{ ...th, width: 76, minWidth: 76 }} aria-label={tx("إجراءات", "Actions")}></th>
                 </tr>
               </thead>
               <tbody>
@@ -179,12 +189,12 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
                   const status = statusById(e.statusId);
 
                   return (
-                    <tr key={e.id} className="edu-sheet-row">
+                    <tr key={e.id} className={`edu-sheet-row${profileEngagementId === e.id ? " is-selected" : ""}`}>
                       <td style={stickyTd1}>
                         <InlineText value={customer?.fullName} onSave={(v) => updateCustomer(customer.id, { fullName: v })} minWidth={130} size={16} />
                       </td>
                       <td style={stickyTd2}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
                           <InlineText value={customer?.phone} onSave={(v) => updateCustomer(customer.id, { phone: v })} minWidth={100} size={12} />
                           {e164 && (
                             <>
@@ -244,13 +254,10 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
                       <td style={td}>
                         <InlineSelect value={e.ownerId} onSave={(v) => updateEngagement(e.id, { ownerId: v })} options={assigneeOptions} minWidth={90} />
                       </td>
-                      <td style={td}>
-                        <div style={{ display: "flex", gap: 4 }}>
-                          {!payment.confirmed && (
-                            <Btn sm v="success" onClick={() => confirmPayment(e)} title={tx("تأكيد الدفع", "Confirm Payment")}>✓</Btn>
-                          )}
-                          <Btn sm v="ghost" onClick={() => scheduleFollowUp(e)} title={tx("جدولة متابعة", "Schedule Follow-up")}>📅</Btn>
+                      <td style={{ ...td, width: 76, minWidth: 76 }}>
+                        <div style={{ display: "flex", gap: 4, justifyContent: "center" }}>
                           <Btn sm v="ghost" onClick={() => setProfileEngagementId(e.id)} title={tx("عرض الملف", "View Profile")}>👁</Btn>
+                          <Btn sm v="ghost" onClick={(ev) => openRowMenu(ev, e.id)} title={tx("المزيد", "More")}>⋮</Btn>
                         </div>
                       </td>
                     </tr>
@@ -276,17 +283,42 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
       {addingStudent && (
         <AddStudentModal program={program} businessUnitId={businessUnitId} onClose={() => setAddingStudent(false)} />
       )}
+      {rowMenu && (() => {
+        const eng = filtered.find((x) => x.id === rowMenu.id);
+        if (!eng) return null;
+        return (
+          <>
+            <div onClick={closeRowMenu} style={{ position: "fixed", inset: 0, zIndex: 1400 }} />
+            <div style={{
+              position: "fixed", top: rowMenu.top, left: rowMenu.left, zIndex: 1401,
+              background: "#331f42", border: `1px solid ${C.border}`, borderRadius: radius.md,
+              boxShadow: shadow.lg, minWidth: 190, padding: 6, display: "flex", flexDirection: "column", gap: 2,
+            }}>
+              {!eng.payment?.confirmed && (
+                <button className="edu-row-menu-item" onClick={() => { confirmPayment(eng); closeRowMenu(); }}>
+                  ✓ {tx("تأكيد الدفع", "Confirm Payment")}
+                </button>
+              )}
+              <button className="edu-row-menu-item" onClick={() => { scheduleFollowUp(eng); closeRowMenu(); }}>
+                📅 {tx("جدولة متابعة (3 أيام)", "Schedule Follow-up (3 days)")}
+              </button>
+            </div>
+          </>
+        );
+      })()}
     </div>
   );
 }
 
 const iconLinkSx = { textDecoration: "none", fontSize: 14, padding: "3px 5px", borderRadius: 6, background: "rgba(255,255,255,.06)", transition: "background .15s" };
 
-function pillStyle(active, color) {
+// Active filter = Red (the brand's "selected state" color); inactive stays a
+// quiet Purple-tinted surface so the pill bar itself still reads as Eduzah.
+function pillStyle(active) {
   return {
     padding: "6px 13px", borderRadius: 99, border: "none", cursor: "pointer",
     fontWeight: 800, fontSize: 11.5, fontFamily: "'Cairo',sans-serif",
-    background: active ? color : "rgba(255,255,255,.06)",
+    background: active ? C.red : `${C.purple}26`,
     color: active ? "#fff" : C.muted,
     transition: "all .2s",
   };
