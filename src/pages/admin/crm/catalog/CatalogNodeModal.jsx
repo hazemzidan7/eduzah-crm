@@ -3,6 +3,7 @@ import { Modal, Input, Select, Btn } from "../../../../components/UI";
 import { C } from "../../../../theme";
 import { useCatalog } from "../../../../context/CatalogContext";
 import { useLang } from "../../../../context/LangContext";
+import { DEFAULT_INSTALLMENT_COUNT, CURRENCY, computeFullPaymentPrice } from "../../../../data/catalogPricingPlan";
 
 const MOVE_ERROR_MESSAGES = {
   SELF_PARENT: { ar: "لا يمكن أن يكون العنصر أباً لنفسه", en: "A node cannot be its own parent" },
@@ -33,6 +34,13 @@ export default function CatalogNodeModal({ parentNode, editNode, onClose }) {
   const [color, setColor] = useState(editNode?.color || "");
   const [description, setDescription] = useState(editNode?.description || "");
   const [parentId, setParentId] = useState(editNode ? (editNode.parentId || "") : "");
+  // Pricing (CRM-CATALOG-01) — program nodes only. slug is immutable once
+  // set: the field is locked (read-only) as soon as editNode already has one.
+  const [slug, setSlug] = useState(editNode?.slug || "");
+  const [originalPrice, setOriginalPrice] = useState(editNode?.originalPrice ?? "");
+  const [depositAmount, setDepositAmount] = useState(editNode?.depositAmount ?? "");
+  const [installmentCount, setInstallmentCount] = useState(editNode?.installmentCount || DEFAULT_INSTALLMENT_COUNT);
+  const [priceUnit, setPriceUnit] = useState(editNode?.priceUnit || "program");
   const [showNewType, setShowNewType] = useState(false);
   const [newTypeAr, setNewTypeAr] = useState("");
   const [newTypeEn, setNewTypeEn] = useState("");
@@ -69,16 +77,39 @@ export default function CatalogNodeModal({ parentNode, editNode, onClose }) {
     if (!nameAr.trim() && !nameEn.trim()) { setError(tx("أدخل اسماً على الأقل", "Enter at least one name")); return; }
     const finalType = isRoot ? "business_unit" : type;
     if (!finalType) { setError(tx("حدد النوع", "Choose a type")); return; }
+    const isProgram = finalType === "program";
+    if (isProgram && originalPrice !== "" && ![2, 3].includes(Number(installmentCount))) {
+      setError(tx("عدد الأقساط يجب أن يكون 2 أو 3", "Installment count must be 2 or 3"));
+      return;
+    }
+    const pricingFields = isProgram
+      ? {
+          slug: slug.trim() || null,
+          ...(originalPrice !== "" ? {
+            originalPrice: Number(originalPrice),
+            fullPaymentPrice: computeFullPaymentPrice(Number(originalPrice)),
+            installmentPrice: Number(originalPrice),
+            depositAmount: depositAmount === "" ? null : Number(depositAmount),
+            installmentCount: Number(installmentCount),
+            currency: CURRENCY,
+            priceUnit,
+          } : {}),
+        }
+      : {};
     setSaving(true);
     try {
       if (editNode) {
-        await updateNode(editNode.id, { name_ar: nameAr, name_en: nameEn, type: finalType, code, icon, color, description });
+        // slug is immutable once set — never send a changed value for an
+        // already-slugged node, even if the (disabled) field somehow changed.
+        const patch = { name_ar: nameAr, name_en: nameEn, type: finalType, code, icon, color, description, ...pricingFields };
+        if (editNode.slug) delete patch.slug;
+        await updateNode(editNode.id, patch);
         const newParentId = parentId || null;
         if ((editNode.parentId || null) !== newParentId) {
           await moveNode(editNode.id, newParentId);
         }
       } else {
-        await addNode({ name_ar: nameAr, name_en: nameEn, type: finalType, code, icon, color, description, parentId: parentNode?.id || null });
+        await addNode({ name_ar: nameAr, name_en: nameEn, type: finalType, code, icon, color, description, parentId: parentNode?.id || null, extraFields: pricingFields });
       }
       onClose();
     } catch (e) {
@@ -130,6 +161,49 @@ export default function CatalogNodeModal({ parentNode, editNode, onClose }) {
       </div>
       <Input label={tx("لون (اختياري، مثال #7d3d9e)", "Color (optional, e.g. #7d3d9e)")} value={color} onChange={setColor} />
       <Input label={tx("وصف (اختياري)", "Description (optional)")} value={description} onChange={setDescription} rows={2} />
+
+      {type === "program" && (
+        <div style={{ background: "rgba(255,255,255,.04)", borderRadius: 10, padding: 12, marginBottom: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: C.muted, textTransform: "uppercase", marginBottom: 8 }}>{tx("التسعير (CRM-CATALOG-01)", "Pricing (CRM-CATALOG-01)")}</div>
+          {editNode?.slug ? (
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 4 }}>{tx("المعرف (slug) — لا يتغيّر بعد الحفظ", "Slug — immutable once saved")}</label>
+              <div dir="ltr" style={{ background: "rgba(255,255,255,.04)", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "9px 13px", fontSize: 13, color: C.muted }}>
+                {editNode.slug}
+              </div>
+            </div>
+          ) : (
+            <Input
+              label={tx("المعرف (slug)", "Slug")}
+              value={slug} onChange={setSlug} dir="ltr"
+              placeholder="e.g. frontend-web-development"
+            />
+          )}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
+            <Input label={tx(`السعر الأصلي (${CURRENCY})`, `Original Price (${CURRENCY})`)} type="number" value={originalPrice} onChange={setOriginalPrice} dir="ltr" />
+            <Input label={tx(`العربون (${CURRENCY})`, `Deposit (${CURRENCY})`)} type="number" value={depositAmount} onChange={setDepositAmount} dir="ltr" />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
+            <Select
+              label={tx("عدد الأقساط", "Installment Count")}
+              value={String(installmentCount)}
+              onChange={(v) => setInstallmentCount(Number(v))}
+              options={[{ v: "2", l: "2" }, { v: "3", l: "3" }]}
+            />
+            <Select
+              label={tx("وحدة السعر", "Price Unit")}
+              value={priceUnit}
+              onChange={setPriceUnit}
+              options={[{ v: "program", l: tx("للبرنامج كاملاً", "Whole program") }, { v: "per_level", l: tx("لكل مستوى", "Per level") }]}
+            />
+          </div>
+          {originalPrice !== "" && !isNaN(Number(originalPrice)) && (
+            <div style={{ fontSize: 11.5, color: C.muted }}>
+              {tx("سعر الدفع الكامل (محسوب)", "Full-payment price (computed)")}: {computeFullPaymentPrice(Number(originalPrice)).toLocaleString()} {CURRENCY}
+            </div>
+          )}
+        </div>
+      )}
 
       {editNode && (
         <Select label={tx("الأب", "Parent")} value={parentId} onChange={setParentId} options={parentOptions} />

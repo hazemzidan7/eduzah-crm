@@ -30,12 +30,27 @@ function computeVisibleIds(nodes, search, typeFilter) {
 }
 
 export default function CatalogManager() {
-  const { nodes, nodeTypes, businessUnits, allBusinessUnits, loading } = useCatalog();
+  const { nodes, nodeTypes, businessUnits, allBusinessUnits, loading, ensureCatalogPricingPlan } = useCatalog();
   const { lang } = useLang();
   const ar = lang === "ar";
   const tx = (a, e) => (ar ? a : e);
 
   const [showAddRoot, setShowAddRoot] = useState(false);
+  const [pricingRunning, setPricingRunning] = useState(false);
+  const [pricingResult, setPricingResult] = useState(null);
+  const [pricingError, setPricingError] = useState("");
+  const runEnsurePricing = async () => {
+    setPricingRunning(true);
+    setPricingError("");
+    setPricingResult(null);
+    try {
+      setPricingResult(await ensureCatalogPricingPlan());
+    } catch (e) {
+      setPricingError(e.message || tx("حدث خطأ", "Something went wrong"));
+    } finally {
+      setPricingRunning(false);
+    }
+  };
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [showArchived, setShowArchived] = useState(false);
@@ -65,8 +80,35 @@ export default function CatalogManager() {
             )}
           </div>
         </div>
-        <Btn v="primary" onClick={() => setShowAddRoot(true)}>{tx("+ وحدة عمل جديدة", "+ Add Business Unit")}</Btn>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <Btn v="purple" disabled={pricingRunning} onClick={runEnsurePricing}>
+            {pricingRunning ? tx("جاري التنفيذ…", "Running…") : tx("ضمان برامج وتسعير الكتالوج (CRM-CATALOG-01)", "Ensure Program Catalog & Pricing (CRM-CATALOG-01)")}
+          </Btn>
+          <Btn v="primary" onClick={() => setShowAddRoot(true)}>{tx("+ وحدة عمل جديدة", "+ Add Business Unit")}</Btn>
+        </div>
       </div>
+
+      {pricingError && (
+        <Card style={{ padding: 14, marginBottom: 14, borderColor: C.danger }}>
+          <div style={{ color: C.danger, fontSize: 12.5, fontWeight: 700 }}>{pricingError}</div>
+        </Card>
+      )}
+      {pricingResult && (
+        <Card style={{ padding: 14, marginBottom: 14 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 800, marginBottom: 8 }}>
+            {tx("نتيجة ضمان الكتالوج", "Ensure Catalog result")}: {tx(`أُنشئ ${pricingResult.created.length}، حُدّث ${pricingResult.updated.length}، تخطّي ${pricingResult.skipped.length}`, `${pricingResult.created.length} created, ${pricingResult.updated.length} updated, ${pricingResult.skipped.length} skipped`)}
+          </div>
+          {pricingResult.created.length > 0 && (
+            <div style={{ fontSize: 11.5, color: C.success, marginBottom: 4 }}>{tx("أُنشئ", "Created")}: {pricingResult.created.map((r) => r.slug).join(", ")}</div>
+          )}
+          {pricingResult.updated.length > 0 && (
+            <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 4 }}>{tx("حُدّث", "Updated")}: {pricingResult.updated.map((r) => r.slug).join(", ")}</div>
+          )}
+          {pricingResult.skipped.length > 0 && (
+            <div style={{ fontSize: 11.5, color: C.orange }}>{tx("تخطّي", "Skipped")}: {pricingResult.skipped.map((r) => `${r.slug} (${r.reason})`).join(", ")}</div>
+          )}
+        </Card>
+      )}
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14, alignItems: "center" }}>
         <input

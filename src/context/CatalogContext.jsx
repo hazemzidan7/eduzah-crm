@@ -14,6 +14,7 @@ import {
 import { db } from "../firebase";
 import { useAuth } from "./AuthContext";
 import { CATALOG_SEED } from "../data/catalogSeed";
+import { CATALOG_PRICING_PLAN, DEFAULT_INSTALLMENT_COUNT, CURRENCY, computeFullPaymentPrice } from "../data/catalogPricingPlan";
 
 const CatalogCtx = createContext(null);
 
@@ -249,11 +250,66 @@ export function CatalogProvider({ children }) {
     await deleteDoc(doc(db, "catalogNodes", id));
   };
 
+  // ── CRM-CATALOG-01: ensure every program in CATALOG_PRICING_PLAN exists
+  // with authoritative pricing, for the Landing -> CRM integration. Manual,
+  // admin-triggered only (Settings > Catalog) — never runs automatically,
+  // and never touches any node this plan doesn't explicitly list.
+  //
+  // Matching, in order: (1) a program that already has this slug — pricing
+  // is refreshed, slug/name/tree position are left alone; (2) a program
+  // under the target Business Unit whose name_en matches `matchNameEn` —
+  // same id, same position, slug/pricing added; (3) no match — a brand new
+  // Program node is created. `slug` is immutable once set: an existing
+  // non-null slug is never overwritten, satisfying requirement 2.
+  const ensureCatalogPricingPlan = async () => {
+    const now = new Date().toISOString();
+    const created = [], updated = [], skipped = [];
+
+    for (const [i, plan] of CATALOG_PRICING_PLAN.entries()) {
+      const bu = nodes.find((n) => n.type === "business_unit" && n.name_en === plan.businessUnit);
+      if (!bu) { skipped.push({ slug: plan.slug, reason: "business_unit_not_found: " + plan.businessUnit }); continue; }
+
+      let existing = nodes.find((n) => n.type === "program" && n.slug === plan.slug) || null;
+      if (!existing && plan.matchNameEn) {
+        existing = descendantsOf(bu.id).find((n) => n.type === "program" && n.name_en === plan.matchNameEn) || null;
+      }
+
+      const pricingPatch = {
+        originalPrice: plan.originalPrice,
+        fullPaymentPrice: computeFullPaymentPrice(plan.originalPrice),
+        installmentPrice: plan.originalPrice,
+        depositAmount: plan.depositAmount,
+        installmentCount: DEFAULT_INSTALLMENT_COUNT,
+        currency: CURRENCY,
+        priceUnit: plan.priceUnit || "program",
+      };
+
+      if (existing) {
+        const patch = { ...pricingPatch };
+        if (!existing.slug) patch.slug = plan.slug; // only ever set once
+        await updateDoc(doc(db, "catalogNodes", existing.id), { ...patch, updatedAt: now });
+        updated.push({ slug: plan.slug, id: existing.id, name_en: existing.name_en });
+      } else {
+        const path = [...(bu.path || []), bu.id];
+        const ref = await addDoc(collection(db, "catalogNodes"), {
+          type: "program", name_ar: plan.name_ar, name_en: plan.name_en,
+          code: "", icon: "", color: "", description: "",
+          parentId: bu.id, path, order: 900 + i, isActive: true, archivedAt: null,
+          slug: plan.slug,
+          ...pricingPatch,
+          createdAt: now, updatedAt: now,
+        });
+        created.push({ slug: plan.slug, id: ref.id, name_en: plan.name_en });
+      }
+    }
+    return { created, updated, skipped };
+  };
+
   return (
     <CatalogCtx.Provider value={{
       nodes, nodeTypes, loading,
       businessUnits, allBusinessUnits, childrenOf, allChildrenOf, nodeById, descendantsOf, programsUnder,
-      addNodeType, addNode, updateNode, moveNode, archiveNode, restoreNode, deleteNode,
+      addNodeType, addNode, updateNode, moveNode, archiveNode, restoreNode, deleteNode, ensureCatalogPricingPlan,
     }}>
       {children}
     </CatalogCtx.Provider>
