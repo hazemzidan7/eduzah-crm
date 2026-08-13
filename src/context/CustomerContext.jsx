@@ -11,9 +11,11 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "./AuthContext";
+import { useCatalog } from "./CatalogContext";
 import { normalizePhone, normalizeEmail } from "../utils/leadDedupe";
 import { effectivePaymentRecords, findPaymentConflicts, hasBlockingConflict } from "../utils/paymentRecords";
 import { ACCOUNTING_EVENTS_COLLECTION, buildConfirmedPaymentEvent } from "../utils/accountingEvents";
+import { buildPricingSnapshot, applyPaymentPlan } from "../utils/pricingSnapshot";
 
 const CustomerCtx = createContext(null);
 
@@ -31,6 +33,7 @@ function genId() {
  */
 export function CustomerProvider({ children }) {
   const { currentUser } = useAuth();
+  const { nodeById: catalogNodeById } = useCatalog();
   const [customers, setCustomers] = useState([]);
   const [engagements, setEngagements] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -119,6 +122,12 @@ export function CustomerProvider({ children }) {
 
   const addEngagement = async (customerId, form) => {
     const now = new Date().toISOString();
+    // CRM-PRICING-01: a frozen snapshot of the Program's current catalog
+    // pricing, taken once at creation — never re-derived later, even if the
+    // Program's own price changes afterward. See utils/pricingSnapshot.js.
+    const program = form.catalogNodeId ? catalogNodeById(form.catalogNodeId) : null;
+    const businessUnit = form.businessUnitId ? catalogNodeById(form.businessUnitId) : null;
+    const pricingSnapshot = buildPricingSnapshot({ program, businessUnit });
     const ne = {
       customerId,
       businessUnitId: form.businessUnitId,
@@ -168,6 +177,7 @@ export function CustomerProvider({ children }) {
       // only so existing documents written before this change still read
       // correctly through effectivePaymentRecords().
       paymentRecords: form.paymentRecords || [],
+      pricingSnapshot,
       tagIds: form.tagIds || [],
       customFields: form.customFields || {},
       timeline: [{
@@ -248,6 +258,32 @@ export function CustomerProvider({ children }) {
         text: `Enrollment: ${engagement?.enrollmentStatus || "not_enrolled"} → ${newEnrollmentStatus}`,
         byUid: currentUser?.id || null, byName: currentUser?.name || null, at: now,
       }),
+    });
+  };
+
+  // ── CRM-PRICING-01: sales sets the payment plan (and, for installments,
+  // the installment count) after creation — everything else on the snapshot
+  // stays frozen. Legacy engagements (no pricingSnapshot) fall back to the
+  // old payment.paymentPlan-only behavior, unchanged.
+  const setEngagementPricingPlan = async (engagementId, plan) => {
+    const engagement = engagementById(engagementId);
+    if (!engagement) return;
+    const now = new Date().toISOString();
+    const patch = { payment: { ...(engagement.payment || {}), paymentPlan: plan }, updatedAt: now };
+    if (engagement.pricingSnapshot) {
+      const bu = engagement.businessUnitId ? catalogNodeById(engagement.businessUnitId) : null;
+      patch.pricingSnapshot = applyPaymentPlan(engagement.pricingSnapshot, plan, bu?.name_en);
+    }
+    await updateDoc(doc(db, "engagements", engagementId), patch);
+  };
+
+  const setEngagementInstallmentCount = async (engagementId, count) => {
+    if (![2, 3].includes(Number(count))) throw new Error("INVALID_INSTALLMENT_COUNT");
+    const engagement = engagementById(engagementId);
+    if (!engagement?.pricingSnapshot) return;
+    await updateDoc(doc(db, "engagements", engagementId), {
+      pricingSnapshot: { ...engagement.pricingSnapshot, installmentCount: Number(count) },
+      updatedAt: new Date().toISOString(),
     });
   };
 
@@ -401,6 +437,7 @@ export function CustomerProvider({ children }) {
       findEngagement, engagementById, engagementsForCustomer, engagementsForBusinessUnit,
       addEngagement, mergeStudentProfile, resolveOrCreateEngagement, updateEngagement,
       changeEngagementStatus, changeEnrollmentStatus, logEngagementActivity, archiveEngagement, restoreEngagement,
+      setEngagementPricingPlan, setEngagementInstallmentCount,
       addPaymentRecord, setPaymentRecordStatus, startPaymentReview, confirmPaymentRecord, rejectPaymentRecord, migrateLegacyPayments,
     }}>
       {children}

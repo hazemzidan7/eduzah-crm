@@ -8,6 +8,7 @@ import { useCrmNav } from "../../../../context/CrmNavContext";
 import { toE164Phone } from "../../../../utils/phoneE164";
 import { ATTENDANCE_TYPE_OPTIONS, PAYMENT_PLAN_OPTIONS, ENROLLMENT_STATUS_OPTIONS } from "../../../../constants/crmOptions";
 import { confirmedAmountPaid, effectivePaymentRecords, findPaymentConflicts } from "../../../../utils/paymentRecords";
+import { effectiveCoursePrice } from "../../../../utils/pricingSnapshot";
 import { InlineText, InlineNumber, InlineDate, InlineSelect, InlineStatusSelect, ComputedMoney } from "./InlineCells";
 import { IconSend, IconHistory, IconGrid, IconBell, IconSearch, IconFilter, IconEye, IconCalendar, IconMoreVertical, IconSort, IconWhatsapp, IconPhone } from "../../../../components/Icons";
 import EngagementDetailModal from "../EngagementDetailModal";
@@ -69,7 +70,7 @@ function SortTh({ children, colKey, style, activeKey, dir, onToggle }) {
 export default function ProgramSalesSheet({ engagements, program, businessUnitId, ar, tx }) {
   const { users } = useAuth();
   const { effectiveStatuses, statusById } = useLeadStatus();
-  const { customerById, updateCustomer, updateEngagement, changeEngagementStatus, changeEnrollmentStatus, engagements: allEngagements } = useCustomers();
+  const { customerById, updateCustomer, updateEngagement, changeEngagementStatus, changeEnrollmentStatus, setEngagementPricingPlan, engagements: allEngagements } = useCustomers();
   const { setSection } = useCrmNav();
 
   const [search, setSearch] = useState("");
@@ -130,9 +131,9 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
       case "enrollment": return e.enrollmentStatus || "not_enrolled";
       case "nextFollowUp": return e.nextFollowUpDate || "";
       case "lastContact": { const t = [...(e.timeline || [])].sort((a, b) => (b.at || "").localeCompare(a.at || "")).find((x) => x.type !== "system"); return t?.at || ""; }
-      case "remaining": return ((e.payment || {}).coursePrice || 0) - confirmedAmountPaid(e);
+      case "remaining": return (effectiveCoursePrice(e) || 0) - confirmedAmountPaid(e);
       case "paid": return confirmedAmountPaid(e);
-      case "price": return (e.payment || {}).coursePrice || 0;
+      case "price": return effectiveCoursePrice(e) || 0;
       default: return "";
     }
   };
@@ -275,7 +276,8 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
                   const payment = e.payment || {};
                   const records = effectivePaymentRecords(e);
                   const amountPaid = confirmedAmountPaid(e);
-                  const remaining = (payment.coursePrice || 0) - amountPaid;
+                  const coursePrice = effectiveCoursePrice(e);
+                  const remaining = (coursePrice || 0) - amountPaid;
                   const needsReviewCount = records.filter((r) => r.status === "pending" || r.status === "under_review").length;
                   const confirmedCount = records.filter((r) => r.status === "confirmed").length;
                   const hasConflict = records.some((r) => (r.status === "pending" || r.status === "under_review") && findPaymentConflicts(r, e, allEngagements).length > 0);
@@ -322,10 +324,12 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
                         <InlineText value={e.salesNotes} onSave={(v) => updateEngagement(e.id, { salesNotes: v })} placeholder={tx("ملاحظة...", "Note...")} minWidth={130} size={16} />
                       </td>
                       <td style={tdGroupStart}>
-                        <InlineNumber value={payment.coursePrice} onSave={(v) => patchPayment(e, "coursePrice", v)} />
+                        {e.pricingSnapshot
+                          ? <ComputedMoney value={coursePrice || 0} />
+                          : <InlineNumber value={payment.coursePrice} onSave={(v) => patchPayment(e, "coursePrice", v)} />}
                       </td>
                       <td style={td}>
-                        <InlineSelect value={payment.paymentPlan} onSave={(v) => patchPayment(e, "paymentPlan", v)} options={[{ v: "", l: "—" }, ...paymentPlanOptions]} minWidth={80} />
+                        <InlineSelect value={payment.paymentPlan} onSave={(v) => setEngagementPricingPlan(e.id, v)} options={[{ v: "", l: "—" }, ...paymentPlanOptions]} minWidth={80} />
                       </td>
                       <td style={td}><ComputedMoney value={amountPaid} color={C.success} /></td>
                       <td style={td}><ComputedMoney value={remaining} color={remaining > 0 ? C.orange : C.muted} /></td>

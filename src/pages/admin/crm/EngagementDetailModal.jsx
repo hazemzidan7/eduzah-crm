@@ -19,6 +19,7 @@ import {
   effectivePaymentRecords, confirmedAmountPaid, hasUnmigratedLegacyPayments,
   findPaymentConflicts, hasBlockingConflict,
 } from "../../../utils/paymentRecords";
+import { effectiveCoursePrice } from "../../../utils/pricingSnapshot";
 
 const ACTIVITY_TYPES = [
   { v: "note", ar: "ملاحظة", en: "Note" },
@@ -202,6 +203,7 @@ export default function EngagementDetailModal({ engagement, onClose }) {
   const { effectiveStatuses } = useLeadStatus();
   const {
     engagements, customerById, updateCustomer, updateEngagement, changeEngagementStatus, changeEnrollmentStatus, logEngagementActivity,
+    setEngagementPricingPlan, setEngagementInstallmentCount,
     addPaymentRecord, startPaymentReview, confirmPaymentRecord, rejectPaymentRecord, migrateLegacyPayments,
   } = useCustomers();
   const { fieldDefsForBusinessUnit } = useCustomFields();
@@ -215,10 +217,14 @@ export default function EngagementDetailModal({ engagement, onClose }) {
   const payment = engagement.payment || {};
   // Amount Paid / Remaining Balance are never stored — always derived from
   // confirmed Payment Records only, same helper the Program sheet uses, so
-  // the two views can't disagree.
+  // the two views can't disagree. Course price itself comes from the frozen
+  // pricingSnapshot (CRM-PRICING-01) when one exists, else the legacy
+  // payment.coursePrice field — see utils/pricingSnapshot.effectiveCoursePrice.
   const amountPaid = confirmedAmountPaid(engagement);
-  const remainingBalance = (payment.coursePrice || 0) - amountPaid;
+  const coursePrice = effectiveCoursePrice(engagement);
+  const remainingBalance = (coursePrice || 0) - amountPaid;
   const paymentRecords = effectivePaymentRecords(engagement);
+  const snapshot = engagement.pricingSnapshot || null;
 
   const EMPTY_PAYMENT_DRAFT = { amount: "", paymentMethod: "cash", paymentType: "installment", transactionReference: "", attachmentRef: "" };
   const [paymentDraft, setPaymentDraft] = useState(EMPTY_PAYMENT_DRAFT);
@@ -439,11 +445,26 @@ export default function EngagementDetailModal({ engagement, onClose }) {
           managed here. ── */}
       <div style={sectionTitleSx}>{tx("الدفع", "Payment")}</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
-        <PaymentField ar={ar} label={tx("سعر الكورس", "Course Price")} value={payment.coursePrice} />
+        <PaymentField ar={ar} label={tx("سعر الكورس", "Course Price")} value={coursePrice} />
         <PaymentField ar={ar} label={tx("خطة الدفع", "Payment Plan")} value={optionLabel(PAYMENT_PLAN_OPTIONS, payment.paymentPlan, ar)} />
         <PaymentField ar={ar} label={tx("المدفوع (مؤكد فقط)", "Amount Paid (confirmed only)")} value={amountPaid} bold />
         <PaymentField ar={ar} label={tx("المتبقي", "Remaining Balance")} value={remainingBalance} bold />
       </div>
+      {snapshot && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
+          <PaymentField ar={ar} label={tx("العربون / المبلغ المطلوب الآن", "Deposit / Amount Due Now")} value={snapshot.depositAmount} />
+          {snapshot.paymentPlan === "installments" ? (
+            <Select
+              label={tx("عدد الأقساط", "Installment Count")}
+              value={snapshot.installmentCount ? String(snapshot.installmentCount) : ""}
+              onChange={(v) => v && setEngagementInstallmentCount(engagement.id, Number(v))}
+              options={[{ v: "", l: tx("لم يُحدد بعد", "Not set yet") }, { v: "2", l: "2" }, { v: "3", l: "3" }]}
+            />
+          ) : (
+            <PaymentField ar={ar} label={tx("عدد الأقساط", "Installment Count")} value={snapshot.installmentCount ?? tx("—", "—")} />
+          )}
+        </div>
+      )}
 
       <div style={{ fontSize: 11, fontWeight: 800, color: C.muted, textTransform: "uppercase", marginBottom: 8 }}>{tx("سجل الدفعات", "Payment Records")}</div>
       {paymentRecords.length === 0 && <div style={{ fontSize: 12, color: C.muted, marginBottom: 12 }}>{tx("لا توجد دفعات بعد", "No payments yet")}</div>}
