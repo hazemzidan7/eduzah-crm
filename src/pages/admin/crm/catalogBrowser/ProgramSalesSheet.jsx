@@ -7,6 +7,7 @@ import { useCustomers } from "../../../../context/CustomerContext";
 import { useCrmNav } from "../../../../context/CrmNavContext";
 import { toE164Phone } from "../../../../utils/phoneE164";
 import { ATTENDANCE_TYPE_OPTIONS, PAYMENT_PLAN_OPTIONS, ENROLLMENT_STATUS_OPTIONS } from "../../../../constants/crmOptions";
+import { confirmedAmountPaid, effectivePaymentRecords } from "../../../../utils/paymentRecords";
 import { InlineText, InlineNumber, InlineDate, InlineSelect, InlineStatusSelect, ComputedMoney } from "./InlineCells";
 import { IconSend, IconHistory, IconGrid, IconBell, IconSearch, IconFilter, IconEye, IconCalendar, IconMoreVertical, IconSort, IconWhatsapp, IconPhone } from "../../../../components/Icons";
 import EngagementDetailModal from "../EngagementDetailModal";
@@ -33,11 +34,6 @@ const tdGroupStart = { ...td, borderInlineStart: "1px solid rgba(250,166,51,.18)
 const ROWS_PER_PAGE_OPTIONS = [10, 25, 50, 100];
 
 const ENROLLMENT_COLORS = { not_enrolled: C.muted, enrolled: C.success, cancelled: C.red };
-
-function amountPaidOf(payment) {
-  const p = payment || {};
-  return (p.reservationDeposit || 0) + (p.installment1 || 0) + (p.installment2 || 0) + (p.installment3 || 0);
-}
 
 function pageNumbers(current, total) {
   if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
@@ -73,7 +69,7 @@ function SortTh({ children, colKey, style, activeKey, dir, onToggle }) {
 export default function ProgramSalesSheet({ engagements, program, businessUnitId, ar, tx }) {
   const { users } = useAuth();
   const { effectiveStatuses, statusById } = useLeadStatus();
-  const { customerById, updateCustomer, updateEngagement, changeEngagementStatus, changeEnrollmentStatus, logEngagementActivity } = useCustomers();
+  const { customerById, updateCustomer, updateEngagement, changeEngagementStatus, changeEnrollmentStatus } = useCustomers();
   const { setSection } = useCrmNav();
 
   const [search, setSearch] = useState("");
@@ -134,8 +130,8 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
       case "enrollment": return e.enrollmentStatus || "not_enrolled";
       case "nextFollowUp": return e.nextFollowUpDate || "";
       case "lastContact": { const t = [...(e.timeline || [])].sort((a, b) => (b.at || "").localeCompare(a.at || "")).find((x) => x.type !== "system"); return t?.at || ""; }
-      case "remaining": { const p = e.payment || {}; return (p.coursePrice || 0) - amountPaidOf(p); }
-      case "paid": return amountPaidOf(e.payment || {});
+      case "remaining": return ((e.payment || {}).coursePrice || 0) - confirmedAmountPaid(e);
+      case "paid": return confirmedAmountPaid(e);
       case "price": return (e.payment || {}).coursePrice || 0;
       default: return "";
     }
@@ -181,14 +177,6 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
     updateEngagement(engagement.id, { studentProfile: { ...(engagement.studentProfile || {}), [key]: val } });
   const patchPayment = (engagement, key, val) =>
     updateEngagement(engagement.id, { payment: { ...(engagement.payment || {}), [key]: val } });
-
-  // Confirming the deposit is what triggers Enrolled — full payment is never
-  // required for it. Enrollment stays a separate field from Contact Status.
-  const confirmPayment = async (engagement) => {
-    await updateEngagement(engagement.id, { payment: { ...(engagement.payment || {}), confirmed: true, confirmedAt: new Date().toISOString() } });
-    await logEngagementActivity(engagement.id, { type: "system", text: "Payment confirmed" });
-    if (engagement.enrollmentStatus !== "enrolled") await changeEnrollmentStatus(engagement.id, "enrolled");
-  };
 
   // Quick one-click default (3 days out); the Next Follow-up cell itself
   // stays editable for picking an exact date.
@@ -271,13 +259,9 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
                   <th style={th}>{tx("ملاحظات المبيعات", "Sales Notes")}</th>
                   <SortTh style={thGroupStart} colKey="price" activeKey={sortKey} dir={sortDir} onToggle={toggleSort}>{tx("سعر الكورس", "Price")}</SortTh>
                   <th style={th}>{tx("خطة الدفع", "Plan")}</th>
-                  <th style={th}>{tx("العربون", "Deposit")}</th>
-                  <th style={th}>{tx("قسط 1", "Inst. 1")}</th>
-                  <th style={th}>{tx("قسط 2", "Inst. 2")}</th>
-                  <th style={th}>{tx("قسط 3", "Inst. 3")}</th>
-                  <SortTh style={th} colKey="paid" activeKey={sortKey} dir={sortDir} onToggle={toggleSort}>{tx("المدفوع", "Paid")}</SortTh>
+                  <SortTh style={th} colKey="paid" activeKey={sortKey} dir={sortDir} onToggle={toggleSort}>{tx("المدفوع (مؤكد)", "Paid (confirmed)")}</SortTh>
                   <SortTh style={th} colKey="remaining" activeKey={sortKey} dir={sortDir} onToggle={toggleSort}>{tx("المتبقي", "Remaining")}</SortTh>
-                  <th style={th}>{tx("تأكيد الدفع", "Confirmation")}</th>
+                  <th style={th}>{tx("الدفعات", "Payments")}</th>
                   <SortTh style={th} colKey="lastContact" activeKey={sortKey} dir={sortDir} onToggle={toggleSort}>{tx("آخر تواصل", "Last Contact")}</SortTh>
                   <SortTh style={th} colKey="nextFollowUp" activeKey={sortKey} dir={sortDir} onToggle={toggleSort}>{tx("المتابعة القادمة", "Next Follow-up")}</SortTh>
                   <SortTh style={th} colKey="assigned" activeKey={sortKey} dir={sortDir} onToggle={toggleSort}>{tx("الموظف المسؤول", "Assigned")}</SortTh>
@@ -289,8 +273,10 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
                   const customer = customerById(e.customerId);
                   const sp = e.studentProfile || {};
                   const payment = e.payment || {};
-                  const amountPaid = amountPaidOf(payment);
+                  const records = effectivePaymentRecords(e);
+                  const amountPaid = confirmedAmountPaid(e);
                   const remaining = (payment.coursePrice || 0) - amountPaid;
+                  const pendingCount = records.filter((r) => r.status === "pending").length;
                   const timeline = [...(e.timeline || [])].sort((a, b) => (b.at || "").localeCompare(a.at || ""));
                   const lastContact = timeline.find((t) => t.type !== "system");
                   const e164 = toE164Phone(customer?.phone);
@@ -339,24 +325,16 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
                       <td style={td}>
                         <InlineSelect value={payment.paymentPlan} onSave={(v) => patchPayment(e, "paymentPlan", v)} options={[{ v: "", l: "—" }, ...paymentPlanOptions]} minWidth={80} />
                       </td>
-                      <td style={td}>
-                        <InlineNumber value={payment.reservationDeposit} onSave={(v) => patchPayment(e, "reservationDeposit", v)} />
-                      </td>
-                      <td style={td}>
-                        <InlineNumber value={payment.installment1} onSave={(v) => patchPayment(e, "installment1", v)} />
-                      </td>
-                      <td style={td}>
-                        <InlineNumber value={payment.installment2} onSave={(v) => patchPayment(e, "installment2", v)} />
-                      </td>
-                      <td style={td}>
-                        <InlineNumber value={payment.installment3} onSave={(v) => patchPayment(e, "installment3", v)} />
-                      </td>
                       <td style={td}><ComputedMoney value={amountPaid} color={C.success} /></td>
                       <td style={td}><ComputedMoney value={remaining} color={remaining > 0 ? C.orange : C.muted} /></td>
                       <td style={td}>
-                        {payment.confirmed
-                          ? <span style={{ fontSize: 11, fontWeight: 800, color: C.success }}>{tx("مؤكد", "Confirmed")}</span>
-                          : <span style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>{tx("معلّق", "Pending")}</span>}
+                        <button className="edu-row-menu-item" style={{ width: "auto", display: "inline-flex", padding: "5px 10px" }} onClick={() => setProfileEngagementId(e.id)}>
+                          {records.length === 0
+                            ? <span style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>{tx("لا يوجد", "None")}</span>
+                            : pendingCount > 0
+                              ? <span style={{ fontSize: 11, fontWeight: 800, color: C.orange }}>{tx(`${pendingCount} قيد المراجعة`, `${pendingCount} pending`)}</span>
+                              : <span style={{ fontSize: 11, fontWeight: 800, color: C.success }}>{tx("مؤكد", "Confirmed")}</span>}
+                        </button>
                       </td>
                       <td style={td}>{lastContact?.at ? fmtDate(lastContact.at) : "—"}</td>
                       <td style={td}>
@@ -421,11 +399,9 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
               background: "#331f42", border: `1px solid ${C.border}`, borderRadius: radius.md,
               boxShadow: shadow.lg, minWidth: 190, padding: 6, display: "flex", flexDirection: "column", gap: 2,
             }}>
-              {!eng.payment?.confirmed && (
-                <button className="edu-row-menu-item" onClick={() => { confirmPayment(eng); closeRowMenu(); }}>
-                  ✓ {tx("تأكيد الدفع", "Confirm Payment")}
-                </button>
-              )}
+              <button className="edu-row-menu-item" onClick={() => { setProfileEngagementId(eng.id); closeRowMenu(); }}>
+                + {tx("إضافة دفعة", "Add Payment")}
+              </button>
               <button className="edu-row-menu-item" onClick={() => { scheduleFollowUp(eng); closeRowMenu(); }}>
                 <IconCalendar size={14} /> {tx("جدولة متابعة (3 أيام)", "Schedule Follow-up (3 days)")}
               </button>

@@ -10,6 +10,7 @@ import {
 import { db } from "../firebase";
 import { useAuth } from "./AuthContext";
 import { normalizePhone, normalizeEmail } from "../utils/leadDedupe";
+import { effectivePaymentRecords } from "../utils/paymentRecords";
 
 const CustomerCtx = createContext(null);
 
@@ -157,6 +158,13 @@ export function CustomerProvider({ children }) {
         confirmed: form.payment?.confirmed ?? false,
         confirmedAt: form.payment?.confirmedAt || null,
       },
+      // CRM-02: Payment Records are the only source of truth for money
+      // actually received — see utils/paymentRecords.js. `payment.*` above
+      // stays limited to coursePrice/paymentPlan (program economics, not
+      // transactions); reservationDeposit/installment*/confirmed* are kept
+      // only so existing documents written before this change still read
+      // correctly through effectivePaymentRecords().
+      paymentRecords: form.paymentRecords || [],
       tagIds: form.tagIds || [],
       customFields: form.customFields || {},
       timeline: [{
@@ -223,8 +231,9 @@ export function CustomerProvider({ children }) {
   };
 
   // Enrollment is a distinct lifecycle from Contact Status/Payment — see
-  // ProgramSalesSheet.confirmPayment (deposit confirmation auto-triggers
-  // "enrolled") and EngagementDetailModal (manual override, e.g. Cancelled).
+  // confirmPaymentRecord below (confirming a deposit/full record
+  // auto-triggers "enrolled") and EngagementDetailModal (manual override,
+  // e.g. Cancelled).
   const changeEnrollmentStatus = async (id, newEnrollmentStatus) => {
     const engagement = engagementById(id);
     const now = new Date().toISOString();
@@ -237,6 +246,77 @@ export function CustomerProvider({ children }) {
         byUid: currentUser?.id || null, byName: currentUser?.name || null, at: now,
       }),
     });
+  };
+
+  // ── CRM-02: Payment Records — the only source of truth for Amount Paid.
+  // Submitted pending, reviewed into confirmed/rejected; never edited in
+  // place once created (status changes go through setPaymentRecordStatus).
+  const addPaymentRecord = async (engagementId, form) => {
+    const now = new Date().toISOString();
+    const record = {
+      id: genId(),
+      amount: Number(form.amount) || 0,
+      paymentMethod: form.paymentMethod || null,
+      paymentType: form.paymentType || "installment",
+      status: "pending",
+      submittedAt: now,
+      confirmedAt: null,
+      confirmedBy: null,
+      transactionReference: form.transactionReference || null,
+      // Reserved for CRM-03 (screenshot/proof upload) — no upload UI yet.
+      attachmentRef: null,
+    };
+    await updateDoc(doc(db, "engagements", engagementId), {
+      paymentRecords: arrayUnion(record),
+      updatedAt: now,
+    });
+    await logEngagementActivity(engagementId, { type: "system", text: `Payment submitted: ${record.amount} (${record.paymentType})` });
+    return record.id;
+  };
+
+  // Records live in a plain array (not a subcollection), so changing one
+  // record's status means rewriting the whole array — arrayUnion can't
+  // patch an element in place.
+  const setPaymentRecordStatus = async (engagementId, paymentId, status) => {
+    const engagement = engagementById(engagementId);
+    if (!engagement) return;
+    const now = new Date().toISOString();
+    let changedRecord = null;
+    const records = (engagement.paymentRecords || []).map((r) => {
+      if (r.id !== paymentId) return r;
+      changedRecord = {
+        ...r, status,
+        confirmedAt: status === "confirmed" ? now : r.confirmedAt,
+        confirmedBy: status === "confirmed" ? (currentUser?.id || null) : r.confirmedBy,
+      };
+      return changedRecord;
+    });
+    await updateDoc(doc(db, "engagements", engagementId), { paymentRecords: records, updatedAt: now });
+    await logEngagementActivity(engagementId, { type: "system", text: `Payment ${status}${changedRecord ? `: ${changedRecord.amount} (${changedRecord.paymentType})` : ""}` });
+
+    // Confirming the deposit (or a full payment) is what triggers Enrolled —
+    // installments alone don't, since enrollment is assumed to have already
+    // happened via the deposit/full payment that came before them.
+    if (status === "confirmed" && changedRecord && (changedRecord.paymentType === "deposit" || changedRecord.paymentType === "full") && engagement.enrollmentStatus !== "enrolled") {
+      await changeEnrollmentStatus(engagementId, "enrolled");
+    }
+  };
+  const confirmPaymentRecord = (engagementId, paymentId) => setPaymentRecordStatus(engagementId, paymentId, "confirmed");
+  const rejectPaymentRecord = (engagementId, paymentId) => setPaymentRecordStatus(engagementId, paymentId, "rejected");
+
+  // One-time, explicitly admin-triggered write that turns an engagement's
+  // synthesized legacy amounts (see utils/paymentRecords.effectivePaymentRecords)
+  // into real Payment Records. Never runs automatically — old data is safe
+  // and keeps reading correctly through the shim either way.
+  const migrateLegacyPayments = async (engagementId) => {
+    const engagement = engagementById(engagementId);
+    if (!engagement || (engagement.paymentRecords || []).length > 0) return;
+    const legacy = effectivePaymentRecords(engagement);
+    if (legacy.length === 0) return;
+    const now = new Date().toISOString();
+    const records = legacy.map(({ legacy: _legacy, id: _id, ...r }) => ({ ...r, id: genId() }));
+    await updateDoc(doc(db, "engagements", engagementId), { paymentRecords: records, updatedAt: now });
+    await logEngagementActivity(engagementId, { type: "system", text: `Migrated ${records.length} legacy payment field(s) to Payment Records` });
   };
 
   const logEngagementActivity = async (id, { type = "note", text = "" }) => {
@@ -265,6 +345,7 @@ export function CustomerProvider({ children }) {
       findEngagement, engagementById, engagementsForCustomer, engagementsForBusinessUnit,
       addEngagement, mergeStudentProfile, resolveOrCreateEngagement, updateEngagement,
       changeEngagementStatus, changeEnrollmentStatus, logEngagementActivity, archiveEngagement, restoreEngagement,
+      addPaymentRecord, setPaymentRecordStatus, confirmPaymentRecord, rejectPaymentRecord, migrateLegacyPayments,
     }}>
       {children}
     </CustomerCtx.Provider>

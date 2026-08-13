@@ -14,6 +14,10 @@ import {
   GOVERNORATE_OPTIONS, PROGRAMMING_LEVEL_OPTIONS, PREFERRED_CONTACT_METHOD_OPTIONS,
   ATTENDANCE_TYPE_OPTIONS, PAYMENT_PLAN_OPTIONS, ENROLLMENT_STATUS_OPTIONS, optionLabel,
 } from "../../../constants/crmOptions";
+import {
+  PAYMENT_METHOD_OPTIONS, PAYMENT_TYPE_OPTIONS, paymentOptionLabel,
+  effectivePaymentRecords, confirmedAmountPaid, hasUnmigratedLegacyPayments,
+} from "../../../utils/paymentRecords";
 
 const ACTIVITY_TYPES = [
   { v: "note", ar: "ملاحظة", en: "Note" },
@@ -90,6 +94,43 @@ function PaymentField({ label, value, bold, ar }) {
   );
 }
 
+const PAYMENT_STATUS_COLOR = { pending: C.orange, confirmed: C.success, rejected: C.danger };
+const PAYMENT_STATUS_LABEL = { pending: ["قيد المراجعة", "Pending"], confirmed: ["مؤكد", "Confirmed"], rejected: ["مرفوض", "Rejected"] };
+
+/** One Payment Record — Confirm/Reject only show for records still pending
+ * (confirming/rejecting is final; there's no "un-confirm" here by design). */
+function PaymentRecordRow({ record, ar, tx, onConfirm, onReject }) {
+  const color = PAYMENT_STATUS_COLOR[record.status] || C.muted;
+  const [statusAr, statusEn] = PAYMENT_STATUS_LABEL[record.status] || [record.status, record.status];
+  return (
+    <Card style={{ padding: "10px 14px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <div>
+          <span dir="ltr" style={{ fontSize: 14, fontWeight: 800 }}>{(record.amount || 0).toLocaleString()}</span>
+          <span style={{ fontSize: 11.5, color: C.muted, marginInlineStart: 8 }}>
+            {paymentOptionLabel(PAYMENT_TYPE_OPTIONS, record.paymentType, ar)}
+            {record.paymentMethod ? ` · ${paymentOptionLabel(PAYMENT_METHOD_OPTIONS, record.paymentMethod, ar)}` : ""}
+            {record.legacy ? ` · ${tx("قديم", "legacy")}` : ""}
+          </span>
+        </div>
+        <span style={{ fontSize: 11, fontWeight: 800, color }}>{ar ? statusAr : statusEn}</span>
+      </div>
+      {(record.transactionReference || record.submittedAt) && (
+        <div style={{ fontSize: 10.5, color: C.muted, marginTop: 4 }}>
+          {record.transactionReference ? `${tx("رقم العملية", "Ref")}: ${record.transactionReference} · ` : ""}
+          {record.submittedAt ? new Date(record.submittedAt).toLocaleDateString(ar ? "ar-EG" : "en-US") : ""}
+        </div>
+      )}
+      {record.status === "pending" && !record.legacy && (
+        <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+          <Btn sm v="primary" onClick={onConfirm}>{tx("تأكيد", "Confirm")}</Btn>
+          <Btn sm v="ghost" onClick={onReject}>{tx("رفض", "Reject")}</Btn>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 // hasLaptop is tri-state (true/false/unknown) — a plain checkbox can't
 // represent "not answered", which is the common case for older imports.
 function HasLaptopEditor({ value, onChange, label }) {
@@ -111,7 +152,10 @@ export default function EngagementDetailModal({ engagement, onClose }) {
   const { users } = useAuth();
   const { nodeById } = useCatalog();
   const { effectiveStatuses } = useLeadStatus();
-  const { customerById, updateCustomer, updateEngagement, changeEngagementStatus, changeEnrollmentStatus, logEngagementActivity } = useCustomers();
+  const {
+    customerById, updateCustomer, updateEngagement, changeEngagementStatus, changeEnrollmentStatus, logEngagementActivity,
+    addPaymentRecord, confirmPaymentRecord, rejectPaymentRecord, migrateLegacyPayments,
+  } = useCustomers();
   const { fieldDefsForBusinessUnit } = useCustomFields();
 
   const customer = customerById(engagement.customerId);
@@ -121,10 +165,26 @@ export default function EngagementDetailModal({ engagement, onClose }) {
   const studentProfile = engagement.studentProfile || {};
   const customFieldDefs = fieldDefsForBusinessUnit(engagement.businessUnitId);
   const payment = engagement.payment || {};
-  // Amount Paid / Remaining Balance are never stored — always derived here,
-  // same formula the Program sheet uses, so the two views can't disagree.
-  const amountPaid = (payment.reservationDeposit || 0) + (payment.installment1 || 0) + (payment.installment2 || 0) + (payment.installment3 || 0);
+  // Amount Paid / Remaining Balance are never stored — always derived from
+  // confirmed Payment Records only, same helper the Program sheet uses, so
+  // the two views can't disagree.
+  const amountPaid = confirmedAmountPaid(engagement);
   const remainingBalance = (payment.coursePrice || 0) - amountPaid;
+  const paymentRecords = effectivePaymentRecords(engagement);
+
+  const [paymentDraft, setPaymentDraft] = useState({ amount: "", paymentMethod: "cash", paymentType: "installment", transactionReference: "" });
+  const [savingPayment, setSavingPayment] = useState(false);
+  const submitPayment = async () => {
+    const amount = Number(paymentDraft.amount);
+    if (!amount || amount <= 0) return;
+    setSavingPayment(true);
+    try {
+      await addPaymentRecord(engagement.id, { ...paymentDraft, amount });
+      setPaymentDraft({ amount: "", paymentMethod: "cash", paymentType: "installment", transactionReference: "" });
+    } finally {
+      setSavingPayment(false);
+    }
+  };
 
   const [activityType, setActivityType] = useState("note");
   const [activityText, setActivityText] = useState("");
@@ -303,23 +363,49 @@ export default function EngagementDetailModal({ engagement, onClose }) {
         <Btn sm v="ghost" onClick={saveSalesNotes} style={{ marginBottom: 12 }}>{tx("حفظ الملاحظات", "Save notes")}</Btn>
       )}
 
-      {/* ── Payment — read-only here; edited inline in the Program sheet ── */}
+      {/* ── Payment — Course Price/Plan edited inline in the Program sheet;
+          Payment Records (the only source of truth for Amount Paid) are
+          managed here. ── */}
       <div style={sectionTitleSx}>{tx("الدفع", "Payment")}</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
         <PaymentField ar={ar} label={tx("سعر الكورس", "Course Price")} value={payment.coursePrice} />
         <PaymentField ar={ar} label={tx("خطة الدفع", "Payment Plan")} value={optionLabel(PAYMENT_PLAN_OPTIONS, payment.paymentPlan, ar)} />
-        <PaymentField ar={ar} label={tx("عربون الحجز", "Reservation Deposit")} value={payment.reservationDeposit} />
-        <PaymentField ar={ar} label={tx("قسط 1", "Installment 1")} value={payment.installment1} />
-        <PaymentField ar={ar} label={tx("قسط 2", "Installment 2")} value={payment.installment2} />
-        <PaymentField ar={ar} label={tx("قسط 3", "Installment 3")} value={payment.installment3} />
-        <PaymentField ar={ar} label={tx("المبلغ المدفوع", "Amount Paid")} value={amountPaid} bold />
+        <PaymentField ar={ar} label={tx("المدفوع (مؤكد فقط)", "Amount Paid (confirmed only)")} value={amountPaid} bold />
         <PaymentField ar={ar} label={tx("المتبقي", "Remaining Balance")} value={remainingBalance} bold />
       </div>
-      <div style={{ marginBottom: 12 }}>
-        <div style={{ fontSize: 10.5, color: C.muted, fontWeight: 700, textTransform: "uppercase" }}>{tx("تأكيد الدفع", "Payment Confirmation")}</div>
-        <div style={{ fontSize: 13, color: payment.confirmed ? C.success : C.muted, fontWeight: 700 }}>
-          {payment.confirmed ? tx("مؤكد", "Confirmed") : tx("معلّق", "Pending")}
+
+      <div style={{ fontSize: 11, fontWeight: 800, color: C.muted, textTransform: "uppercase", marginBottom: 8 }}>{tx("سجل الدفعات", "Payment Records")}</div>
+      {paymentRecords.length === 0 && <div style={{ fontSize: 12, color: C.muted, marginBottom: 12 }}>{tx("لا توجد دفعات بعد", "No payments yet")}</div>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+        {paymentRecords.map((r) => (
+          <PaymentRecordRow key={r.id} record={r} ar={ar} tx={tx}
+            onConfirm={() => confirmPaymentRecord(engagement.id, r.id)}
+            onReject={() => rejectPaymentRecord(engagement.id, r.id)}
+          />
+        ))}
+      </div>
+      {hasUnmigratedLegacyPayments(engagement) && (
+        <Btn sm v="ghost" onClick={() => migrateLegacyPayments(engagement.id)} style={{ marginBottom: 12 }}>
+          {tx("ترحيل الدفعات القديمة إلى السجل", "Migrate legacy payments to records")}
+        </Btn>
+      )}
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 16 }}>
+        <div style={{ width: 100 }}>
+          <Input label={tx("المبلغ", "Amount")} type="number" value={paymentDraft.amount} onChange={(v) => setPaymentDraft((d) => ({ ...d, amount: v }))} dir="ltr" />
         </div>
+        <div style={{ width: 140 }}>
+          <Select label={tx("الطريقة", "Method")} value={paymentDraft.paymentMethod} onChange={(v) => setPaymentDraft((d) => ({ ...d, paymentMethod: v }))}
+            options={PAYMENT_METHOD_OPTIONS.map((o) => ({ v: o.v, l: ar ? o.ar : o.en }))} />
+        </div>
+        <div style={{ width: 130 }}>
+          <Select label={tx("النوع", "Type")} value={paymentDraft.paymentType} onChange={(v) => setPaymentDraft((d) => ({ ...d, paymentType: v }))}
+            options={PAYMENT_TYPE_OPTIONS.map((o) => ({ v: o.v, l: ar ? o.ar : o.en }))} />
+        </div>
+        <div style={{ width: 140 }}>
+          <Input label={tx("رقم العملية (اختياري)", "Reference (optional)")} value={paymentDraft.transactionReference} onChange={(v) => setPaymentDraft((d) => ({ ...d, transactionReference: v }))} dir="ltr" />
+        </div>
+        <Btn sm v="primary" disabled={savingPayment || !paymentDraft.amount} onClick={submitPayment} style={{ marginBottom: 16 }}>{tx("إضافة دفعة", "Add Payment")}</Btn>
       </div>
 
       <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, margin: "16px 0 8px", textTransform: "uppercase" }}>{tx("إضافة نشاط", "Log activity")}</div>
