@@ -16,11 +16,18 @@ import { useAuth } from "./AuthContext";
 const LeadStatusCtx = createContext(null);
 
 // Global statuses, seeded once — a flat pipeline, no sub-statuses. Doubles
-// as "Contact Status" in the Sheet. Deliberately kept short (8 values) per
-// the sales team's request to simplify — the earlier, more granular set
-// (New/Called/WhatsApp Sent/Interested/Lost/Call Later/Confirmed/Waiting
-// Payment/Rejected/Waiting Decision) was retired and its ~411 existing
-// engagement records were remapped onto this list directly in Firestore.
+// as "Contact Status" in the Sheet. Deliberately kept short per the sales
+// team's request to simplify — the earlier, more granular set (New/Called/
+// WhatsApp Sent/Interested/Lost/Call Later/Confirmed/Waiting Payment/
+// Rejected/Waiting Decision) was retired and its ~411 existing engagement
+// records were remapped onto this list directly in Firestore.
+//
+// CRM-01: Contact Status is the Sales Lifecycle only — it must never encode
+// payment/enrollment facts. "Paid" was removed from this seed for that
+// reason; whether someone is enrolled now lives on the Engagement's own
+// `enrollmentStatus` field (see CustomerContext.changeEnrollmentStatus),
+// driven by Payment Confirmation, not by a Contact Status value. The
+// terminal lifecycle value here is "Booked".
 const GLOBAL_STATUS_SEED = [
   { key: "not_contacted", name_ar: "لم يتم التواصل", name_en: "Not Contacted", color: "#94a3b8", isDefault: true },
   { key: "follow_up", name_ar: "متابعة", name_en: "Follow-up", color: "#844bab" },
@@ -29,7 +36,6 @@ const GLOBAL_STATUS_SEED = [
   { key: "wrong_number", name_ar: "رقم خاطئ", name_en: "Wrong Number", color: "#4b5563" },
   { key: "no_answer", name_ar: "لا يرد", name_en: "No Answer", color: "#94a3b8" },
   { key: "booked", name_ar: "تم الحجز", name_en: "Booked", color: "#22c55e", isTerminal: true },
-  { key: "paid", name_ar: "تم الدفع", name_en: "Paid", color: "#10b981", isTerminal: true },
 ];
 
 // Business-Unit-specific statuses, seeded once, matched to real catalogNodes

@@ -12,7 +12,7 @@ import { canonicalFieldLabel } from "../../../constants/importCanonicalFields";
 import {
   EDUCATIONAL_LEVEL_OPTIONS, EMPLOYMENT_STATUS_OPTIONS,
   GOVERNORATE_OPTIONS, PROGRAMMING_LEVEL_OPTIONS, PREFERRED_CONTACT_METHOD_OPTIONS,
-  ATTENDANCE_TYPE_OPTIONS, PAYMENT_PLAN_OPTIONS, optionLabel,
+  ATTENDANCE_TYPE_OPTIONS, PAYMENT_PLAN_OPTIONS, ENROLLMENT_STATUS_OPTIONS, optionLabel,
 } from "../../../constants/crmOptions";
 
 const ACTIVITY_TYPES = [
@@ -111,7 +111,7 @@ export default function EngagementDetailModal({ engagement, onClose }) {
   const { users } = useAuth();
   const { nodeById } = useCatalog();
   const { effectiveStatuses } = useLeadStatus();
-  const { customerById, updateCustomer, updateEngagement, changeEngagementStatus, logEngagementActivity } = useCustomers();
+  const { customerById, updateCustomer, updateEngagement, changeEngagementStatus, changeEnrollmentStatus, logEngagementActivity } = useCustomers();
   const { fieldDefsForBusinessUnit } = useCustomFields();
 
   const customer = customerById(engagement.customerId);
@@ -165,6 +165,7 @@ export default function EngagementDetailModal({ engagement, onClose }) {
     ...admins.map((a) => ({ v: a.id, l: a.name || a.email })),
   ];
   const priorityOptions = PRIORITY_OPTIONS.map((p) => ({ v: p.v, l: ar ? p.ar : p.en }));
+  const enrollmentOptions = ENROLLMENT_STATUS_OPTIONS.map((o) => ({ v: o.v, l: ar ? o.ar : o.en }));
 
   const timeline = [...(engagement.timeline || [])].sort((a, b) => (b.at || "").localeCompare(a.at || ""));
   // "Last Contact" is derived from the timeline, not stored separately — a
@@ -266,7 +267,10 @@ export default function EngagementDetailModal({ engagement, onClose }) {
 
       {/* ── Section 2: CRM Internal Data — owned and edited by sales staff ── */}
       <div style={sectionTitleSx}>{tx("بيانات إدارة المبيعات (داخلية)", "CRM Internal Data")}</div>
-      <Select label={tx("حالة التواصل", "Contact Status")} value={engagement.statusId || ""} onChange={(v) => changeEngagementStatus(engagement.id, v)} options={statusOptions} />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
+        <Select label={tx("حالة التواصل", "Contact Status")} value={engagement.statusId || ""} onChange={(v) => changeEngagementStatus(engagement.id, v)} options={statusOptions} />
+        <Select label={tx("التسجيل", "Enrollment")} value={engagement.enrollmentStatus || "not_enrolled"} onChange={(v) => changeEnrollmentStatus(engagement.id, v)} options={enrollmentOptions} />
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
         <Select label={tx("الموظف المسؤول", "Assigned employee")} value={engagement.ownerId || ""} onChange={(v) => updateEngagement(engagement.id, { ownerId: v || null })} options={assigneeOptions} />
         <Select label={tx("الأولوية", "Priority")} value={engagement.priority || "normal"} onChange={(v) => updateEngagement(engagement.id, { priority: v })} options={priorityOptions} />

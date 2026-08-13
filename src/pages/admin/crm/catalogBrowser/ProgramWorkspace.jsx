@@ -14,7 +14,7 @@ import ImportWizard from "../import/ImportWizard";
 import ImportHistoryList from "../import/ImportHistoryList";
 
 const STATUS_ICONS = {
-  not_contacted: IconSend, thinking: IconThinking, booked: IconCalendarCheck, paid: IconMoney,
+  not_contacted: IconSend, thinking: IconThinking, booked: IconCalendarCheck,
   follow_up: IconBell,
 };
 
@@ -52,6 +52,7 @@ export default function ProgramWorkspace() {
   }, [scopedEngagements]);
 
   const remindersDue = scopedEngagements.filter((e) => e.nextFollowUpDate).length;
+  const enrolledCount = scopedEngagements.filter((e) => e.enrollmentStatus === "enrolled").length;
 
   if (!program) {
     return (
@@ -69,6 +70,7 @@ export default function ProgramWorkspace() {
         {statuses.filter((s) => statusCounts.get(s.id) > 0).map((s) => (
           <StatCard key={s.id} label={ar ? s.name_ar : s.name_en} value={statusCounts.get(s.id) || 0} color={s.color || C.muted} Icon={STATUS_ICONS[s.key] || null} />
         ))}
+        <StatCard label={tx("مسجَّلون", "Enrolled")} value={enrolledCount} color={C.success} Icon={IconMoney} />
         <StatCard label={tx("متابعات مجدولة", "Follow-ups scheduled")} value={remindersDue} color={C.orange} Icon={IconBell} />
       </div>
 

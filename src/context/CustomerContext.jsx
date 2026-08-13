@@ -137,6 +137,9 @@ export function CustomerProvider({ children }) {
       // ── Section 2: CRM Internal Data — owned and edited by sales staff only.
       statusId: form.statusId || null,
       contactStatus: form.contactStatus || "not_contacted",
+      // Enrollment is independent of Contact Status (sales lifecycle) and of
+      // the payment numbers themselves — see changeEnrollmentStatus below.
+      enrollmentStatus: form.enrollmentStatus || "not_enrolled",
       ownerId: form.ownerId || null,
       priority: form.priority || "normal",
       nextFollowUpDate: form.nextFollowUpDate || null,
@@ -219,6 +222,23 @@ export function CustomerProvider({ children }) {
     });
   };
 
+  // Enrollment is a distinct lifecycle from Contact Status/Payment — see
+  // ProgramSalesSheet.confirmPayment (deposit confirmation auto-triggers
+  // "enrolled") and EngagementDetailModal (manual override, e.g. Cancelled).
+  const changeEnrollmentStatus = async (id, newEnrollmentStatus) => {
+    const engagement = engagementById(id);
+    const now = new Date().toISOString();
+    await updateDoc(doc(db, "engagements", id), {
+      enrollmentStatus: newEnrollmentStatus,
+      updatedAt: now,
+      timeline: arrayUnion({
+        id: genId(), type: "system",
+        text: `Enrollment: ${engagement?.enrollmentStatus || "not_enrolled"} → ${newEnrollmentStatus}`,
+        byUid: currentUser?.id || null, byName: currentUser?.name || null, at: now,
+      }),
+    });
+  };
+
   const logEngagementActivity = async (id, { type = "note", text = "" }) => {
     const now = new Date().toISOString();
     await updateDoc(doc(db, "engagements", id), {
@@ -244,7 +264,7 @@ export function CustomerProvider({ children }) {
       addCustomer, resolveOrCreateCustomer, updateCustomer, archiveCustomer, restoreCustomer,
       findEngagement, engagementById, engagementsForCustomer, engagementsForBusinessUnit,
       addEngagement, mergeStudentProfile, resolveOrCreateEngagement, updateEngagement,
-      changeEngagementStatus, logEngagementActivity, archiveEngagement, restoreEngagement,
+      changeEngagementStatus, changeEnrollmentStatus, logEngagementActivity, archiveEngagement, restoreEngagement,
     }}>
       {children}
     </CustomerCtx.Provider>

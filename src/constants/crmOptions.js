@@ -47,6 +47,16 @@ export const PAYMENT_PLAN_OPTIONS = [
   { v: "installments", ar: "تقسيط", en: "Installments" },
 ];
 
+// Enrollment is separate from Contact Status (sales lifecycle) and separate
+// from the Payment fields — it's the one flag that answers "is this person
+// actually enrolled." Confirming the deposit (Payment Confirmation) is what
+// flips this to Enrolled; full payment is never required for that.
+export const ENROLLMENT_STATUS_OPTIONS = [
+  { v: "not_enrolled", ar: "غير مسجَّل", en: "Not Enrolled" },
+  { v: "enrolled", ar: "مسجَّل", en: "Enrolled" },
+  { v: "cancelled", ar: "ملغي", en: "Cancelled" },
+];
+
 export const GOVERNORATE_OPTIONS = [
   { v: "cairo", ar: "القاهرة", en: "Cairo" },
   { v: "giza", ar: "الجيزة", en: "Giza" },

@@ -6,7 +6,7 @@ import { useLeadStatus } from "../../../../context/LeadStatusContext";
 import { useCustomers } from "../../../../context/CustomerContext";
 import { useCrmNav } from "../../../../context/CrmNavContext";
 import { toE164Phone } from "../../../../utils/phoneE164";
-import { ATTENDANCE_TYPE_OPTIONS, PAYMENT_PLAN_OPTIONS } from "../../../../constants/crmOptions";
+import { ATTENDANCE_TYPE_OPTIONS, PAYMENT_PLAN_OPTIONS, ENROLLMENT_STATUS_OPTIONS } from "../../../../constants/crmOptions";
 import { InlineText, InlineNumber, InlineDate, InlineSelect, InlineStatusSelect, ComputedMoney } from "./InlineCells";
 import { IconSend, IconHistory, IconGrid, IconBell, IconSearch, IconFilter, IconEye, IconCalendar, IconMoreVertical, IconSort, IconWhatsapp, IconPhone } from "../../../../components/Icons";
 import EngagementDetailModal from "../EngagementDetailModal";
@@ -31,6 +31,8 @@ const thGroupStart = { ...th, borderInlineStart: "1px solid rgba(250,166,51,.35)
 const tdGroupStart = { ...td, borderInlineStart: "1px solid rgba(250,166,51,.18)" };
 
 const ROWS_PER_PAGE_OPTIONS = [10, 25, 50, 100];
+
+const ENROLLMENT_COLORS = { not_enrolled: C.muted, enrolled: C.success, cancelled: C.red };
 
 function amountPaidOf(payment) {
   const p = payment || {};
@@ -71,7 +73,7 @@ function SortTh({ children, colKey, style, activeKey, dir, onToggle }) {
 export default function ProgramSalesSheet({ engagements, program, businessUnitId, ar, tx }) {
   const { users } = useAuth();
   const { effectiveStatuses, statusById } = useLeadStatus();
-  const { customerById, updateCustomer, updateEngagement, changeEngagementStatus, logEngagementActivity } = useCustomers();
+  const { customerById, updateCustomer, updateEngagement, changeEngagementStatus, changeEnrollmentStatus, logEngagementActivity } = useCustomers();
   const { setSection } = useCrmNav();
 
   const [search, setSearch] = useState("");
@@ -121,6 +123,7 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
   const statusOptions = effectiveStatuses(businessUnitId).map((s) => ({ v: s.id, l: ar ? s.name_ar : s.name_en }));
   const attendanceOptions = ATTENDANCE_TYPE_OPTIONS.map((o) => ({ v: o.v, l: ar ? o.ar : o.en }));
   const paymentPlanOptions = PAYMENT_PLAN_OPTIONS.map((o) => ({ v: o.v, l: ar ? o.ar : o.en }));
+  const enrollmentOptions = ENROLLMENT_STATUS_OPTIONS.map((o) => ({ v: o.v, l: ar ? o.ar : o.en }));
 
   const sortValue = (key, e) => {
     switch (key) {
@@ -128,6 +131,7 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
       case "phone": return customerById(e.customerId)?.phone || "";
       case "assigned": { const a = admins.find((x) => x.id === e.ownerId); return (a?.name || a?.email || "").toLowerCase(); }
       case "status": { const s = statusById(e.statusId); return s ? (ar ? s.name_ar : s.name_en) : ""; }
+      case "enrollment": return e.enrollmentStatus || "not_enrolled";
       case "nextFollowUp": return e.nextFollowUpDate || "";
       case "lastContact": { const t = [...(e.timeline || [])].sort((a, b) => (b.at || "").localeCompare(a.at || "")).find((x) => x.type !== "system"); return t?.at || ""; }
       case "remaining": { const p = e.payment || {}; return (p.coursePrice || 0) - amountPaidOf(p); }
@@ -178,9 +182,12 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
   const patchPayment = (engagement, key, val) =>
     updateEngagement(engagement.id, { payment: { ...(engagement.payment || {}), [key]: val } });
 
+  // Confirming the deposit is what triggers Enrolled — full payment is never
+  // required for it. Enrollment stays a separate field from Contact Status.
   const confirmPayment = async (engagement) => {
     await updateEngagement(engagement.id, { payment: { ...(engagement.payment || {}), confirmed: true, confirmedAt: new Date().toISOString() } });
     await logEngagementActivity(engagement.id, { type: "system", text: "Payment confirmed" });
+    if (engagement.enrollmentStatus !== "enrolled") await changeEnrollmentStatus(engagement.id, "enrolled");
   };
 
   // Quick one-click default (3 days out); the Next Follow-up cell itself
@@ -260,6 +267,7 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
                   <th style={th}>{tx("نوع الحضور", "Attendance")}</th>
                   <th style={th}>{tx("مصدر العميل", "Lead Source")}</th>
                   <SortTh style={th} colKey="status" activeKey={sortKey} dir={sortDir} onToggle={toggleSort}>{tx("حالة التواصل", "Contact Status")}</SortTh>
+                  <SortTh style={th} colKey="enrollment" activeKey={sortKey} dir={sortDir} onToggle={toggleSort}>{tx("التسجيل", "Enrollment")}</SortTh>
                   <th style={th}>{tx("ملاحظات المبيعات", "Sales Notes")}</th>
                   <SortTh style={thGroupStart} colKey="price" activeKey={sortKey} dir={sortDir} onToggle={toggleSort}>{tx("سعر الكورس", "Price")}</SortTh>
                   <th style={th}>{tx("خطة الدفع", "Plan")}</th>
@@ -318,6 +326,9 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
                       </td>
                       <td style={td}>
                         <InlineStatusSelect value={e.statusId} onSave={(v) => changeEngagementStatus(e.id, v)} options={statusOptions} color={status?.color} />
+                      </td>
+                      <td style={td}>
+                        <InlineStatusSelect value={e.enrollmentStatus || "not_enrolled"} onSave={(v) => changeEnrollmentStatus(e.id, v)} options={enrollmentOptions} color={ENROLLMENT_COLORS[e.enrollmentStatus || "not_enrolled"]} />
                       </td>
                       <td style={td}>
                         <InlineText value={e.salesNotes} onSave={(v) => updateEngagement(e.id, { salesNotes: v })} placeholder={tx("ملاحظة...", "Note...")} minWidth={130} size={16} />
