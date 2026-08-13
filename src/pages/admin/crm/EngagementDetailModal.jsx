@@ -15,8 +15,9 @@ import {
   ATTENDANCE_TYPE_OPTIONS, PAYMENT_PLAN_OPTIONS, ENROLLMENT_STATUS_OPTIONS, optionLabel,
 } from "../../../constants/crmOptions";
 import {
-  PAYMENT_METHOD_OPTIONS, PAYMENT_TYPE_OPTIONS, paymentOptionLabel,
+  PAYMENT_METHOD_OPTIONS, PAYMENT_TYPE_OPTIONS, PAYMENT_RECORD_STATUS_OPTIONS, paymentOptionLabel,
   effectivePaymentRecords, confirmedAmountPaid, hasUnmigratedLegacyPayments,
+  findPaymentConflicts, hasBlockingConflict,
 } from "../../../utils/paymentRecords";
 
 const ACTIVITY_TYPES = [
@@ -94,14 +95,25 @@ function PaymentField({ label, value, bold, ar }) {
   );
 }
 
-const PAYMENT_STATUS_COLOR = { pending: C.orange, confirmed: C.success, rejected: C.danger };
-const PAYMENT_STATUS_LABEL = { pending: ["قيد المراجعة", "Pending"], confirmed: ["مؤكد", "Confirmed"], rejected: ["مرفوض", "Rejected"] };
+const PAYMENT_STATUS_COLOR = { pending: C.muted, under_review: C.orange, confirmed: C.success, rejected: C.danger };
+const PAYMENT_STATUS_LABEL = {
+  pending: ["قيد الانتظار", "Pending"],
+  under_review: ["قيد المراجعة", "Under Review"],
+  confirmed: ["مؤكد", "Confirmed"],
+  rejected: ["مرفوض", "Rejected"],
+};
 
-/** One Payment Record — Confirm/Reject only show for records still pending
- * (confirming/rejecting is final; there's no "un-confirm" here by design). */
-function PaymentRecordRow({ record, ar, tx, onConfirm, onReject }) {
+/** One Payment Record. Flow: pending -> under_review -> confirmed/rejected —
+ * Confirm/Reject only appear once review has actually started; Confirm is
+ * disabled outright when a blocking duplicate exists elsewhere (see
+ * CustomerContext.confirmPaymentRecord, which re-checks this server-side too). */
+function PaymentRecordRow({ record, conflicts, ar, tx, onStartReview, onConfirm, onReject }) {
   const color = PAYMENT_STATUS_COLOR[record.status] || C.muted;
   const [statusAr, statusEn] = PAYMENT_STATUS_LABEL[record.status] || [record.status, record.status];
+  const [rejecting, setRejecting] = useState(false);
+  const [reason, setReason] = useState("");
+  const blocked = hasBlockingConflict(conflicts);
+
   return (
     <Card style={{ padding: "10px 14px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -115,16 +127,52 @@ function PaymentRecordRow({ record, ar, tx, onConfirm, onReject }) {
         </div>
         <span style={{ fontSize: 11, fontWeight: 800, color }}>{ar ? statusAr : statusEn}</span>
       </div>
-      {(record.transactionReference || record.submittedAt) && (
+      {(record.transactionReference || record.attachmentRef || record.submittedAt) && (
         <div style={{ fontSize: 10.5, color: C.muted, marginTop: 4 }}>
           {record.transactionReference ? `${tx("رقم العملية", "Ref")}: ${record.transactionReference} · ` : ""}
+          {record.attachmentRef ? `${tx("إثبات", "Proof")}: ${record.attachmentRef} · ` : ""}
           {record.submittedAt ? new Date(record.submittedAt).toLocaleDateString(ar ? "ar-EG" : "en-US") : ""}
         </div>
       )}
+      {record.status === "rejected" && record.rejectionReason && (
+        <div style={{ fontSize: 11.5, color: C.danger, marginTop: 4 }}>{tx("سبب الرفض", "Rejection reason")}: {record.rejectionReason}</div>
+      )}
+
+      {conflicts.length > 0 && (record.status === "pending" || record.status === "under_review") && (
+        <div style={{ marginTop: 8, padding: "6px 10px", borderRadius: 8, background: `${blocked ? C.danger : C.orange}22`, border: `1px solid ${blocked ? C.danger : C.orange}66` }}>
+          {conflicts.map((c, i) => (
+            <div key={i} style={{ fontSize: 11, fontWeight: 700, color: blocked ? C.danger : C.orange }}>
+              ⚠ {tx(
+                c.type === "reference" ? "نفس رقم العملية مستخدم في دفعة أخرى" : c.type === "proof" ? "نفس إثبات الدفع مستخدم في دفعة أخرى" : "دفعة مشابهة (نفس المبلغ والطريقة والنوع) لنفس العميل",
+                c.type === "reference" ? "Same transaction reference used by another payment" : c.type === "proof" ? "Same proof reference used by another payment" : "Similar payment (same amount/method/type) for this customer",
+              )} — {paymentOptionLabel(PAYMENT_RECORD_STATUS_OPTIONS, c.record.status, ar)}
+            </div>
+          ))}
+        </div>
+      )}
+
       {record.status === "pending" && !record.legacy && (
         <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-          <Btn sm v="primary" onClick={onConfirm}>{tx("تأكيد", "Confirm")}</Btn>
-          <Btn sm v="ghost" onClick={onReject}>{tx("رفض", "Reject")}</Btn>
+          <Btn sm v="purple" onClick={onStartReview}>{tx("بدء المراجعة", "Start Review")}</Btn>
+        </div>
+      )}
+      {record.status === "under_review" && !record.legacy && (
+        <div style={{ marginTop: 8 }}>
+          <div style={{ display: "flex", gap: 6 }}>
+            <Btn sm v="primary" disabled={blocked} title={blocked ? tx("محظور بسبب تعارض مؤكد", "Blocked by a confirmed duplicate") : undefined} onClick={onConfirm}>{tx("تأكيد", "Confirm")}</Btn>
+            <Btn sm v="ghost" onClick={() => setRejecting((v) => !v)}>{tx("رفض", "Reject")}</Btn>
+          </div>
+          {rejecting && (
+            <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+              <input
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder={tx("سبب الرفض...", "Rejection reason...")}
+                style={{ flex: 1, background: "rgba(255,255,255,.06)", border: `1.5px solid ${C.border}`, borderRadius: 8, color: "#fff", fontFamily: "'Cairo',sans-serif", fontSize: 12, padding: "6px 10px" }}
+              />
+              <Btn sm v="primary" disabled={!reason.trim()} onClick={() => { onReject(reason.trim()); setRejecting(false); setReason(""); }}>{tx("تأكيد الرفض", "Confirm Reject")}</Btn>
+            </div>
+          )}
         </div>
       )}
     </Card>
@@ -153,8 +201,8 @@ export default function EngagementDetailModal({ engagement, onClose }) {
   const { nodeById } = useCatalog();
   const { effectiveStatuses } = useLeadStatus();
   const {
-    customerById, updateCustomer, updateEngagement, changeEngagementStatus, changeEnrollmentStatus, logEngagementActivity,
-    addPaymentRecord, confirmPaymentRecord, rejectPaymentRecord, migrateLegacyPayments,
+    engagements, customerById, updateCustomer, updateEngagement, changeEngagementStatus, changeEnrollmentStatus, logEngagementActivity,
+    addPaymentRecord, startPaymentReview, confirmPaymentRecord, rejectPaymentRecord, migrateLegacyPayments,
   } = useCustomers();
   const { fieldDefsForBusinessUnit } = useCustomFields();
 
@@ -172,17 +220,33 @@ export default function EngagementDetailModal({ engagement, onClose }) {
   const remainingBalance = (payment.coursePrice || 0) - amountPaid;
   const paymentRecords = effectivePaymentRecords(engagement);
 
-  const [paymentDraft, setPaymentDraft] = useState({ amount: "", paymentMethod: "cash", paymentType: "installment", transactionReference: "" });
+  const EMPTY_PAYMENT_DRAFT = { amount: "", paymentMethod: "cash", paymentType: "installment", transactionReference: "", attachmentRef: "" };
+  const [paymentDraft, setPaymentDraft] = useState(EMPTY_PAYMENT_DRAFT);
   const [savingPayment, setSavingPayment] = useState(false);
+  const [paymentError, setPaymentError] = useState("");
+  // Live duplicate check on the draft, before it's even submitted — same
+  // conflict detector used against real records (see PaymentRecordRow).
+  const draftConflicts = (paymentDraft.transactionReference || paymentDraft.attachmentRef)
+    ? findPaymentConflicts({ id: "__draft__", amount: Number(paymentDraft.amount) || 0, ...paymentDraft }, engagement, engagements)
+    : [];
   const submitPayment = async () => {
     const amount = Number(paymentDraft.amount);
     if (!amount || amount <= 0) return;
     setSavingPayment(true);
+    setPaymentError("");
     try {
       await addPaymentRecord(engagement.id, { ...paymentDraft, amount });
-      setPaymentDraft({ amount: "", paymentMethod: "cash", paymentType: "installment", transactionReference: "" });
+      setPaymentDraft(EMPTY_PAYMENT_DRAFT);
     } finally {
       setSavingPayment(false);
+    }
+  };
+  const handleConfirmRecord = async (paymentId) => {
+    try {
+      setPaymentError("");
+      await confirmPaymentRecord(engagement.id, paymentId);
+    } catch {
+      setPaymentError(tx("تعذّر التأكيد: يوجد تعارض دفع مؤكد بنفس البيانات", "Couldn't confirm: a confirmed duplicate payment conflict exists"));
     }
   };
 
@@ -378,19 +442,21 @@ export default function EngagementDetailModal({ engagement, onClose }) {
       {paymentRecords.length === 0 && <div style={{ fontSize: 12, color: C.muted, marginBottom: 12 }}>{tx("لا توجد دفعات بعد", "No payments yet")}</div>}
       <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
         {paymentRecords.map((r) => (
-          <PaymentRecordRow key={r.id} record={r} ar={ar} tx={tx}
-            onConfirm={() => confirmPaymentRecord(engagement.id, r.id)}
-            onReject={() => rejectPaymentRecord(engagement.id, r.id)}
+          <PaymentRecordRow key={r.id} record={r} conflicts={findPaymentConflicts(r, engagement, engagements)} ar={ar} tx={tx}
+            onStartReview={() => startPaymentReview(engagement.id, r.id)}
+            onConfirm={() => handleConfirmRecord(r.id)}
+            onReject={(reason) => rejectPaymentRecord(engagement.id, r.id, reason)}
           />
         ))}
       </div>
+      {paymentError && <div style={{ fontSize: 12, color: C.danger, marginBottom: 12 }}>{paymentError}</div>}
       {hasUnmigratedLegacyPayments(engagement) && (
         <Btn sm v="ghost" onClick={() => migrateLegacyPayments(engagement.id)} style={{ marginBottom: 12 }}>
           {tx("ترحيل الدفعات القديمة إلى السجل", "Migrate legacy payments to records")}
         </Btn>
       )}
 
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 16 }}>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
         <div style={{ width: 100 }}>
           <Input label={tx("المبلغ", "Amount")} type="number" value={paymentDraft.amount} onChange={(v) => setPaymentDraft((d) => ({ ...d, amount: v }))} dir="ltr" />
         </div>
@@ -405,8 +471,16 @@ export default function EngagementDetailModal({ engagement, onClose }) {
         <div style={{ width: 140 }}>
           <Input label={tx("رقم العملية (اختياري)", "Reference (optional)")} value={paymentDraft.transactionReference} onChange={(v) => setPaymentDraft((d) => ({ ...d, transactionReference: v }))} dir="ltr" />
         </div>
+        <div style={{ width: 160 }}>
+          <Input label={tx("مرجع إثبات الدفع (اختياري)", "Proof reference (optional)")} value={paymentDraft.attachmentRef} onChange={(v) => setPaymentDraft((d) => ({ ...d, attachmentRef: v }))} dir="ltr" placeholder={tx("رابط/رقم إيصال...", "URL / receipt id...")} />
+        </div>
         <Btn sm v="primary" disabled={savingPayment || !paymentDraft.amount} onClick={submitPayment} style={{ marginBottom: 16 }}>{tx("إضافة دفعة", "Add Payment")}</Btn>
       </div>
+      {draftConflicts.length > 0 && (
+        <div style={{ marginTop: -8, marginBottom: 16, fontSize: 11.5, fontWeight: 700, color: C.orange }}>
+          ⚠ {tx("تحذير: نفس رقم العملية أو الإثبات مستخدم بالفعل في دفعة أخرى", "Warning: this reference/proof is already used by another payment")}
+        </div>
+      )}
 
       <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, margin: "16px 0 8px", textTransform: "uppercase" }}>{tx("إضافة نشاط", "Log activity")}</div>
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>

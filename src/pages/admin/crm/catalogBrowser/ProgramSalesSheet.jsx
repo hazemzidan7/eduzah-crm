@@ -7,7 +7,7 @@ import { useCustomers } from "../../../../context/CustomerContext";
 import { useCrmNav } from "../../../../context/CrmNavContext";
 import { toE164Phone } from "../../../../utils/phoneE164";
 import { ATTENDANCE_TYPE_OPTIONS, PAYMENT_PLAN_OPTIONS, ENROLLMENT_STATUS_OPTIONS } from "../../../../constants/crmOptions";
-import { confirmedAmountPaid, effectivePaymentRecords } from "../../../../utils/paymentRecords";
+import { confirmedAmountPaid, effectivePaymentRecords, findPaymentConflicts } from "../../../../utils/paymentRecords";
 import { InlineText, InlineNumber, InlineDate, InlineSelect, InlineStatusSelect, ComputedMoney } from "./InlineCells";
 import { IconSend, IconHistory, IconGrid, IconBell, IconSearch, IconFilter, IconEye, IconCalendar, IconMoreVertical, IconSort, IconWhatsapp, IconPhone } from "../../../../components/Icons";
 import EngagementDetailModal from "../EngagementDetailModal";
@@ -69,7 +69,7 @@ function SortTh({ children, colKey, style, activeKey, dir, onToggle }) {
 export default function ProgramSalesSheet({ engagements, program, businessUnitId, ar, tx }) {
   const { users } = useAuth();
   const { effectiveStatuses, statusById } = useLeadStatus();
-  const { customerById, updateCustomer, updateEngagement, changeEngagementStatus, changeEnrollmentStatus } = useCustomers();
+  const { customerById, updateCustomer, updateEngagement, changeEngagementStatus, changeEnrollmentStatus, engagements: allEngagements } = useCustomers();
   const { setSection } = useCrmNav();
 
   const [search, setSearch] = useState("");
@@ -276,7 +276,8 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
                   const records = effectivePaymentRecords(e);
                   const amountPaid = confirmedAmountPaid(e);
                   const remaining = (payment.coursePrice || 0) - amountPaid;
-                  const pendingCount = records.filter((r) => r.status === "pending").length;
+                  const needsReviewCount = records.filter((r) => r.status === "pending" || r.status === "under_review").length;
+                  const hasConflict = records.some((r) => (r.status === "pending" || r.status === "under_review") && findPaymentConflicts(r, e, allEngagements).length > 0);
                   const timeline = [...(e.timeline || [])].sort((a, b) => (b.at || "").localeCompare(a.at || ""));
                   const lastContact = timeline.find((t) => t.type !== "system");
                   const e164 = toE164Phone(customer?.phone);
@@ -328,11 +329,11 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
                       <td style={td}><ComputedMoney value={amountPaid} color={C.success} /></td>
                       <td style={td}><ComputedMoney value={remaining} color={remaining > 0 ? C.orange : C.muted} /></td>
                       <td style={td}>
-                        <button className="edu-row-menu-item" style={{ width: "auto", display: "inline-flex", padding: "5px 10px" }} onClick={() => setProfileEngagementId(e.id)}>
+                        <button className="edu-row-menu-item" style={{ width: "auto", display: "inline-flex", padding: "5px 10px" }} onClick={() => setProfileEngagementId(e.id)} title={hasConflict ? tx("يوجد تعارض دفع محتمل — افتح الملف للمراجعة", "Possible payment conflict — open profile to review") : undefined}>
                           {records.length === 0
                             ? <span style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>{tx("لا يوجد", "None")}</span>
-                            : pendingCount > 0
-                              ? <span style={{ fontSize: 11, fontWeight: 800, color: C.orange }}>{tx(`${pendingCount} قيد المراجعة`, `${pendingCount} pending`)}</span>
+                            : needsReviewCount > 0
+                              ? <span style={{ fontSize: 11, fontWeight: 800, color: C.orange }}>{hasConflict ? "⚠ " : ""}{tx(`${needsReviewCount} يحتاج مراجعة`, `${needsReviewCount} needs review`)}</span>
                               : <span style={{ fontSize: 11, fontWeight: 800, color: C.success }}>{tx("مؤكد", "Confirmed")}</span>}
                         </button>
                       </td>

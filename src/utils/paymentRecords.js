@@ -1,8 +1,15 @@
 /**
- * CRM-02 Payment Records model. Each Engagement gets a `paymentRecords[]`
- * array (same embedded-array pattern as `timeline` — no subcollection).
- * Amount Paid must come ONLY from records with status "confirmed"; Deposit
- * is just a record with paymentType "deposit", not a separate field.
+ * CRM-02/CRM-03 Payment Records model. Each Engagement gets a
+ * `paymentRecords[]` array (same embedded-array pattern as `timeline` — no
+ * subcollection). Amount Paid must come ONLY from records with status
+ * "confirmed"; Deposit is just a record with paymentType "deposit", not a
+ * separate field.
+ *
+ * CRM-03 status flow: pending -> under_review -> confirmed / rejected.
+ * `attachmentRef` is the proof/attachment reference required by CRM-03 —
+ * a free-text reference (URL, receipt id, etc.), not a real upload; no
+ * Firebase Storage integration exists yet, this just keeps the model/UI
+ * ready for one.
  */
 
 export const PAYMENT_METHOD_OPTIONS = [
@@ -18,10 +25,15 @@ export const PAYMENT_TYPE_OPTIONS = [
 ];
 
 export const PAYMENT_RECORD_STATUS_OPTIONS = [
-  { v: "pending", ar: "قيد المراجعة", en: "Pending" },
+  { v: "pending", ar: "قيد الانتظار", en: "Pending" },
+  { v: "under_review", ar: "قيد المراجعة", en: "Under Review" },
   { v: "confirmed", ar: "مؤكد", en: "Confirmed" },
   { v: "rejected", ar: "مرفوض", en: "Rejected" },
 ];
+
+// Statuses that still "count" for duplicate-conflict purposes — a rejected
+// record is a closed matter and shouldn't block a legitimate re-submission.
+const ACTIVE_PAYMENT_STATUSES = new Set(["pending", "under_review", "confirmed"]);
 
 export function paymentOptionLabel(options, code, ar) {
   const opt = options.find((o) => o.v === code);
@@ -39,10 +51,10 @@ export function paymentOptionLabel(options, code, ar) {
 export function effectivePaymentRecords(engagement) {
   const real = engagement?.paymentRecords;
   if (Array.isArray(real) && real.length > 0) return real;
-  return legacyRecordsFrom(engagement?.payment || {}, engagement?.createdAt || null);
+  return legacyRecordsFrom(engagement?.payment || {}, engagement);
 }
 
-function legacyRecordsFrom(payment, createdAt) {
+function legacyRecordsFrom(payment, engagement) {
   const legacyStatus = payment.confirmed ? "confirmed" : "pending";
   const entries = [
     { amount: payment.reservationDeposit, paymentType: "deposit" },
@@ -53,15 +65,17 @@ function legacyRecordsFrom(payment, createdAt) {
 
   return entries.map((e, i) => ({
     id: `legacy_${i}`,
+    engagementId: engagement?.id || null,
     amount: e.amount,
     paymentMethod: null,
     paymentType: e.paymentType,
     status: legacyStatus,
-    submittedAt: createdAt,
+    submittedAt: engagement?.createdAt || null,
     confirmedAt: payment.confirmed ? (payment.confirmedAt || null) : null,
     confirmedBy: null,
     transactionReference: null,
     attachmentRef: null,
+    rejectionReason: null,
     legacy: true,
   }));
 }
@@ -76,3 +90,47 @@ export function hasUnmigratedLegacyPayments(engagement) {
   return !(Array.isArray(engagement?.paymentRecords) && engagement.paymentRecords.length > 0)
     && effectivePaymentRecords(engagement).length > 0;
 }
+
+const norm = (s) => (s || "").trim().toLowerCase();
+
+/**
+ * CRM-03 duplicate protection. Compares one record (a real record already
+ * on `engagement`, or a draft not yet submitted) against every payment
+ * record across every engagement the app has loaded — safe because
+ * CustomerContext already syncs the whole `engagements` collection
+ * client-side (same pattern the rest of this app relies on, see the
+ * onSnapshot(collection(db, "engagements")) listener).
+ *
+ * Returns a list of { type, severity, record, engagement } conflicts:
+ *  - "reference": another active record shares the same transactionReference
+ *  - "proof": another active record shares the same attachmentRef
+ *  - "same_engagement": another active record on THIS engagement has the
+ *    same amount/method/type (a likely accidental double-submit)
+ * severity "blocking" (a CONFIRMED record already owns that reference —
+ * see CustomerContext.confirmPaymentRecord, which refuses to confirm over
+ * this) vs "warning" (anything else — surfaced in the UI, not blocked).
+ */
+export function findPaymentConflicts(draftRecord, engagement, allEngagements) {
+  if (!draftRecord || !engagement) return [];
+  const ref = norm(draftRecord.transactionReference);
+  const proof = norm(draftRecord.attachmentRef);
+  const conflicts = [];
+
+  for (const other of allEngagements || []) {
+    for (const r of effectivePaymentRecords(other)) {
+      if (r.id === draftRecord.id && other.id === engagement.id) continue; // never conflicts with itself
+      if (!ACTIVE_PAYMENT_STATUSES.has(r.status)) continue;
+
+      if (ref && norm(r.transactionReference) === ref) {
+        conflicts.push({ type: "reference", severity: r.status === "confirmed" ? "blocking" : "warning", record: r, engagement: other });
+      } else if (proof && norm(r.attachmentRef) === proof) {
+        conflicts.push({ type: "proof", severity: r.status === "confirmed" ? "blocking" : "warning", record: r, engagement: other });
+      } else if (other.id === engagement.id && r.amount === draftRecord.amount && r.paymentMethod === draftRecord.paymentMethod && r.paymentType === draftRecord.paymentType) {
+        conflicts.push({ type: "same_engagement", severity: "warning", record: r, engagement: other });
+      }
+    }
+  }
+  return conflicts;
+}
+
+export const hasBlockingConflict = (conflicts) => conflicts.some((c) => c.severity === "blocking");

@@ -10,7 +10,7 @@ import {
 import { db } from "../firebase";
 import { useAuth } from "./AuthContext";
 import { normalizePhone, normalizeEmail } from "../utils/leadDedupe";
-import { effectivePaymentRecords } from "../utils/paymentRecords";
+import { effectivePaymentRecords, findPaymentConflicts, hasBlockingConflict } from "../utils/paymentRecords";
 
 const CustomerCtx = createContext(null);
 
@@ -248,13 +248,14 @@ export function CustomerProvider({ children }) {
     });
   };
 
-  // ── CRM-02: Payment Records — the only source of truth for Amount Paid.
-  // Submitted pending, reviewed into confirmed/rejected; never edited in
-  // place once created (status changes go through setPaymentRecordStatus).
+  // ── CRM-02/CRM-03: Payment Records — the only source of truth for Amount
+  // Paid. Flow: pending -> under_review -> confirmed/rejected; never edited
+  // in place once created (status changes go through setPaymentRecordStatus).
   const addPaymentRecord = async (engagementId, form) => {
     const now = new Date().toISOString();
     const record = {
       id: genId(),
+      engagementId,
       amount: Number(form.amount) || 0,
       paymentMethod: form.paymentMethod || null,
       paymentType: form.paymentType || "installment",
@@ -263,8 +264,10 @@ export function CustomerProvider({ children }) {
       confirmedAt: null,
       confirmedBy: null,
       transactionReference: form.transactionReference || null,
-      // Reserved for CRM-03 (screenshot/proof upload) — no upload UI yet.
-      attachmentRef: null,
+      // Proof/attachment reference (CRM-03) — a free-text reference for now;
+      // no Firebase Storage upload exists yet, this just keeps the field ready.
+      attachmentRef: form.attachmentRef || null,
+      rejectionReason: null,
     };
     await updateDoc(doc(db, "engagements", engagementId), {
       paymentRecords: arrayUnion(record),
@@ -277,7 +280,7 @@ export function CustomerProvider({ children }) {
   // Records live in a plain array (not a subcollection), so changing one
   // record's status means rewriting the whole array — arrayUnion can't
   // patch an element in place.
-  const setPaymentRecordStatus = async (engagementId, paymentId, status) => {
+  const setPaymentRecordStatus = async (engagementId, paymentId, status, { rejectionReason = null } = {}) => {
     const engagement = engagementById(engagementId);
     if (!engagement) return;
     const now = new Date().toISOString();
@@ -288,11 +291,15 @@ export function CustomerProvider({ children }) {
         ...r, status,
         confirmedAt: status === "confirmed" ? now : r.confirmedAt,
         confirmedBy: status === "confirmed" ? (currentUser?.id || null) : r.confirmedBy,
+        rejectionReason: status === "rejected" ? (rejectionReason || null) : r.rejectionReason,
       };
       return changedRecord;
     });
     await updateDoc(doc(db, "engagements", engagementId), { paymentRecords: records, updatedAt: now });
-    await logEngagementActivity(engagementId, { type: "system", text: `Payment ${status}${changedRecord ? `: ${changedRecord.amount} (${changedRecord.paymentType})` : ""}` });
+    await logEngagementActivity(engagementId, {
+      type: "system",
+      text: `Payment ${status}${changedRecord ? `: ${changedRecord.amount} (${changedRecord.paymentType})` : ""}${status === "rejected" && rejectionReason ? ` — ${rejectionReason}` : ""}`,
+    });
 
     // Confirming the deposit (or a full payment) is what triggers Enrolled —
     // installments alone don't, since enrollment is assumed to have already
@@ -301,8 +308,28 @@ export function CustomerProvider({ children }) {
       await changeEnrollmentStatus(engagementId, "enrolled");
     }
   };
-  const confirmPaymentRecord = (engagementId, paymentId) => setPaymentRecordStatus(engagementId, paymentId, "confirmed");
-  const rejectPaymentRecord = (engagementId, paymentId) => setPaymentRecordStatus(engagementId, paymentId, "rejected");
+  // pending -> under_review: marks that someone has actually started looking
+  // at this payment, distinct from just sitting in the inbox untouched.
+  const startPaymentReview = (engagementId, paymentId) => setPaymentRecordStatus(engagementId, paymentId, "under_review");
+
+  // CRM-03: refuses to confirm over a "blocking" duplicate — another record
+  // ALREADY confirmed with the same transactionReference/proof somewhere in
+  // the system. Anything less certain (another pending/under_review record,
+  // or a same-engagement lookalike) is a warning the UI must show, not a
+  // hard stop, since it could be a legitimate concurrent submission.
+  const confirmPaymentRecord = (engagementId, paymentId) => {
+    const engagement = engagementById(engagementId);
+    const record = (engagement?.paymentRecords || []).find((r) => r.id === paymentId);
+    if (record && engagement) {
+      const conflicts = findPaymentConflicts(record, engagement, engagements);
+      if (hasBlockingConflict(conflicts)) {
+        throw new Error("DUPLICATE_PAYMENT_CONFLICT");
+      }
+    }
+    return setPaymentRecordStatus(engagementId, paymentId, "confirmed");
+  };
+  const rejectPaymentRecord = (engagementId, paymentId, rejectionReason) =>
+    setPaymentRecordStatus(engagementId, paymentId, "rejected", { rejectionReason });
 
   // One-time, explicitly admin-triggered write that turns an engagement's
   // synthesized legacy amounts (see utils/paymentRecords.effectivePaymentRecords)
@@ -345,7 +372,7 @@ export function CustomerProvider({ children }) {
       findEngagement, engagementById, engagementsForCustomer, engagementsForBusinessUnit,
       addEngagement, mergeStudentProfile, resolveOrCreateEngagement, updateEngagement,
       changeEngagementStatus, changeEnrollmentStatus, logEngagementActivity, archiveEngagement, restoreEngagement,
-      addPaymentRecord, setPaymentRecordStatus, confirmPaymentRecord, rejectPaymentRecord, migrateLegacyPayments,
+      addPaymentRecord, setPaymentRecordStatus, startPaymentReview, confirmPaymentRecord, rejectPaymentRecord, migrateLegacyPayments,
     }}>
       {children}
     </CustomerCtx.Provider>
