@@ -85,6 +85,9 @@ export const GOVERNORATE_OPTIONS = [
   { v: "qena", ar: "قنا", en: "Qena" },
   { v: "north_sinai", ar: "شمال سيناء", en: "North Sinai" },
   { v: "sohag", ar: "سوهاج", en: "Sohag" },
+  // Added for LEADS-01/02: the Landing registration form offers "Outside
+  // Egypt" and the CRM had no matching code — see functions/lib/governorates.js.
+  { v: "outside_egypt", ar: "خارج مصر", en: "Outside Egypt" },
 ];
 
 /** Looks up the display label for a stored option code; falls back to the
