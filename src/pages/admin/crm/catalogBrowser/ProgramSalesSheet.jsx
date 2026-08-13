@@ -277,6 +277,7 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
                   const amountPaid = confirmedAmountPaid(e);
                   const remaining = (payment.coursePrice || 0) - amountPaid;
                   const needsReviewCount = records.filter((r) => r.status === "pending" || r.status === "under_review").length;
+                  const confirmedCount = records.filter((r) => r.status === "confirmed").length;
                   const hasConflict = records.some((r) => (r.status === "pending" || r.status === "under_review") && findPaymentConflicts(r, e, allEngagements).length > 0);
                   const timeline = [...(e.timeline || [])].sort((a, b) => (b.at || "").localeCompare(a.at || ""));
                   const lastContact = timeline.find((t) => t.type !== "system");
@@ -334,7 +335,9 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
                             ? <span style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>{tx("لا يوجد", "None")}</span>
                             : needsReviewCount > 0
                               ? <span style={{ fontSize: 11, fontWeight: 800, color: C.orange }}>{hasConflict ? "⚠ " : ""}{tx(`${needsReviewCount} يحتاج مراجعة`, `${needsReviewCount} needs review`)}</span>
-                              : <span style={{ fontSize: 11, fontWeight: 800, color: C.success }}>{tx("مؤكد", "Confirmed")}</span>}
+                              : confirmedCount > 0
+                                ? <span style={{ fontSize: 11, fontWeight: 800, color: C.success }}>{tx("مؤكد", "Confirmed")}</span>
+                                : <span style={{ fontSize: 11, fontWeight: 800, color: C.danger }}>{tx("مرفوض", "Rejected")}</span>}
                         </button>
                       </td>
                       <td style={td}>{lastContact?.at ? fmtDate(lastContact.at) : "—"}</td>

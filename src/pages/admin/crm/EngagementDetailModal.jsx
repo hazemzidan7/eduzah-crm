@@ -227,7 +227,7 @@ export default function EngagementDetailModal({ engagement, onClose }) {
   // Live duplicate check on the draft, before it's even submitted — same
   // conflict detector used against real records (see PaymentRecordRow).
   const draftConflicts = (paymentDraft.transactionReference || paymentDraft.attachmentRef)
-    ? findPaymentConflicts({ id: "__draft__", amount: Number(paymentDraft.amount) || 0, ...paymentDraft }, engagement, engagements)
+    ? findPaymentConflicts({ ...paymentDraft, id: "__draft__", amount: Number(paymentDraft.amount) || 0 }, engagement, engagements)
     : [];
   const submitPayment = async () => {
     const amount = Number(paymentDraft.amount);
@@ -393,7 +393,14 @@ export default function EngagementDetailModal({ engagement, onClose }) {
       <div style={sectionTitleSx}>{tx("بيانات إدارة المبيعات (داخلية)", "CRM Internal Data")}</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
         <Select label={tx("حالة التواصل", "Contact Status")} value={engagement.statusId || ""} onChange={(v) => changeEngagementStatus(engagement.id, v)} options={statusOptions} />
-        <Select label={tx("التسجيل", "Enrollment")} value={engagement.enrollmentStatus || "not_enrolled"} onChange={(v) => changeEnrollmentStatus(engagement.id, v)} options={enrollmentOptions} />
+        <div>
+          <Select label={tx("التسجيل", "Enrollment")} value={engagement.enrollmentStatus || "not_enrolled"} onChange={(v) => changeEnrollmentStatus(engagement.id, v)} options={enrollmentOptions} />
+          {engagement.enrollmentStatus === "enrolled" && (
+            <div style={{ fontSize: 10.5, color: C.success, fontWeight: 700, marginTop: -10, marginBottom: 16 }}>
+              ✓ {tx("مُفعّل تلقائيًا بتأكيد العربون/الدفع الكامل", "Auto-set by a confirmed deposit/full payment")}
+            </div>
+          )}
+        </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
         <Select label={tx("الموظف المسؤول", "Assigned employee")} value={engagement.ownerId || ""} onChange={(v) => updateEngagement(engagement.id, { ownerId: v || null })} options={assigneeOptions} />
