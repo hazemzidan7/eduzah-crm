@@ -56,6 +56,10 @@ service cloud.firestore {
     match /importProfileVersions/{id}   { allow read, write: if isAdmin(); }
     match /importBatches/{id}           { allow read, write: if isAdmin(); }
 
+    /* ── CRM-04: Accounting outbox — independent of the future Accounting
+       module; same admin-only access as every other CRM collection. ── */
+    match /accountingEvents/{id}        { allow read, write: if isAdmin(); }
+
     match /{document=**} { allow read, write: if false; }
   }
 }

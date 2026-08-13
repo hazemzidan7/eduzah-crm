@@ -4,6 +4,8 @@ import {
   doc,
   addDoc,
   updateDoc,
+  setDoc,
+  getDoc,
   onSnapshot,
   arrayUnion,
 } from "firebase/firestore";
@@ -11,6 +13,7 @@ import { db } from "../firebase";
 import { useAuth } from "./AuthContext";
 import { normalizePhone, normalizeEmail } from "../utils/leadDedupe";
 import { effectivePaymentRecords, findPaymentConflicts, hasBlockingConflict } from "../utils/paymentRecords";
+import { ACCOUNTING_EVENTS_COLLECTION, buildConfirmedPaymentEvent } from "../utils/accountingEvents";
 
 const CustomerCtx = createContext(null);
 
@@ -307,6 +310,27 @@ export function CustomerProvider({ children }) {
     if (status === "confirmed" && changedRecord && (changedRecord.paymentType === "deposit" || changedRecord.paymentType === "full") && engagement.enrollmentStatus !== "enrolled") {
       await changeEnrollmentStatus(engagementId, "enrolled");
     }
+
+    // CRM-04: a payment becoming confirmed — and only that — is what hands
+    // it off to the future Accounting system, via an outbox record. This
+    // never touches Amount Paid or any confirmation logic above; it's a
+    // side effect of confirmation, not part of it.
+    if (status === "confirmed" && changedRecord) {
+      await emitAccountingEvent(engagement, changedRecord);
+    }
+  };
+
+  // Idempotent by construction: the document ID is the paymentId itself
+  // (not the generated eventId), so writing this twice for the same
+  // payment can only ever touch one document, never create a second one.
+  // The existence check below additionally makes it "create once" — a
+  // stray re-confirmation can't reset a dispatcher-managed sent/failed
+  // status back to pending.
+  const emitAccountingEvent = async (engagement, record) => {
+    const ref = doc(db, ACCOUNTING_EVENTS_COLLECTION, record.id);
+    const existing = await getDoc(ref);
+    if (existing.exists()) return;
+    await setDoc(ref, buildConfirmedPaymentEvent({ eventId: genId(), record, engagement }));
   };
   // pending -> under_review: marks that someone has actually started looking
   // at this payment, distinct from just sitting in the inbox untouched.
@@ -344,6 +368,11 @@ export function CustomerProvider({ children }) {
     const records = legacy.map(({ legacy: _legacy, id: _id, ...r }) => ({ ...r, id: genId() }));
     await updateDoc(doc(db, "engagements", engagementId), { paymentRecords: records, updatedAt: now });
     await logEngagementActivity(engagementId, { type: "system", text: `Migrated ${records.length} legacy payment field(s) to Payment Records` });
+    // A migrated record that was already (legacy-)confirmed is still a
+    // confirmed payment — it should reach Accounting same as any other.
+    for (const r of records) {
+      if (r.status === "confirmed") await emitAccountingEvent(engagement, r);
+    }
   };
 
   const logEngagementActivity = async (id, { type = "note", text = "" }) => {
