@@ -8,6 +8,7 @@ import TopBar from "../../components/layout/TopBar";
 import CrmCatalogTab from "./crm/catalogBrowser/CrmCatalogTab";
 import ProgramWorkspace from "./crm/catalogBrowser/ProgramWorkspace";
 import CrmSettingsTab from "./crm/CrmSettingsTab";
+import PaymentVerificationQueue from "./crm/PaymentVerificationQueue";
 
 function ComingSoon({ label }) {
   return (
@@ -33,6 +34,7 @@ function AdminContent() {
     if (strandedOnProgramSection) goToCatalog();
   }, [strandedOnProgramSection, goToCatalog]);
 
+  if (section === "payments") return <PaymentVerificationQueue />;
   if (section === "settings") return <CrmSettingsTab />;
   if (section === "reports") return <ComingSoon label={ar ? "التقارير" : "Reports"} />;
   if (section === "users") return <ComingSoon label={ar ? "المستخدمون" : "Users"} />;

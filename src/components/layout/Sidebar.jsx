@@ -6,7 +6,7 @@ import { useCatalog } from "../../context/CatalogContext";
 import { useCrmNav } from "../../context/CrmNavContext";
 import {
   IconPeople, IconGrid, IconBell, IconHistory, IconBox, IconBarChart,
-  IconGear, IconChevronDown, IconChevronRight, IconChevronsCollapse,
+  IconGear, IconChevronDown, IconChevronRight, IconChevronsCollapse, IconMoney,
 } from "../Icons";
 
 // Ordered by daily workflow priority, not feature grouping: the customer
@@ -112,6 +112,16 @@ export default function Sidebar() {
             label={collapsed ? "" : (ar ? it.ar : it.en)}
           />
         ))}
+
+        {/* CRM-PAYMENT-01 — global, cross-Program queue; deliberately not
+            gated by hasProgram like the items above, since it spans every
+            Program at once. */}
+        <NavRow
+          active={section === "payments"}
+          onClick={() => setSection("payments")}
+          icon={<IconMoney size={18} />}
+          label={collapsed ? "" : tx("مراجعة المدفوعات", "Payment Verification")}
+        />
 
         {!collapsed && <div style={{ height: 1, background: "rgba(255,255,255,.08)", margin: "10px 4px" }} />}
 

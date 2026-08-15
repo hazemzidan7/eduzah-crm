@@ -134,3 +134,25 @@ export function findPaymentConflicts(draftRecord, engagement, allEngagements) {
 }
 
 export const hasBlockingConflict = (conflicts) => conflicts.some((c) => c.severity === "blocking");
+
+/**
+ * CRM-PAYMENT-01 — additive, non-blocking amount check. Deliberately kept
+ * separate from findPaymentConflicts above (not touched, not redesigned) —
+ * this is a parallel, independently-computed warning for the Payment
+ * Verification view. Only meaningful for deposit/full records, where the
+ * frozen pricingSnapshot.depositAmount (CRM-PRICING-01) is the one
+ * authoritative "amount due now" figure; there's no equivalent single
+ * expected amount for an individual installment payment, so those are
+ * never flagged — this never blocks Confirm, it's visibility only.
+ */
+export function expectedAmountNow(engagement) {
+  const snap = engagement?.pricingSnapshot;
+  return snap && typeof snap.depositAmount === "number" ? snap.depositAmount : null;
+}
+
+export function amountMismatch(record, engagement) {
+  if (!record || record.paymentType === "installment") return null;
+  const expected = expectedAmountNow(engagement);
+  if (expected == null || typeof record.amount !== "number" || record.amount === expected) return null;
+  return { expected, submitted: record.amount, kind: record.amount < expected ? "partial" : "over" };
+}
