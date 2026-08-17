@@ -6,7 +6,7 @@ import { useCatalog } from "../../../context/CatalogContext";
 import { useCustomers } from "../../../context/CustomerContext";
 import { IconSearch } from "../../../components/Icons";
 import {
-  effectivePaymentRecords, findPaymentConflicts, hasBlockingConflict, amountMismatch,
+  effectivePaymentRecords, confirmedAmountPaid, findPaymentConflicts, hasBlockingConflict, amountMismatch,
 } from "../../../utils/paymentRecords";
 import { effectiveCoursePrice } from "../../../utils/pricingSnapshot";
 import PaymentRecordCard from "./PaymentRecordCard";
@@ -152,34 +152,47 @@ export default function PaymentVerificationQueue() {
             const program = engagement.catalogNodeId ? nodeById(engagement.catalogNodeId) : null;
             const snapshot = engagement.pricingSnapshot || null;
             const coursePrice = effectiveCoursePrice(engagement);
+            const amountPaid = confirmedAmountPaid(engagement);
+            const remaining = (coursePrice || 0) - amountPaid;
             const conflicts = findPaymentConflicts(record, engagement, engagements);
             const mismatch = amountMismatch(record, engagement);
             const blocked = hasBlockingConflict(conflicts);
 
             const header = (
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, flexWrap: "wrap", marginBottom: 8, paddingBottom: 8, borderBottom: `1px solid ${C.border}` }}>
-                <div>
-                  <button
-                    onClick={() => setOpenEngagementId(engagement.id)}
-                    style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "#fff", fontSize: 13.5, fontWeight: 800, fontFamily: "'Cairo',sans-serif", textDecoration: "underline dotted" }}
-                  >
-                    {customer?.fullName || tx("عميل غير معروف", "Unknown customer")}
-                  </button>
-                  <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>
-                    <span dir="ltr">{customer?.phone || "—"}</span>
-                    {program ? <> · <span dir="ltr">{program.name_en}</span></> : ""}
+              <div style={{ marginBottom: 8, paddingBottom: 8, borderBottom: `1px solid ${C.border}` }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, flexWrap: "wrap" }}>
+                  <div>
+                    <button
+                      onClick={() => setOpenEngagementId(engagement.id)}
+                      style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "#fff", fontSize: 13.5, fontWeight: 800, fontFamily: "'Cairo',sans-serif", textDecoration: "underline dotted" }}
+                    >
+                      {customer?.fullName || tx("عميل غير معروف", "Unknown customer")}
+                    </button>
+                    <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>
+                      <span dir="ltr">{customer?.phone || "—"}</span>
+                      {program ? <> · <span dir="ltr">{program.name_en}</span></> : ""}
+                    </div>
                   </div>
-                </div>
-                <div style={{ textAlign: "end" }}>
                   {(NEEDS_ACTION.has(record.status) && (blocked || mismatch)) && (
                     <span style={{ fontSize: 10, fontWeight: 800, color: blocked ? C.danger : C.orange }}>⚠ {tx("يحتاج انتباه", "needs attention")}</span>
                   )}
-                  {snapshot && (
-                    <div style={{ fontSize: 10.5, color: C.muted, marginTop: 1 }} dir="ltr">
-                      {tx("متوقع الآن", "Expected now")}: {(snapshot.depositAmount ?? 0).toLocaleString()} {snapshot.currency || "EGP"}
-                      {typeof coursePrice === "number" ? ` · ${tx("سعر الكورس", "Price")}: ${coursePrice.toLocaleString()}` : ""}
-                    </div>
+                </div>
+                {/* Engagement-level financial picture — distinct from this one
+                    record's own "amount submitted" (shown by PaymentRecordCard
+                    itself below): what the Program costs, what's due right
+                    now per the frozen pricingSnapshot, what's actually been
+                    confirmed so far (any record, not just this one), and
+                    what's left. Same confirmedAmountPaid/effectiveCoursePrice
+                    used everywhere else — not recomputed here. */}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 14px", marginTop: 6, fontSize: 10.5 }} dir="ltr">
+                  {typeof coursePrice === "number" && (
+                    <span style={{ color: C.muted }}>{tx("سعر الكورس", "Price")}: <b style={{ color: "#fff" }}>{coursePrice.toLocaleString()}</b></span>
                   )}
+                  {snapshot && (
+                    <span style={{ color: C.muted }}>{tx("متوقع الآن", "Expected now")}: <b style={{ color: "#fff" }}>{(snapshot.depositAmount ?? 0).toLocaleString()} {snapshot.currency || "EGP"}</b></span>
+                  )}
+                  <span style={{ color: C.muted }}>{tx("المدفوع (مؤكد)", "Confirmed paid")}: <b style={{ color: C.success }}>{amountPaid.toLocaleString()}</b></span>
+                  <span style={{ color: C.muted }}>{tx("المتبقي", "Remaining")}: <b style={{ color: remaining > 0 ? C.orange : C.muted }}>{remaining.toLocaleString()}</b></span>
                 </div>
               </div>
             );

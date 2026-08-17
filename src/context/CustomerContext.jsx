@@ -247,11 +247,21 @@ export function CustomerProvider({ children }) {
   // confirmPaymentRecord below (confirming a deposit/full record
   // auto-triggers "enrolled") and EngagementDetailModal (manual override,
   // e.g. Cancelled).
-  const changeEnrollmentStatus = async (id, newEnrollmentStatus) => {
+  //
+  // `source` ("payment_confirmation" | "manual") is provenance only — a
+  // production investigation found the green "auto-confirmed by payment"
+  // caption was shown unconditionally whenever enrollmentStatus === "enrolled",
+  // even when a CRM user had set it manually via this same function with no
+  // confirmed payment at all. `enrollmentSource` records which path actually
+  // set the current value so the UI can tell them apart. Defaults to
+  // "manual" since every call site except the automatic payment-confirmation
+  // trigger below is a human-initiated UI action.
+  const changeEnrollmentStatus = async (id, newEnrollmentStatus, source = "manual") => {
     const engagement = engagementById(id);
     const now = new Date().toISOString();
     await updateDoc(doc(db, "engagements", id), {
       enrollmentStatus: newEnrollmentStatus,
+      enrollmentSource: source,
       updatedAt: now,
       timeline: arrayUnion({
         id: genId(), type: "system",
@@ -342,9 +352,10 @@ export function CustomerProvider({ children }) {
 
     // Confirming the deposit (or a full payment) is what triggers Enrolled —
     // installments alone don't, since enrollment is assumed to have already
-    // happened via the deposit/full payment that came before them.
+    // happened via the deposit/full payment that came before them. Trigger
+    // conditions are unchanged; only the recorded provenance is new.
     if (status === "confirmed" && changedRecord && (changedRecord.paymentType === "deposit" || changedRecord.paymentType === "full") && engagement.enrollmentStatus !== "enrolled") {
-      await changeEnrollmentStatus(engagementId, "enrolled");
+      await changeEnrollmentStatus(engagementId, "enrolled", "payment_confirmation");
     }
 
     // CRM-04: a payment becoming confirmed — and only that — is what hands

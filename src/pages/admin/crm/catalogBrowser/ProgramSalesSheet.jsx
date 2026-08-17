@@ -318,7 +318,25 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
                         <InlineStatusSelect value={e.statusId} onSave={(v) => changeEngagementStatus(e.id, v)} options={statusOptions} color={status?.color} />
                       </td>
                       <td style={td}>
-                        <InlineStatusSelect value={e.enrollmentStatus || "not_enrolled"} onSave={(v) => changeEnrollmentStatus(e.id, v)} options={enrollmentOptions} color={ENROLLMENT_COLORS[e.enrollmentStatus || "not_enrolled"]} />
+                        <InlineStatusSelect
+                          value={e.enrollmentStatus || "not_enrolled"}
+                          onSave={(v) => {
+                            // Warns (never blocks) manually enrolling with no
+                            // confirmed payment — legitimate for offline/cash
+                            // arrangements. See EngagementDetailModal's
+                            // handleEnrollmentChange for the same gate.
+                            if (v === "enrolled" && amountPaid === 0) {
+                              const proceed = window.confirm(tx(
+                                "لا يوجد مبلغ مؤكد الدفع لهذا الطالب حتى الآن. هل تريد بالتأكيد تفعيل التسجيل يدويًا؟",
+                                "There is currently no confirmed payment for this student. Are you sure you want to manually enroll them?",
+                              ));
+                              if (!proceed) return;
+                            }
+                            changeEnrollmentStatus(e.id, v, "manual");
+                          }}
+                          options={enrollmentOptions}
+                          color={ENROLLMENT_COLORS[e.enrollmentStatus || "not_enrolled"]}
+                        />
                       </td>
                       <td style={td}>
                         <InlineText value={e.salesNotes} onSave={(v) => updateEngagement(e.id, { salesNotes: v })} placeholder={tx("ملاحظة...", "Note...")} minWidth={130} size={16} />

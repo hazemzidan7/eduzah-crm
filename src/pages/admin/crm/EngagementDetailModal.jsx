@@ -214,6 +214,23 @@ export default function EngagementDetailModal({ engagement, onClose }) {
   const priorityOptions = PRIORITY_OPTIONS.map((p) => ({ v: p.v, l: ar ? p.ar : p.en }));
   const enrollmentOptions = ENROLLMENT_STATUS_OPTIONS.map((o) => ({ v: o.v, l: ar ? o.ar : o.en }));
 
+  // Manual Enrollment change (this Select, or the Sales Sheet's inline
+  // equivalent) — warns, but never blocks, when there's no confirmed
+  // payment behind it (legitimate for offline/cash arrangements handled
+  // outside the Payment Records flow). Cancelling writes nothing at all.
+  const handleEnrollmentChange = (newValue) => {
+    if (newValue === "enrolled" && amountPaid === 0) {
+      const proceed = window.confirm(
+        tx(
+          "لا يوجد مبلغ مؤكد الدفع لهذا الطالب حتى الآن. هل تريد بالتأكيد تفعيل التسجيل يدويًا؟",
+          "There is currently no confirmed payment for this student. Are you sure you want to manually enroll them?",
+        ),
+      );
+      if (!proceed) return;
+    }
+    changeEnrollmentStatus(engagement.id, newValue, "manual");
+  };
+
   const timeline = [...(engagement.timeline || [])].sort((a, b) => (b.at || "").localeCompare(a.at || ""));
   // "Last Contact" is derived from the timeline, not stored separately — a
   // second source of truth for the same fact would just go stale.
@@ -317,10 +334,20 @@ export default function EngagementDetailModal({ engagement, onClose }) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
         <Select label={tx("حالة التواصل", "Contact Status")} value={engagement.statusId || ""} onChange={(v) => changeEngagementStatus(engagement.id, v)} options={statusOptions} />
         <div>
-          <Select label={tx("التسجيل", "Enrollment")} value={engagement.enrollmentStatus || "not_enrolled"} onChange={(v) => changeEnrollmentStatus(engagement.id, v)} options={enrollmentOptions} />
-          {engagement.enrollmentStatus === "enrolled" && (
+          <Select label={tx("التسجيل", "Enrollment")} value={engagement.enrollmentStatus || "not_enrolled"} onChange={handleEnrollmentChange} options={enrollmentOptions} />
+          {/* Provenance-aware — a production case showed this claiming
+              "auto-confirmed by payment" for an engagement a CRM user had
+              manually enrolled with zero confirmed payment. Engagements
+              enrolled before enrollmentSource existed show neither message
+              (unknown provenance, never assumed). */}
+          {engagement.enrollmentStatus === "enrolled" && engagement.enrollmentSource === "payment_confirmation" && (
             <div style={{ fontSize: 10.5, color: C.success, fontWeight: 700, marginTop: -10, marginBottom: 16 }}>
               ✓ {tx("مُفعّل تلقائيًا بتأكيد العربون/الدفع الكامل", "Auto-set by a confirmed deposit/full payment")}
+            </div>
+          )}
+          {engagement.enrollmentStatus === "enrolled" && engagement.enrollmentSource === "manual" && (
+            <div style={{ fontSize: 10.5, color: C.success, fontWeight: 700, marginTop: -10, marginBottom: 16 }}>
+              ✓ {tx("تم تفعيل التسجيل يدويًا", "Manually enrolled")}
             </div>
           )}
         </div>
