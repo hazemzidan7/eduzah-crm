@@ -11,6 +11,7 @@ import { DictionaryProvider } from './context/DictionaryContext'
 import { ImportProfileProvider } from './context/ImportProfileContext'
 import { ImportBatchProvider } from './context/ImportBatchContext'
 import { CustomerProvider } from './context/CustomerContext'
+import { AccountingProvider } from './context/AccountingContext'
 import { LangProvider } from './context/LangContext'
 import { ThemeProvider } from './context/ThemeContext'
 import App from './App.jsx'
@@ -31,7 +32,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                         <ImportProfileProvider>
                           <ImportBatchProvider>
                             <CustomerProvider>
-                              <App />
+                              <AccountingProvider>
+                                <App />
+                              </AccountingProvider>
                             </CustomerProvider>
                           </ImportBatchProvider>
                         </ImportProfileProvider>
