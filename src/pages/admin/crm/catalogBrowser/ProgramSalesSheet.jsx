@@ -10,9 +10,10 @@ import { ATTENDANCE_TYPE_OPTIONS, PAYMENT_PLAN_OPTIONS, ENROLLMENT_STATUS_OPTION
 import { confirmedAmountPaid, effectivePaymentRecords, findPaymentConflicts } from "../../../../utils/paymentRecords";
 import { effectiveCoursePrice } from "../../../../utils/pricingSnapshot";
 import { InlineText, InlineNumber, InlineDate, InlineSelect, InlineStatusSelect, ComputedMoney } from "./InlineCells";
-import { IconSend, IconHistory, IconGrid, IconBell, IconSearch, IconFilter, IconEye, IconCalendar, IconMoreVertical, IconSort, IconWhatsapp, IconPhone } from "../../../../components/Icons";
+import { IconSend, IconHistory, IconGrid, IconBell, IconSearch, IconFilter, IconEye, IconCalendar, IconMoreVertical, IconSort, IconWhatsapp, IconPhone, IconMoney } from "../../../../components/Icons";
 import EngagementDetailModal from "../EngagementDetailModal";
 import AddStudentModal from "./AddStudentModal";
+import AddPaymentModal from "./AddPaymentModal";
 
 const th = { textAlign: "center", fontSize: 10, letterSpacing: 0.3, textTransform: "uppercase", color: "rgba(255,255,255,.88)", fontWeight: 800, padding: "11px 12px", borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap", background: "#2c1a3a", position: "sticky", top: 0, zIndex: 2, boxShadow: "0 2px 6px rgba(0,0,0,.25)" };
 const td = { padding: "8px 10px", fontSize: 12.5, textAlign: "center", borderBottom: "1px solid rgba(255,255,255,.09)", verticalAlign: "middle", whiteSpace: "nowrap" };
@@ -83,6 +84,7 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [profileEngagementId, setProfileEngagementId] = useState(null);
   const [addingStudent, setAddingStudent] = useState(false);
+  const [addingPaymentEngagementId, setAddingPaymentEngagementId] = useState(null);
   // Compact overflow menu for the row's less-frequent actions (confirm
   // payment, schedule follow-up) — only View Profile stays always visible.
   const [rowMenu, setRowMenu] = useState(null); // { id, top, left }
@@ -266,7 +268,7 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
                   <SortTh style={th} colKey="lastContact" activeKey={sortKey} dir={sortDir} onToggle={toggleSort}>{tx("آخر تواصل", "Last Contact")}</SortTh>
                   <SortTh style={th} colKey="nextFollowUp" activeKey={sortKey} dir={sortDir} onToggle={toggleSort}>{tx("المتابعة القادمة", "Next Follow-up")}</SortTh>
                   <SortTh style={th} colKey="assigned" activeKey={sortKey} dir={sortDir} onToggle={toggleSort}>{tx("الموظف المسؤول", "Assigned")}</SortTh>
-                  <th style={{ ...th, width: 76, minWidth: 76 }} aria-label={tx("إجراءات", "Actions")}></th>
+                  <th style={{ ...th, width: 104, minWidth: 104 }} aria-label={tx("إجراءات", "Actions")}></th>
                 </tr>
               </thead>
               <tbody>
@@ -369,9 +371,14 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
                       <td style={td}>
                         <InlineSelect value={e.ownerId} onSave={(v) => updateEngagement(e.id, { ownerId: v })} options={assigneeOptions} minWidth={90} />
                       </td>
-                      <td style={{ ...td, width: 76, minWidth: 76 }}>
+                      <td style={{ ...td, width: 104, minWidth: 104 }}>
                         <div style={{ display: "flex", gap: 4, justifyContent: "center" }}>
                           <Btn sm v="ghost" onClick={() => setProfileEngagementId(e.id)} title={tx("عرض الملف", "View Profile")}><IconEye size={15} /></Btn>
+                          {/* Obvious per-row action (ACCOUNTING-SALES-01) — opens
+                              AddPaymentModal, which only ever creates a "pending"
+                              PaymentRecord through the existing addPaymentRecord
+                              path; Payment Verification/Accounting are untouched. */}
+                          <Btn sm v="ghost" onClick={() => setAddingPaymentEngagementId(e.id)} title={tx("تسجيل دفعة", "Add Payment")}><IconMoney size={15} /></Btn>
                           <Btn sm v="ghost" onClick={(ev) => openRowMenu(ev, e.id)} title={tx("المزيد", "More")}><IconMoreVertical size={15} /></Btn>
                         </div>
                       </td>
@@ -414,6 +421,11 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
       {addingStudent && (
         <AddStudentModal program={program} businessUnitId={businessUnitId} onClose={() => setAddingStudent(false)} />
       )}
+      {addingPaymentEngagementId && (() => {
+        const eng = engagements.find((e) => e.id === addingPaymentEngagementId);
+        if (!eng) return null;
+        return <AddPaymentModal engagement={eng} onClose={() => setAddingPaymentEngagementId(null)} />;
+      })()}
       {rowMenu && (() => {
         const eng = filtered.find((x) => x.id === rowMenu.id);
         if (!eng) return null;
@@ -425,9 +437,6 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
               background: "#331f42", border: `1px solid ${C.border}`, borderRadius: radius.md,
               boxShadow: shadow.lg, minWidth: 190, padding: 6, display: "flex", flexDirection: "column", gap: 2,
             }}>
-              <button className="edu-row-menu-item" onClick={() => { setProfileEngagementId(eng.id); closeRowMenu(); }}>
-                + {tx("إضافة دفعة", "Add Payment")}
-              </button>
               <button className="edu-row-menu-item" onClick={() => { scheduleFollowUp(eng); closeRowMenu(); }}>
                 <IconCalendar size={14} /> {tx("جدولة متابعة (3 أيام)", "Schedule Follow-up (3 days)")}
               </button>

@@ -310,7 +310,12 @@ export function CustomerProvider({ children }) {
       paymentMethod: form.paymentMethod || null,
       paymentType: form.paymentType || "installment",
       status: "pending",
-      submittedAt: now,
+      // Optional caller-supplied submission date (same pass-through pattern
+      // as addEngagement's studentProfile.registrationDate) — lets the Sales
+      // Sheet's payment entry record the date the payment actually happened,
+      // not just "now". Defaults to now, unchanged for every existing caller
+      // that doesn't pass it (EngagementDetailModal, PaymentVerificationQueue).
+      submittedAt: form.submittedAt || now,
       confirmedAt: null,
       confirmedBy: null,
       transactionReference: form.transactionReference || null,
