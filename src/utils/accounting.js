@@ -2,12 +2,17 @@
  * ACCOUNTING-01 — Data model + transaction rules for the (still separate)
  * Eduzah Accounting system. Pure module, no Firestore calls — same split as
  * paymentRecords.js/pricingSnapshot.js: this file defines shape/vocabulary/
- * validation, src/context/AccountingContext.jsx does the actual I/O.
+ * validation, src/context/AccountingContext.jsx does the actual I/O for
+ * UI-created transactions.
  *
- * Deliberately NOT imported by anything CRM-side yet (no link to
- * paymentRecords.js, accountingEvents.js, or CustomerContext). The future
- * hookup (Confirmed CRM Payment -> Accounting Event -> Accounting
- * Transaction) is out of scope for this task.
+ * ACCOUNTING-03A: buildIncomeDraftFromConfirmedPayment (near the bottom of
+ * this file) is the one CRM-side import — CustomerContext.jsx's
+ * createAccountingIncomeFromPayment uses it to build the draft, same
+ * pure-DTO/I/O-wrapper split as utils/accountingEvents.js's
+ * buildConfirmedPaymentEvent vs. CustomerContext's emitAccountingEvent. This
+ * file still never imports anything CRM-side itself (no dependency on
+ * paymentRecords.js/CustomerContext) — the integration reads FROM the CRM
+ * INTO Accounting, never the reverse.
  */
 
 export const ACCOUNTING_TRANSACTIONS_COLLECTION = "accountingTransactions";
@@ -362,4 +367,50 @@ export function filterTransactions(transactions, {
     }
     return true;
   });
+}
+
+// ─── ACCOUNTING-03A: Confirmed CRM Payment -> Accounting Income ──────────
+// Pure DTO builder — CustomerContext.createAccountingIncomeFromPayment does
+// the actual idempotent Firestore write (doc id = paymentId, same pattern
+// as accountingEvents), passing this draft straight into buildTransaction
+// above. Kept here (not in CustomerContext) so it's testable against real
+// engagement/record fixtures without needing Firestore, and so the mapping
+// rule lives next to the ACCOUNTS it maps into.
+
+// CRM payment methods and Accounting accounts already share the same string
+// codes by design, but this maps explicitly rather than relying on that
+// coincidence ("do not guess a different account" — approved rule 5). A
+// paymentMethod with no entry here (null, or anything unrecognized — e.g. an
+// un-migrated legacy record, which stores paymentMethod: null) maps to
+// undefined, and buildTransaction's validateTransaction then rejects the
+// draft with INVALID_ACCOUNT rather than fabricating one.
+export const PAYMENT_METHOD_TO_ACCOUNT = {
+  cash: ACCOUNTS.CASH,
+  instapay: ACCOUNTS.INSTAPAY,
+  vodafone_cash: ACCOUNTS.VODAFONE_CASH,
+  bank: ACCOUNTS.BANK,
+};
+
+/**
+ * Builds the income draft for one confirmed PaymentRecord — amount is
+ * always `record.amount` (the actual amount confirmed on this one record,
+ * never Remaining or course price; approved rule 3), so every confirmed
+ * record produces its own separate transaction (rule 4) even when several
+ * records exist on the same Engagement. No catalogNodeId/program field is
+ * added to the Accounting schema (rule 14) — it's already reachable via
+ * relatedEngagementId -> engagement.catalogNodeId, so storing it again here
+ * would just be a derivable duplicate.
+ */
+export function buildIncomeDraftFromConfirmedPayment(engagement, record) {
+  return {
+    type: TRANSACTION_TYPES.INCOME,
+    amount: record.amount,
+    account: PAYMENT_METHOD_TO_ACCOUNT[record.paymentMethod] || null,
+    category: INCOME_CATEGORIES.STUDENT_PAYMENT,
+    date: (record.confirmedAt || new Date().toISOString()).slice(0, 10),
+    note: `CRM ${record.paymentType || "payment"} payment confirmed`,
+    relatedCustomerId: engagement?.customerId || null,
+    relatedEngagementId: engagement?.id || null,
+    relatedPaymentId: record.id,
+  };
 }

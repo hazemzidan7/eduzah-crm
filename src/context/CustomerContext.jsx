@@ -16,6 +16,7 @@ import { normalizePhone, normalizeEmail } from "../utils/leadDedupe";
 import { effectivePaymentRecords, findPaymentConflicts, hasBlockingConflict } from "../utils/paymentRecords";
 import { ACCOUNTING_EVENTS_COLLECTION, buildConfirmedPaymentEvent } from "../utils/accountingEvents";
 import { buildPricingSnapshot, applyPaymentPlan } from "../utils/pricingSnapshot";
+import { ACCOUNTING_TRANSACTIONS_COLLECTION, buildTransaction, buildIncomeDraftFromConfirmedPayment } from "../utils/accounting";
 
 const CustomerCtx = createContext(null);
 
@@ -361,9 +362,29 @@ export function CustomerProvider({ children }) {
     // CRM-04: a payment becoming confirmed — and only that — is what hands
     // it off to the future Accounting system, via an outbox record. This
     // never touches Amount Paid or any confirmation logic above; it's a
-    // side effect of confirmation, not part of it.
+    // side effect of confirmation, not part of it. Unchanged by
+    // ACCOUNTING-03A — the two integrations below run independently, this
+    // outbox is never read from or written to as part of the new hook.
     if (status === "confirmed" && changedRecord) {
       await emitAccountingEvent(engagement, changedRecord);
+    }
+
+    // ACCOUNTING-03A: the actual CRM -> Accounting integration — exactly one
+    // Accounting Income Transaction per confirmed PaymentRecord. Runs after
+    // the confirmation write above has already succeeded (rule 11). A
+    // failure here must never be mistaken for "confirmation failed" and
+    // must never undo the already-confirmed payment (rule 12) — caught and
+    // logged here, not rethrown, so the caller's success path is untouched.
+    // Safe to retry: createAccountingIncomeFromPayment is idempotent by
+    // construction (doc id = paymentId, existence-checked before writing),
+    // so calling it again after a failed attempt can only ever create the
+    // one transaction, never a duplicate.
+    if (status === "confirmed" && changedRecord) {
+      try {
+        await createAccountingIncomeFromPayment(engagement, changedRecord);
+      } catch (err) {
+        console.error("[ACCOUNTING-03A] Failed to create Accounting income transaction for confirmed payment — payment stays confirmed, retry is safe.", { engagementId, paymentId, error: err });
+      }
     }
   };
 
@@ -379,6 +400,26 @@ export function CustomerProvider({ children }) {
     if (existing.exists()) return;
     await setDoc(ref, buildConfirmedPaymentEvent({ eventId: genId(), record, engagement }));
   };
+
+  // ACCOUNTING-03A — CRM Payment -> Accounting Income integration.
+  // Deliberately independent of accountingEvents/emitAccountingEvent above
+  // (not consumed as a data source, not touched). Draft-building is in
+  // utils/accounting.buildIncomeDraftFromConfirmedPayment (pure, testable,
+  // holds the payment-method -> account mapping and the "amount is always
+  // this one record's amount" rule); this function is just the idempotent
+  // Firestore write — same "doc id = source id" pattern emitAccountingEvent
+  // already uses for accountingEvents, applied here to accountingTransactions
+  // with the PaymentRecord's own id.
+  const createAccountingIncomeFromPayment = async (engagement, record) => {
+    const ref = doc(db, ACCOUNTING_TRANSACTIONS_COLLECTION, record.id);
+    const existing = await getDoc(ref);
+    if (existing.exists()) return;
+    // buildTransaction runs the real ACCOUNTING-01 validateTransaction and
+    // throws on anything invalid (e.g. INVALID_ACCOUNT for an unmapped
+    // paymentMethod) — never writes a malformed transaction.
+    await setDoc(ref, buildTransaction(buildIncomeDraftFromConfirmedPayment(engagement, record), { currentUser }));
+  };
+
   // pending -> under_review: marks that someone has actually started looking
   // at this payment, distinct from just sitting in the inbox untouched.
   const startPaymentReview = (engagementId, paymentId) => setPaymentRecordStatus(engagementId, paymentId, "under_review");
