@@ -158,8 +158,23 @@ export function validateTransaction(draft) {
 
 export const isValidTransaction = (draft) => validateTransaction(draft).length === 0;
 
+// Local calendar date as 'YYYY-MM-DD' (matching <input type="date">'s own
+// format) — NOT toISOString(), which converts to UTC first. In any timezone
+// ahead of UTC (e.g. Cairo, UTC+2/+3, where this app runs) local midnight on
+// day D is still UTC's day D-1, so toISOString().slice(0,10) silently lands
+// one day early. Bug found and fixed here (ACCOUNTING-04) while building
+// more period-boundary logic on top of this exact pattern — todayIso() and
+// currentMonthRange() below both had it; every stored `date` going forward
+// is now the correct local calendar day, not the UTC one.
+function localIsoDate(year, monthIndex0, day) {
+  const mm = String(monthIndex0 + 1).padStart(2, "0");
+  const dd = String(day).padStart(2, "0");
+  return `${year}-${mm}-${dd}`;
+}
+
 function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  return localIsoDate(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
 /**
@@ -319,12 +334,122 @@ export function computeTransactionTotals(transactions) {
   };
 }
 
+/**
+ * ACCOUNTING-04 — one full Reports metrics bundle for a period. Extends
+ * computeTransactionTotals (reused as-is, not duplicated) with the
+ * account-level income breakdown and the Deposit/Installment/Full-Payment
+ * split the Reports view needs.
+ *
+ * `paymentTypeFor(tx)` is an optional caller-supplied hook — same pattern as
+ * filterTransactions' searchTextFor above — that resolves an income
+ * transaction's CRM payment type ("deposit"/"installment"/"full", straight
+ * from utils/paymentRecords.js's own PAYMENT_TYPE_OPTIONS values, not a new
+ * classification invented here) via its relatedPaymentId, when available.
+ * Keeps this file CRM-agnostic: no import of paymentRecords.js/
+ * CustomerContext here — the caller (Reports UI, which already has both
+ * contexts) resolves the actual PaymentRecord and hands back its type.
+ * "full" payments count toward Total Income only, never Deposits/
+ * Installments, per the approved spec.
+ */
+export function computeReportMetrics(transactions, { paymentTypeFor } = {}) {
+  const totals = computeTransactionTotals(transactions);
+  const incomeByAccount = {
+    [ACCOUNTS.CASH]: 0,
+    [ACCOUNTS.INSTAPAY]: 0,
+    [ACCOUNTS.VODAFONE_CASH]: 0,
+    [ACCOUNTS.BANK]: 0,
+  };
+  let deposits = 0, installments = 0, fullPayments = 0;
+  for (const t of transactions || []) {
+    if (t.type !== TRANSACTION_TYPES.INCOME) continue;
+    if (t.account) incomeByAccount[t.account] = (incomeByAccount[t.account] || 0) + t.amount;
+    const paymentType = paymentTypeFor ? paymentTypeFor(t) : null;
+    if (paymentType === "deposit") deposits += t.amount;
+    else if (paymentType === "installment") installments += t.amount;
+    else if (paymentType === "full") fullPayments += t.amount;
+  }
+  return { ...totals, incomeByAccount, deposits, installments, fullPayments };
+}
+
 /** Calendar-month boundaries (inclusive, 'YYYY-MM-DD') for the Dashboard's default "This Month" summary. */
 export function currentMonthRange(now = new Date()) {
   const y = now.getFullYear(), m = now.getMonth();
-  const from = new Date(y, m, 1).toISOString().slice(0, 10);
-  const to = new Date(y, m + 1, 0).toISOString().slice(0, 10);
+  const from = localIsoDate(y, m, 1);
+  const lastDayOfMonth = new Date(y, m + 1, 0).getDate();
+  const to = localIsoDate(y, m, lastDayOfMonth);
   return { from, to };
+}
+
+// ─── ACCOUNTING-04: Report periods ───────────────────────────────────────
+// Real calendar boundaries only — never a rolling N-day window, per the
+// approved spec. All four period types share the same localIsoDate helper
+// currentMonthRange/todayIso already use, so every boundary is computed
+// from local calendar components, not a UTC-converted timestamp.
+
+export const REPORT_PERIODS = {
+  DAILY: "daily",
+  MONTHLY: "monthly",
+  HALF_YEARLY: "half_yearly",
+  YEARLY: "yearly",
+};
+
+export const REPORT_PERIOD_OPTIONS = [
+  { v: REPORT_PERIODS.DAILY, ar: "يومي", en: "Daily" },
+  { v: REPORT_PERIODS.MONTHLY, ar: "شهري", en: "Monthly" },
+  { v: REPORT_PERIODS.HALF_YEARLY, ar: "نصف سنوي", en: "Half-Yearly" },
+  { v: REPORT_PERIODS.YEARLY, ar: "سنوي", en: "Yearly" },
+];
+
+/**
+ * The 'YYYY-MM-DD' from/to boundaries of the report period of `periodType`
+ * that contains `anchor` — Daily is the one calendar day; Monthly reuses
+ * currentMonthRange's own boundary math for an arbitrary anchor (not just
+ * "now"); Half-Yearly is Jan-Jun or Jul-Dec of anchor's year; Yearly is
+ * Jan 1-Dec 31 of anchor's year. Unrecognized periodType falls back to
+ * Monthly (same default as the Dashboard's own summary).
+ */
+export function reportPeriodRange(periodType, anchor = new Date()) {
+  const y = anchor.getFullYear();
+  const m = anchor.getMonth(); // 0-based
+  if (periodType === REPORT_PERIODS.DAILY) {
+    const d = localIsoDate(y, m, anchor.getDate());
+    return { from: d, to: d };
+  }
+  if (periodType === REPORT_PERIODS.HALF_YEARLY) {
+    const firstHalf = m < 6;
+    const from = localIsoDate(y, firstHalf ? 0 : 6, 1);
+    const lastMonthOfHalf = firstHalf ? 5 : 11; // 0-based: May(5) or Nov(11)
+    const lastDay = new Date(y, lastMonthOfHalf + 1, 0).getDate();
+    const to = localIsoDate(y, lastMonthOfHalf, lastDay);
+    return { from, to };
+  }
+  if (periodType === REPORT_PERIODS.YEARLY) {
+    return { from: localIsoDate(y, 0, 1), to: localIsoDate(y, 11, 31) };
+  }
+  return currentMonthRange(anchor); // MONTHLY, and the fallback
+}
+
+/**
+ * Moves `anchor` one period forward/backward — a real calendar step (next
+ * month, next half, next year), not a fixed number of days.
+ */
+export function shiftReportPeriod(periodType, anchor, direction) {
+  const step = direction === "next" ? 1 : -1;
+  if (periodType === REPORT_PERIODS.DAILY) {
+    const d = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
+    d.setDate(d.getDate() + step);
+    return d;
+  }
+  // MONTHLY/HALF_YEARLY/YEARLY only ever read the anchor's year/month
+  // (reportPeriodRange above ignores the day-of-month for these) — pinning
+  // the day to 1 before shifting avoids a real Date.setMonth() footgun:
+  // stepping from e.g. Jan 31 would otherwise try to land on "Feb 31",
+  // which doesn't exist, and JS silently overflows into March instead.
+  const d = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+  if (periodType === REPORT_PERIODS.HALF_YEARLY) d.setMonth(d.getMonth() + step * 6);
+  else if (periodType === REPORT_PERIODS.YEARLY) d.setFullYear(d.getFullYear() + step);
+  else d.setMonth(d.getMonth() + step); // MONTHLY, and the fallback
+  return d;
 }
 
 function isWithinDateRange(dateStr, { from, to } = {}) {

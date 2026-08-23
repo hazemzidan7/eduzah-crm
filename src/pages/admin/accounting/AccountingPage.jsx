@@ -11,6 +11,7 @@ import {
   filterTransactions,
 } from "../../../utils/accounting";
 import AccountingDashboard from "./AccountingDashboard";
+import AccountingReports from "./AccountingReports";
 import TransactionsTable from "./TransactionsTable";
 import TransactionFormModal from "./TransactionFormModal";
 import TransactionHistoryModal from "./TransactionHistoryModal";
@@ -42,6 +43,7 @@ export default function AccountingPage() {
   const { transactions, loading } = useAccounting();
   const { customerById } = useCustomers();
 
+  const [view, setView] = useState("overview"); // ACCOUNTING-04: "overview" (default, unchanged) | "reports"
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [formOpen, setFormOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
@@ -89,56 +91,73 @@ export default function AccountingPage() {
         <Btn v="primary" onClick={openAdd}>{tx("+ إضافة حركة", "+ Add Transaction")}</Btn>
       </div>
 
-      <AccountingDashboard transactions={transactions} ar={ar} tx={tx} />
-
-      <div style={{ fontSize: 12, fontWeight: 800, color: C.muted, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 }}>
-        {tx("الحركات", "Transactions")}
-      </div>
-
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "flex-end", marginBottom: 14 }}>
-        <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-          <span style={{ position: "absolute", insetInlineStart: 12, color: C.muted, display: "flex", pointerEvents: "none" }}><IconSearch size={14} /></span>
-          <input
-            value={filters.search}
-            onChange={(e) => setFilter({ search: e.target.value })}
-            placeholder={tx("بحث بالوصف أو اسم العميل…", "Search description or customer name…")}
-            style={{ background: "rgba(255,255,255,.06)", border: `1.5px solid ${C.border}`, borderRadius: 10, paddingBlock: 9, paddingInlineStart: 34, paddingInlineEnd: 14, color: "#fff", fontFamily: "'Cairo',sans-serif", fontSize: 12.5, outline: "none", minWidth: 220 }}
-          />
-        </div>
-
-        <div style={{ minWidth: 150 }}>
-          <Select
-            value={filters.account}
-            onChange={(v) => setFilter({ account: v })}
-            options={[{ v: "all", l: tx("كل الحسابات", "All Accounts") }, ...ACCOUNT_OPTIONS.map((a) => ({ v: a.v, l: ar ? a.ar : a.en }))]}
-          />
-        </div>
-        <div style={{ minWidth: 150 }}>
-          <Select
-            value={filters.category}
-            onChange={(v) => setFilter({ category: v })}
-            options={[{ v: "all", l: tx("كل التصنيفات", "All Categories") }, ...ALL_CATEGORY_OPTIONS.map((c) => ({ v: c.v, l: ar ? c.ar : c.en }))]}
-          />
-        </div>
-        <div style={{ minWidth: 140 }}>
-          <Input type="date" value={filters.dateFrom} onChange={(v) => setFilter({ dateFrom: v })} placeholder={tx("من تاريخ", "From date")} />
-        </div>
-        <div style={{ minWidth: 140 }}>
-          <Input type="date" value={filters.dateTo} onChange={(v) => setFilter({ dateTo: v })} placeholder={tx("إلى تاريخ", "To date")} />
-        </div>
-        {hasActiveFilters && (
-          <Btn v="ghost" sm onClick={() => setFilters(EMPTY_FILTERS)}>{tx("مسح الفلاتر", "Clear filters")}</Btn>
-        )}
-      </div>
-
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
-        <button onClick={() => setFilter({ type: "all" })} style={pillStyle(filters.type === "all")}>{tx("الكل", "All")}</button>
-        {TRANSACTION_TYPE_OPTIONS.map((o) => (
-          <button key={o.v} onClick={() => setFilter({ type: o.v })} style={pillStyle(filters.type === o.v)}>{ar ? o.ar : o.en}</button>
+      {/* ACCOUNTING-04: Overview is the default, unchanged view — Reports is
+          purely additive and never runs unless explicitly selected. */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 18, borderBottom: `1px solid ${C.border}`, paddingBottom: 10 }}>
+        {[
+          { v: "overview", ar: "نظرة عامة", en: "Overview" },
+          { v: "reports", ar: "التقارير", en: "Reports" },
+        ].map((t) => (
+          <button key={t.v} onClick={() => setView(t.v)} style={pillStyle(view === t.v)}>{ar ? t.ar : t.en}</button>
         ))}
       </div>
 
-      <TransactionsTable transactions={sorted} ar={ar} tx={tx} customerById={customerById} onEdit={openEdit} onViewHistory={openHistory} />
+      {view === "reports" ? (
+        <AccountingReports ar={ar} tx={tx} />
+      ) : (
+        <>
+          <AccountingDashboard transactions={transactions} ar={ar} tx={tx} />
+
+          <div style={{ fontSize: 12, fontWeight: 800, color: C.muted, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 }}>
+            {tx("الحركات", "Transactions")}
+          </div>
+
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "flex-end", marginBottom: 14 }}>
+            <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+              <span style={{ position: "absolute", insetInlineStart: 12, color: C.muted, display: "flex", pointerEvents: "none" }}><IconSearch size={14} /></span>
+              <input
+                value={filters.search}
+                onChange={(e) => setFilter({ search: e.target.value })}
+                placeholder={tx("بحث بالوصف أو اسم العميل…", "Search description or customer name…")}
+                style={{ background: "rgba(255,255,255,.06)", border: `1.5px solid ${C.border}`, borderRadius: 10, paddingBlock: 9, paddingInlineStart: 34, paddingInlineEnd: 14, color: "#fff", fontFamily: "'Cairo',sans-serif", fontSize: 12.5, outline: "none", minWidth: 220 }}
+              />
+            </div>
+
+            <div style={{ minWidth: 150 }}>
+              <Select
+                value={filters.account}
+                onChange={(v) => setFilter({ account: v })}
+                options={[{ v: "all", l: tx("كل الحسابات", "All Accounts") }, ...ACCOUNT_OPTIONS.map((a) => ({ v: a.v, l: ar ? a.ar : a.en }))]}
+              />
+            </div>
+            <div style={{ minWidth: 150 }}>
+              <Select
+                value={filters.category}
+                onChange={(v) => setFilter({ category: v })}
+                options={[{ v: "all", l: tx("كل التصنيفات", "All Categories") }, ...ALL_CATEGORY_OPTIONS.map((c) => ({ v: c.v, l: ar ? c.ar : c.en }))]}
+              />
+            </div>
+            <div style={{ minWidth: 140 }}>
+              <Input type="date" value={filters.dateFrom} onChange={(v) => setFilter({ dateFrom: v })} placeholder={tx("من تاريخ", "From date")} />
+            </div>
+            <div style={{ minWidth: 140 }}>
+              <Input type="date" value={filters.dateTo} onChange={(v) => setFilter({ dateTo: v })} placeholder={tx("إلى تاريخ", "To date")} />
+            </div>
+            {hasActiveFilters && (
+              <Btn v="ghost" sm onClick={() => setFilters(EMPTY_FILTERS)}>{tx("مسح الفلاتر", "Clear filters")}</Btn>
+            )}
+          </div>
+
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+            <button onClick={() => setFilter({ type: "all" })} style={pillStyle(filters.type === "all")}>{tx("الكل", "All")}</button>
+            {TRANSACTION_TYPE_OPTIONS.map((o) => (
+              <button key={o.v} onClick={() => setFilter({ type: o.v })} style={pillStyle(filters.type === o.v)}>{ar ? o.ar : o.en}</button>
+            ))}
+          </div>
+
+          <TransactionsTable transactions={sorted} ar={ar} tx={tx} customerById={customerById} onEdit={openEdit} onViewHistory={openHistory} />
+        </>
+      )}
 
       {formOpen && (
         <TransactionFormModal transaction={editingTransaction} ar={ar} tx={tx} onClose={closeForm} />

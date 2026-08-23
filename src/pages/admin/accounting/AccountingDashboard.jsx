@@ -1,42 +1,10 @@
-import { Card } from "../../../components/UI";
 import { C } from "../../../theme";
 import { IconWallet, IconTrendUp, IconTrendDown, IconUndo, IconSwap, IconPeople } from "../../../components/Icons";
 import {
   ACCOUNT_OPTIONS, computeAccountBalances, computeTransactionTotals,
-  filterTransactions, currentMonthRange, optionLabel,
+  filterTransactions, currentMonthRange,
 } from "../../../utils/accounting";
-
-function BalanceCard({ label, value, highlight, ar }) {
-  return (
-    <Card style={{ padding: "16px 18px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-        <div style={{ width: 30, height: 30, borderRadius: 8, background: highlight ? `${C.red}33` : "rgba(255,255,255,.08)", display: "flex", alignItems: "center", justifyContent: "center", color: highlight ? C.red : C.muted }}>
-          <IconWallet size={15} />
-        </div>
-        <div style={{ fontSize: 12, fontWeight: 700, color: C.muted }}>{label}</div>
-      </div>
-      <div style={{ fontSize: 20, fontWeight: 900, color: value < 0 ? C.danger : "#fff" }} dir="ltr">
-        {value.toLocaleString()} <span style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>{ar ? "ج.م" : "EGP"}</span>
-      </div>
-    </Card>
-  );
-}
-
-function StatCard({ Icon, color, label, value, suffix }) {
-  return (
-    <Card style={{ padding: "14px 16px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-        <div style={{ width: 26, height: 26, borderRadius: 7, background: `${color}26`, display: "flex", alignItems: "center", justifyContent: "center", color }}>
-          <Icon size={14} />
-        </div>
-        <div style={{ fontSize: 11.5, fontWeight: 700, color: C.muted }}>{label}</div>
-      </div>
-      <div style={{ fontSize: 17, fontWeight: 900 }} dir="ltr">
-        {value.toLocaleString()}{suffix ? <span style={{ fontSize: 11, fontWeight: 700, color: C.muted }}> {suffix}</span> : ""}
-      </div>
-    </Card>
-  );
-}
+import { BalanceCard, StatCard } from "./AccountingBadges";
 
 /**
  * ACCOUNTING-02 §1. Balances are computed over EVERY transaction ever
