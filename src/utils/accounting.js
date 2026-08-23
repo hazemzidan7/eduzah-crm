@@ -414,3 +414,38 @@ export function buildIncomeDraftFromConfirmedPayment(engagement, record) {
     relatedPaymentId: record.id,
   };
 }
+
+// ─── ACCOUNTING-03B: Refund -> Accounting ────────────────────────────────
+// No existing CRM refund/remaining-amount concept exists anywhere to reuse
+// (paymentRecords.js has no refund status or refund-tracking field at all —
+// confirmed by inspecting it before writing this). The only defensible,
+// non-invented ceiling for "amount available to refund" on a specific
+// PaymentRecord is that record's own confirmed amount, minus whatever has
+// already been refunded against it via other Accounting refund transactions
+// — nothing more elaborate is assumed. A refund with no linked PaymentRecord
+// has no ceiling to check against (rule 15 only requires this when a
+// specific payment is "supplied").
+
+/**
+ * Sum of existing refund transactions already linked to one PaymentRecord.
+ * `excludeTransactionId` lets an edit of an existing refund exclude its own
+ * prior amount from the sum (otherwise editing a refund's own amount would
+ * see itself as "already refunded" and incorrectly shrink its own ceiling).
+ */
+export function alreadyRefundedForPayment(transactions, paymentRecordId, { excludeTransactionId } = {}) {
+  return (transactions || [])
+    .filter((t) => t.type === TRANSACTION_TYPES.REFUND && t.relatedPaymentId === paymentRecordId && t.id !== excludeTransactionId)
+    .reduce((sum, t) => sum + (t.amount || 0), 0);
+}
+
+/**
+ * How much of `paymentRecord` is still available to refund. Returns null
+ * when there's no record to bound against (an independent refund, per the
+ * approved spec, is allowed at any amount — same "some transactions have no
+ * student link" rule ACCOUNTING-01 already established).
+ */
+export function refundableAmountForPayment(paymentRecord, transactions, { excludeTransactionId } = {}) {
+  if (!paymentRecord || typeof paymentRecord.amount !== "number") return null;
+  const already = alreadyRefundedForPayment(transactions, paymentRecord.id, { excludeTransactionId });
+  return Math.max(0, paymentRecord.amount - already);
+}

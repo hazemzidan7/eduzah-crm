@@ -5,6 +5,7 @@ import { IconX } from "../../../components/Icons";
 import { useCustomers } from "../../../context/CustomerContext";
 import { useCatalog } from "../../../context/CatalogContext";
 import { effectivePaymentRecords, paymentOptionLabel, PAYMENT_TYPE_OPTIONS, PAYMENT_RECORD_STATUS_OPTIONS } from "../../../utils/paymentRecords";
+import { TRANSACTION_TYPES } from "../../../utils/accounting";
 
 /**
  * Optional Customer/Engagement/PaymentRecord link for an Income or Refund
@@ -13,8 +14,12 @@ import { effectivePaymentRecords, paymentOptionLabel, PAYMENT_TYPE_OPTIONS, PAYM
  * as-is, never writes to CRM, never auto-fills amount/account. Picking a link
  * here is a manual, deliberate action by whoever is entering the transaction —
  * NOT the automatic CRM->Accounting integration explicitly out of scope.
+ *
+ * `type` (ACCOUNTING-03B): for a Refund, only confirmed PaymentRecords are
+ * offered — refunding money back requires it to have actually been
+ * received. Income keeps the full list (unchanged from ACCOUNTING-02).
  */
-export default function CrmLinkPicker({ tx, ar, customerId, engagementId, paymentId, onChange }) {
+export default function CrmLinkPicker({ tx, ar, type, customerId, engagementId, paymentId, onChange }) {
   const { customers, engagementsForCustomer, customerById } = useCustomers();
   const { nodeById } = useCatalog();
   const [query, setQuery] = useState("");
@@ -30,7 +35,8 @@ export default function CrmLinkPicker({ tx, ar, customerId, engagementId, paymen
   const selectedCustomer = customerId ? customerById(customerId) : null;
   const engagements = customerId ? engagementsForCustomer(customerId) : [];
   const selectedEngagement = engagementId ? engagements.find((e) => e.id === engagementId) : null;
-  const records = selectedEngagement ? effectivePaymentRecords(selectedEngagement) : [];
+  const allRecords = selectedEngagement ? effectivePaymentRecords(selectedEngagement) : [];
+  const records = type === TRANSACTION_TYPES.REFUND ? allRecords.filter((r) => r.status === "confirmed") : allRecords;
 
   return (
     <div style={{ marginBottom: 16, padding: 12, borderRadius: 10, border: `1px dashed ${C.border}`, background: "rgba(255,255,255,.03)" }}>

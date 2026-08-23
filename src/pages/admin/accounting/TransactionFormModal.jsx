@@ -3,10 +3,12 @@ import { Modal, Btn, Input, Select } from "../../../components/UI";
 import { C } from "../../../theme";
 import { IconTrendUp, IconTrendDown, IconUndo, IconSwap } from "../../../components/Icons";
 import { useAccounting } from "../../../context/AccountingContext";
+import { useCustomers } from "../../../context/CustomerContext";
 import {
   TRANSACTION_TYPES, ACCOUNT_OPTIONS, categoryOptionsForType,
-  validateTransaction, normalizeTransactionFields,
+  validateTransaction, normalizeTransactionFields, refundableAmountForPayment,
 } from "../../../utils/accounting";
+import { effectivePaymentRecords } from "../../../utils/paymentRecords";
 import CrmLinkPicker from "./CrmLinkPicker";
 
 // UI-only presentation strings for the codes validateTransaction returns —
@@ -21,7 +23,19 @@ const ERROR_MESSAGES = {
   INVALID_TO_ACCOUNT: ["اختر حساب الوجهة", "Select the destination account"],
   SAME_ACCOUNT_TRANSFER: ["لا يمكن التحويل لنفس الحساب", "Cannot transfer to the same account"],
   TRANSFER_MUST_NOT_HAVE_CATEGORY: ["التحويل لا يجب أن يكون له تصنيف", "A transfer must not have a category"],
+  // ACCOUNTING-03B
+  INVALID_CUSTOMER_REFERENCE: ["العميل المحدد غير موجود", "The selected customer doesn't exist"],
+  INVALID_ENGAGEMENT_REFERENCE: ["البرنامج المحدد غير موجود لهذا العميل", "The selected program doesn't exist for this customer"],
+  INVALID_PAYMENT_REFERENCE: ["الدفعة المحددة غير موجودة أو غير مؤكدة", "The selected payment doesn't exist or isn't confirmed"],
+  REFUND_EXCEEDS_REFUNDABLE_AMOUNT: ["مبلغ الاسترداد أكبر من المتاح استرداده لهذه الدفعة", "Refund amount exceeds what's still refundable for this payment"],
 };
+
+// Local id generator matching CustomerContext.jsx's own genId() — used only
+// as the refund idempotency key (rule 7), so a retried/double-submitted
+// refund attempt reuses the same key instead of minting a new one.
+function genId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
 
 const TYPE_TABS = [
   { v: TRANSACTION_TYPES.INCOME, ar: "إيراد", en: "Income", Icon: IconTrendUp, color: C.success },
@@ -58,11 +72,18 @@ function draftFromTransaction(t) {
  * see normalizeTransactionFields's docstring in utils/accounting.js.
  */
 export default function TransactionFormModal({ transaction, ar, tx, onClose }) {
-  const { addTransaction, updateTransaction } = useAccounting();
+  const { transactions, addTransaction, addRefundTransaction, updateTransaction } = useAccounting();
+  const { customerById, engagementsForCustomer } = useCustomers();
   const isEdit = !!transaction;
   const [form, setForm] = useState(() => draftFromTransaction(transaction));
   const [errors, setErrors] = useState([]);
   const [saving, setSaving] = useState(false);
+  // ACCOUNTING-03B — one stable key per "refund attempt" (this modal's
+  // lifetime): generated once on mount, reused across retries of the same
+  // submit (e.g. a failed write followed by clicking Save again). Closing
+  // and reopening the modal for a genuinely new refund gets a fresh key.
+  // Only ever used for creating a NEW refund — irrelevant for edits/other types.
+  const [refundKey] = useState(() => genId());
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
 
@@ -80,9 +101,39 @@ export default function TransactionFormModal({ transaction, ar, tx, onClose }) {
     relatedPaymentId: form.paymentId || null,
   });
 
+  // ACCOUNTING-03B — defensive check that an optional CRM link actually
+  // resolves to real data, plus (only when linked to one specific
+  // PaymentRecord) the refundable-amount ceiling from
+  // utils/accounting.refundableAmountForPayment. In normal use these ids
+  // only ever come from CrmLinkPicker's own dropdowns (always real,
+  // already-filtered-to-confirmed-for-refund options — see CrmLinkPicker's
+  // `type` prop), so this mainly guards against stale state; the amount
+  // check is the one that actually fires in normal use.
+  const refundCrmErrors = (draft) => {
+    if (draft.type !== TRANSACTION_TYPES.REFUND) return [];
+    const errs = [];
+    const customer = draft.relatedCustomerId ? customerById(draft.relatedCustomerId) : null;
+    if (draft.relatedCustomerId && !customer) errs.push("INVALID_CUSTOMER_REFERENCE");
+
+    const engagements = draft.relatedCustomerId ? engagementsForCustomer(draft.relatedCustomerId) : [];
+    const engagement = draft.relatedEngagementId ? engagements.find((e) => e.id === draft.relatedEngagementId) : null;
+    if (draft.relatedEngagementId && !engagement) errs.push("INVALID_ENGAGEMENT_REFERENCE");
+
+    const record = engagement && draft.relatedPaymentId
+      ? effectivePaymentRecords(engagement).find((r) => r.id === draft.relatedPaymentId)
+      : null;
+    if (draft.relatedPaymentId && (!record || record.status !== "confirmed")) {
+      errs.push("INVALID_PAYMENT_REFERENCE");
+    } else if (record) {
+      const refundable = refundableAmountForPayment(record, transactions, { excludeTransactionId: isEdit ? transaction.id : undefined });
+      if (typeof draft.amount === "number" && draft.amount > refundable) errs.push("REFUND_EXCEEDS_REFUNDABLE_AMOUNT");
+    }
+    return errs;
+  };
+
   const handleSubmit = async () => {
     const draft = buildDraft();
-    const validationErrors = validateTransaction(draft);
+    const validationErrors = [...validateTransaction(draft), ...refundCrmErrors(draft)];
     if (validationErrors.length > 0) { setErrors(validationErrors); return; }
 
     setSaving(true);
@@ -90,6 +141,8 @@ export default function TransactionFormModal({ transaction, ar, tx, onClose }) {
     try {
       if (isEdit) {
         await updateTransaction(transaction.id, normalizeTransactionFields(draft));
+      } else if (draft.type === TRANSACTION_TYPES.REFUND) {
+        await addRefundTransaction(draft, refundKey);
       } else {
         await addTransaction(draft);
       }
@@ -193,6 +246,7 @@ export default function TransactionFormModal({ transaction, ar, tx, onClose }) {
         <CrmLinkPicker
           tx={tx}
           ar={ar}
+          type={form.type}
           customerId={form.customerId}
           engagementId={form.engagementId}
           paymentId={form.paymentId}

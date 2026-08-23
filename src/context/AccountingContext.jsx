@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from "react";
-import { collection, doc, addDoc, updateDoc, onSnapshot, arrayUnion } from "firebase/firestore";
+import { collection, doc, addDoc, updateDoc, getDoc, setDoc, onSnapshot, arrayUnion } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "./AuthContext";
 import {
@@ -56,6 +56,28 @@ export function AccountingProvider({ children }) {
   // this only exists so call sites don't have to remember the type string.
   const addTransfer = (draft) => addTransaction({ ...draft, type: TRANSACTION_TYPES.TRANSFER, category: null });
 
+  // ACCOUNTING-03B — refund creation needs a caller-supplied idempotency key
+  // (rule 7: "the same refund operation must never create duplicate
+  // transactions... do not rely only on timestamps"), unlike addTransaction
+  // above (which always mints a fresh auto-id — fine for Income/Expense/
+  // Transfer, where there's no "retry" concept to dedupe). Kept as its own
+  // function rather than changing addTransaction's signature, so Income/
+  // Expense/Transfer creation is completely unaffected. Same doc-id-
+  // existence-check pattern already used for accountingEvents and the
+  // confirmed-payment income integration (CustomerContext.
+  // createAccountingIncomeFromPayment) — if `idempotencyKey` already names a
+  // document, that existing transaction is returned as-is, never duplicated.
+  const addRefundTransaction = async (draft, idempotencyKey) => {
+    const errors = validateTransaction(draft);
+    if (errors.length > 0) throw new Error(`INVALID_TRANSACTION: ${errors.join(", ")}`);
+    const ref = doc(db, ACCOUNTING_TRANSACTIONS_COLLECTION, idempotencyKey);
+    const existing = await getDoc(ref);
+    if (existing.exists()) return { id: existing.id, ...existing.data() };
+    const built = buildTransaction(draft, { currentUser });
+    await setDoc(ref, built);
+    return { id: idempotencyKey, ...built };
+  };
+
   // Records never overwritten silently — every field change appends one
   // editHistory entry (editedBy/editedAt/oldValue/newValue), same
   // append-only-array pattern as engagements' timeline[].
@@ -83,7 +105,7 @@ export function AccountingProvider({ children }) {
   return (
     <AccountingCtx.Provider value={{
       transactions, loading, transactionById,
-      addTransaction, addTransfer, updateTransaction,
+      addTransaction, addTransfer, addRefundTransaction, updateTransaction,
     }}>
       {children}
     </AccountingCtx.Provider>
