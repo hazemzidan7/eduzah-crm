@@ -42,7 +42,9 @@ export default function App() {
           {/* Gated by the settings/bootstrap Firestore flag (see SETUP_ADMIN.txt) — safe to leave routable. */}
           <Route path="/setup-admin" element={<BootstrapAdmin />} />
 
-          <Route path="/admin/*" element={<RequireAuth roles={["admin"]}><AdminShell /></RequireAuth>} />
+          {/* ACCOUNTING-02: "accounting" role can also reach AdminShell — the
+              Sidebar/AdminContent gate which sections each role actually sees. */}
+          <Route path="/admin/*" element={<RequireAuth roles={["admin", "accounting"]}><AdminShell /></RequireAuth>} />
 
           <Route path="/" element={<Navigate to="/admin" replace />} />
           <Route path="*" element={<Navigate to="/admin" replace />} />

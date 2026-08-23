@@ -153,6 +153,41 @@ export function validateTransaction(draft) {
 
 export const isValidTransaction = (draft) => validateTransaction(draft).length === 0;
 
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * Normalizes a draft's business fields into the shape every transaction doc
+ * stores — single source of truth shared by buildTransaction (create) and
+ * the edit form (ACCOUNTING-02), so switching a transaction's type on edit
+ * can never leave stale fromAccount/toAccount/category fields behind: a
+ * transfer always has account=null/category=null, everything else always
+ * has fromAccount=null/toAccount=null.
+ *
+ * `date` (ACCOUNTING-02) is the real-world transaction date the accounting
+ * form asks for on every type — distinct from `createdAt`, which is when the
+ * record was entered into the system (e.g. backfilling yesterday's cash
+ * sale). Defaults to today when omitted.
+ */
+export function normalizeTransactionFields(draft) {
+  const isTransfer = draft.type === TRANSACTION_TYPES.TRANSFER;
+  return {
+    type: draft.type,
+    amount: draft.amount,
+    currency: draft.currency || ACCOUNTING_CURRENCY,
+    date: draft.date || todayIso(),
+    account: isTransfer ? null : draft.account,
+    fromAccount: isTransfer ? draft.fromAccount : null,
+    toAccount: isTransfer ? draft.toAccount : null,
+    category: isTransfer ? null : draft.category,
+    note: draft.note || "",
+    relatedCustomerId: draft.relatedCustomerId || null,
+    relatedEngagementId: draft.relatedEngagementId || null,
+    relatedPaymentId: draft.relatedPaymentId || null,
+  };
+}
+
 /**
  * Builds the Firestore-ready transaction doc from a validated draft. Throws
  * if the draft doesn't pass validateTransaction — callers (Context layer)
@@ -170,19 +205,8 @@ export function buildTransaction(draft, { currentUser } = {}) {
   if (errors.length > 0) throw new Error(`INVALID_TRANSACTION: ${errors.join(", ")}`);
 
   const now = new Date().toISOString();
-  const isTransfer = draft.type === TRANSACTION_TYPES.TRANSFER;
   return {
-    type: draft.type,
-    amount: draft.amount,
-    currency: draft.currency || ACCOUNTING_CURRENCY,
-    account: isTransfer ? null : draft.account,
-    fromAccount: isTransfer ? draft.fromAccount : null,
-    toAccount: isTransfer ? draft.toAccount : null,
-    category: isTransfer ? null : draft.category,
-    note: draft.note || "",
-    relatedCustomerId: draft.relatedCustomerId || null,
-    relatedEngagementId: draft.relatedEngagementId || null,
-    relatedPaymentId: draft.relatedPaymentId || null,
+    ...normalizeTransactionFields(draft),
     createdBy: currentUser?.id || null,
     createdByName: currentUser?.name || null,
     createdAt: now,
@@ -219,4 +243,123 @@ export function diffForEditHistory(current, updates) {
     }
   }
   return Object.keys(newValue).length > 0 ? { oldValue, newValue } : null;
+}
+
+// ─── ACCOUNTING-02: pure derived calculations ────────────────────────────
+// Same philosophy as the rest of this codebase (Amount Paid/Remaining in
+// paymentRecords.js, Course Price in pricingSnapshot.js): balances/totals
+// are never stored, always derived from the transaction list at read time —
+// so they can never drift out of sync with the ledger. All three functions
+// below take a plain array of transaction docs (already fetched by
+// AccountingContext) and are UI-agnostic.
+
+/**
+ * Running balance per account, computed from every transaction ever
+ * recorded (never date-filtered — a balance is a running total "as of now",
+ * not a period figure). Exactly the rules approved for ACCOUNTING-01/02:
+ * income +account, expense/refund -account, transfer -fromAccount
+ * +toAccount. Transfers never touch anything but the two accounts they
+ * name, so they can't inflate or deflate `total` either.
+ */
+export function computeAccountBalances(transactions) {
+  const balances = {
+    [ACCOUNTS.CASH]: 0,
+    [ACCOUNTS.INSTAPAY]: 0,
+    [ACCOUNTS.VODAFONE_CASH]: 0,
+    [ACCOUNTS.BANK]: 0,
+  };
+  for (const t of transactions || []) {
+    if (t.type === TRANSACTION_TYPES.INCOME && t.account) {
+      balances[t.account] = (balances[t.account] || 0) + t.amount;
+    } else if ((t.type === TRANSACTION_TYPES.EXPENSE || t.type === TRANSACTION_TYPES.REFUND) && t.account) {
+      balances[t.account] = (balances[t.account] || 0) - t.amount;
+    } else if (t.type === TRANSACTION_TYPES.TRANSFER) {
+      if (t.fromAccount) balances[t.fromAccount] = (balances[t.fromAccount] || 0) - t.amount;
+      if (t.toAccount) balances[t.toAccount] = (balances[t.toAccount] || 0) + t.amount;
+    }
+  }
+  const total = Object.values(balances).reduce((sum, v) => sum + v, 0);
+  return { ...balances, total };
+}
+
+/**
+ * Ledger totals over whatever transaction list is passed in — caller
+ * decides the period by pre-filtering (see filterTransactions/
+ * currentMonthRange below). Transfers are summed separately and never
+ * folded into income/expense/refund, per the approved rule that a transfer
+ * must never inflate revenue or expenses. `payingStudentCount` counts
+ * distinct `relatedCustomerId`s across income transactions in the list —
+ * derived straight from the optional link already on the doc, no CRM read.
+ */
+export function computeTransactionTotals(transactions) {
+  let income = 0, expense = 0, refund = 0, transfer = 0, personalWithdrawal = 0;
+  const payingCustomerIds = new Set();
+  for (const t of transactions || []) {
+    if (t.type === TRANSACTION_TYPES.INCOME) {
+      income += t.amount;
+      if (t.relatedCustomerId) payingCustomerIds.add(t.relatedCustomerId);
+    } else if (t.type === TRANSACTION_TYPES.EXPENSE) {
+      expense += t.amount;
+      if (t.category === EXPENSE_CATEGORIES.PERSONAL_WITHDRAWAL) personalWithdrawal += t.amount;
+    } else if (t.type === TRANSACTION_TYPES.REFUND) {
+      refund += t.amount;
+    } else if (t.type === TRANSACTION_TYPES.TRANSFER) {
+      transfer += t.amount;
+    }
+  }
+  return {
+    income, expense, refund, transfer, personalWithdrawal,
+    netMovement: income - expense - refund,
+    payingStudentCount: payingCustomerIds.size,
+  };
+}
+
+/** Calendar-month boundaries (inclusive, 'YYYY-MM-DD') for the Dashboard's default "This Month" summary. */
+export function currentMonthRange(now = new Date()) {
+  const y = now.getFullYear(), m = now.getMonth();
+  const from = new Date(y, m, 1).toISOString().slice(0, 10);
+  const to = new Date(y, m + 1, 0).toISOString().slice(0, 10);
+  return { from, to };
+}
+
+function isWithinDateRange(dateStr, { from, to } = {}) {
+  if (!dateStr) return false;
+  if (from && dateStr < from) return false;
+  if (to && dateStr > to) return false;
+  return true;
+}
+
+/**
+ * Shared filter used by both the Transactions table (section 3) and, via
+ * currentMonthRange, the Dashboard summary — one implementation so the two
+ * can never disagree on what "matches this search/filter" means.
+ * `searchTextFor(tx)` is an optional caller-supplied hook for search terms
+ * this module can't know about itself (e.g. a resolved customer name) —
+ * keeps this file CRM-agnostic while still letting the UI layer search by
+ * student name.
+ */
+export function filterTransactions(transactions, {
+  search = "", type = "all", account = "all", category = "all", dateFrom = null, dateTo = null,
+} = {}, { searchTextFor } = {}) {
+  const q = search.trim().toLowerCase();
+  return (transactions || []).filter((t) => {
+    if (type !== "all" && t.type !== type) return false;
+    if (account !== "all") {
+      const matches = t.type === TRANSACTION_TYPES.TRANSFER
+        ? (t.fromAccount === account || t.toAccount === account)
+        : t.account === account;
+      if (!matches) return false;
+    }
+    if (category !== "all" && t.category !== category) return false;
+    if ((dateFrom || dateTo) && !isWithinDateRange(t.date, { from: dateFrom, to: dateTo })) return false;
+    if (q) {
+      const extra = searchTextFor ? searchTextFor(t) : "";
+      const haystack = [
+        t.note, t.relatedCustomerId, t.relatedEngagementId, t.relatedPaymentId,
+        t.createdByName, t.account, t.fromAccount, t.toAccount, t.category, t.type, extra,
+      ].filter(Boolean).join(" ").toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
+    return true;
+  });
 }

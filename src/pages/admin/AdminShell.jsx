@@ -9,6 +9,7 @@ import CrmCatalogTab from "./crm/catalogBrowser/CrmCatalogTab";
 import ProgramWorkspace from "./crm/catalogBrowser/ProgramWorkspace";
 import CrmSettingsTab from "./crm/CrmSettingsTab";
 import PaymentVerificationQueue from "./crm/PaymentVerificationQueue";
+import AccountingPage from "./accounting/AccountingPage";
 
 function ComingSoon({ label }) {
   return (
@@ -34,6 +35,7 @@ function AdminContent() {
     if (strandedOnProgramSection) goToCatalog();
   }, [strandedOnProgramSection, goToCatalog]);
 
+  if (section === "accounting") return <AccountingPage />;
   if (section === "payments") return <PaymentVerificationQueue />;
   if (section === "settings") return <CrmSettingsTab />;
   if (section === "reports") return <ComingSoon label={ar ? "التقارير" : "Reports"} />;

@@ -13,6 +13,13 @@ import {
 
 const AccountingCtx = createContext(null);
 
+// ACCOUNTING-02 — Admin gets full access everywhere; "accounting" is the one
+// other role allowed into this module (view/add/edit transactions), per the
+// approved permissions. No new RBAC system — same shape as isAdmin() below,
+// just a second allowed role, mirrored in firestore.rules' isAccountingStaff().
+export const canAccessAccounting = (currentUser) =>
+  currentUser?.role === "admin" || currentUser?.role === "accounting";
+
 /**
  * ACCOUNTING-01 — data layer only. Deliberately independent of
  * CustomerContext/paymentRecords/accountingEvents: no import from those
@@ -25,7 +32,7 @@ export function AccountingProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (currentUser?.role !== "admin") { setTransactions([]); setLoading(false); return; }
+    if (!canAccessAccounting(currentUser)) { setTransactions([]); setLoading(false); return; }
     setLoading(true);
     const unsub = onSnapshot(
       collection(db, ACCOUNTING_TRANSACTIONS_COLLECTION),

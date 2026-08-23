@@ -21,6 +21,14 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/settings/bootstrap).data.enabled == true;
     }
 
+    /* ── ACCOUNTING-02: the one other role allowed into Accounting
+       (view/add/edit transactions) — mirrors isAdmin(), no new RBAC. ── */
+    function isAccountingStaff() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && userDoc().role == 'accounting';
+    }
+
     /* ── users ───────────────────────────────────────── */
     match /users/{userId} {
       allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
@@ -63,7 +71,7 @@ service cloud.firestore {
     /* ── ACCOUNTING-01: Accounting Transactions — logically separate module,
        same admin-only access shape as everything else. Not yet connected
        to accountingEvents/CRM. ── */
-    match /accountingTransactions/{id}  { allow read, write: if isAdmin(); }
+    match /accountingTransactions/{id}  { allow read, write: if isAdmin() || isAccountingStaff(); }
 
     match /{document=**} { allow read, write: if false; }
   }

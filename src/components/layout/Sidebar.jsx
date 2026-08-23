@@ -6,7 +6,7 @@ import { useCatalog } from "../../context/CatalogContext";
 import { useCrmNav } from "../../context/CrmNavContext";
 import {
   IconPeople, IconGrid, IconBell, IconHistory, IconBox, IconBarChart,
-  IconGear, IconChevronDown, IconChevronRight, IconChevronsCollapse, IconMoney,
+  IconGear, IconChevronDown, IconChevronRight, IconChevronsCollapse, IconMoney, IconWallet,
 } from "../Icons";
 
 // Ordered by daily workflow priority, not feature grouping: the customer
@@ -81,6 +81,11 @@ export default function Sidebar() {
   const [expandedBU, setExpandedBU] = useState(businessUnitId);
 
   const hasProgram = !!programId;
+  // ACCOUNTING-02: "accounting" role gets exactly the Accounting section —
+  // everything else here (Catalog/Sheet/Payments/Settings) stays CRM/admin
+  // only, per the approved permissions. No new RBAC system, just this check.
+  const isAdmin = currentUser?.role === "admin";
+  const canAccounting = isAdmin || currentUser?.role === "accounting";
 
   return (
     <aside style={{
@@ -100,7 +105,7 @@ export default function Sidebar() {
       </div>
 
       <nav style={{ flex: 1, overflowY: "auto" }}>
-        {primaryItems.map((it) => (
+        {isAdmin && primaryItems.map((it) => (
           <NavRow
             key={it.key}
             tone={it.tone}
@@ -115,74 +120,92 @@ export default function Sidebar() {
 
         {/* CRM-PAYMENT-01 — global, cross-Program queue; deliberately not
             gated by hasProgram like the items above, since it spans every
-            Program at once. */}
-        <NavRow
-          active={section === "payments"}
-          onClick={() => setSection("payments")}
-          icon={<IconMoney size={18} />}
-          label={collapsed ? "" : tx("مراجعة المدفوعات", "Payment Verification")}
-        />
-
-        {!collapsed && <div style={{ height: 1, background: "rgba(255,255,255,.08)", margin: "10px 4px" }} />}
-
-        <NavRow
-          active={section === "catalog"}
-          onClick={() => { setCatalogOpen((o) => !o); goToCatalog(); }}
-          icon={<IconBox size={18} />}
-          label={collapsed ? "" : tx("الكتالوج", "Catalog")}
-          trailing={!collapsed ? (catalogOpen ? <IconChevronDown size={14} /> : <DisclosureChevron ar={ar} size={14} />) : null}
-        />
-
-        {!collapsed && catalogOpen && (
-          <div>
-            {businessUnits.map((bu) => {
-              const open = expandedBU === bu.id;
-              return (
-                <div key={bu.id}>
-                  <NavRow
-                    active={businessUnitId === bu.id && !programId}
-                    indent={14}
-                    onClick={() => setExpandedBU(open ? null : bu.id)}
-                    icon={null}
-                    label={ar ? bu.name_ar : bu.name_en}
-                    trailing={open ? <IconChevronDown size={12} /> : <DisclosureChevron ar={ar} size={12} />}
-                  />
-                  {open && programsUnder(bu.id).map((p) => (
-                    <NavRow
-                      key={p.id}
-                      active={programId === p.id}
-                      indent={28}
-                      onClick={() => selectProgram(p.id, bu.id)}
-                      icon={null}
-                      label={p.name_en}
-                      labelDir="ltr"
-                    />
-                  ))}
-                </div>
-              );
-            })}
-            <NavRow
-              disabled
-              indent={14}
-              title={tx("قريبًا", "Coming soon")}
-              icon={null}
-              label={tx("الدفعات", "Batches")}
-            />
-          </div>
+            Program at once. Admin-only: per ACCOUNTING-02, student payments
+            stay a CRM/admin concern, separate from the Accounting section. */}
+        {isAdmin && (
+          <NavRow
+            active={section === "payments"}
+            onClick={() => setSection("payments")}
+            icon={<IconMoney size={18} />}
+            label={collapsed ? "" : tx("مراجعة المدفوعات", "Payment Verification")}
+          />
         )}
 
-        {!collapsed && <div style={{ height: 1, background: "rgba(255,255,255,.08)", margin: "10px 4px" }} />}
-
-        {bottomItems.map((it) => (
+        {/* ACCOUNTING-02 — the one section both Admin and Accounting staff
+            share; everything else in this sidebar stays Admin-only. */}
+        {canAccounting && (
           <NavRow
-            key={it.key}
-            tone="normal"
-            active={section === it.key}
-            onClick={() => setSection(it.key)}
-            icon={<it.Icon size={18} />}
-            label={collapsed ? "" : (ar ? it.ar : it.en)}
+            active={section === "accounting"}
+            onClick={() => setSection("accounting")}
+            icon={<IconWallet size={18} />}
+            label={collapsed ? "" : tx("المحاسبة", "Accounting")}
           />
-        ))}
+        )}
+
+        {isAdmin && (
+          <>
+            {!collapsed && <div style={{ height: 1, background: "rgba(255,255,255,.08)", margin: "10px 4px" }} />}
+
+            <NavRow
+              active={section === "catalog"}
+              onClick={() => { setCatalogOpen((o) => !o); goToCatalog(); }}
+              icon={<IconBox size={18} />}
+              label={collapsed ? "" : tx("الكتالوج", "Catalog")}
+              trailing={!collapsed ? (catalogOpen ? <IconChevronDown size={14} /> : <DisclosureChevron ar={ar} size={14} />) : null}
+            />
+
+            {!collapsed && catalogOpen && (
+              <div>
+                {businessUnits.map((bu) => {
+                  const open = expandedBU === bu.id;
+                  return (
+                    <div key={bu.id}>
+                      <NavRow
+                        active={businessUnitId === bu.id && !programId}
+                        indent={14}
+                        onClick={() => setExpandedBU(open ? null : bu.id)}
+                        icon={null}
+                        label={ar ? bu.name_ar : bu.name_en}
+                        trailing={open ? <IconChevronDown size={12} /> : <DisclosureChevron ar={ar} size={12} />}
+                      />
+                      {open && programsUnder(bu.id).map((p) => (
+                        <NavRow
+                          key={p.id}
+                          active={programId === p.id}
+                          indent={28}
+                          onClick={() => selectProgram(p.id, bu.id)}
+                          icon={null}
+                          label={p.name_en}
+                          labelDir="ltr"
+                        />
+                      ))}
+                    </div>
+                  );
+                })}
+                <NavRow
+                  disabled
+                  indent={14}
+                  title={tx("قريبًا", "Coming soon")}
+                  icon={null}
+                  label={tx("الدفعات", "Batches")}
+                />
+              </div>
+            )}
+
+            {!collapsed && <div style={{ height: 1, background: "rgba(255,255,255,.08)", margin: "10px 4px" }} />}
+
+            {bottomItems.map((it) => (
+              <NavRow
+                key={it.key}
+                tone="normal"
+                active={section === it.key}
+                onClick={() => setSection(it.key)}
+                icon={<it.Icon size={18} />}
+                label={collapsed ? "" : (ar ? it.ar : it.en)}
+              />
+            ))}
+          </>
+        )}
       </nav>
 
       <div style={{ borderTop: "1px solid rgba(255,255,255,.08)", paddingTop: 10, marginTop: 8 }}>

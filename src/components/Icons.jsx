@@ -73,3 +73,24 @@ export function IconWhatsapp({ size = 18 }) {
 export function IconChevronsCollapse({ size = 18 }) {
   return <svg {...base(size)}><path d="m11 17-5-5 5-5" /><path d="m18 17-5-5 5-5" /></svg>;
 }
+export function IconWallet({ size = 18 }) {
+  return <svg {...base(size)}><path d="M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /><path d="M17 12h4v4h-4a2 2 0 0 1 0-4Z" /></svg>;
+}
+export function IconTrendUp({ size = 18 }) {
+  return <svg {...base(size)}><path d="m3 17 6-6 4 4 8-8" /><path d="M17 7h4v4" /></svg>;
+}
+export function IconTrendDown({ size = 18 }) {
+  return <svg {...base(size)}><path d="m3 7 6 6 4-4 8 8" /><path d="M17 17h4v-4" /></svg>;
+}
+export function IconUndo({ size = 18 }) {
+  return <svg {...base(size)}><path d="M9 14 4 9l5-5" /><path d="M4 9h10a6 6 0 0 1 0 12h-3" /></svg>;
+}
+export function IconSwap({ size = 18 }) {
+  return <svg {...base(size)}><path d="m17 2 4 4-4 4" /><path d="M3 6h18" /><path d="m7 22-4-4 4-4" /><path d="M21 18H3" /></svg>;
+}
+export function IconX({ size = 18 }) {
+  return <svg {...base(size)}><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>;
+}
+export function IconEdit({ size = 18 }) {
+  return <svg {...base(size)}><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /></svg>;
+}

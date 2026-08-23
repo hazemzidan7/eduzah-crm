@@ -1,4 +1,5 @@
 import { createContext, useContext, useState } from "react";
+import { useAuth } from "./AuthContext";
 
 const CrmNavCtx = createContext(null);
 
@@ -8,9 +9,13 @@ const CrmNavCtx = createContext(null);
  * because the Sidebar (outside that tree) needs to both read and drive it.
  */
 export function CrmNavProvider({ children }) {
+  const { currentUser } = useAuth();
   const [businessUnitId, setBusinessUnitId] = useState(null);
   const [programId, setProgramId] = useState(null);
-  const [section, setSection] = useState("catalog");
+  // ACCOUNTING-02: an "accounting" role user has no access to Catalog (CRM
+  // data is admin-only, see firestore.rules) — land them on Accounting
+  // directly instead of a section they'd just see empty/blocked.
+  const [section, setSection] = useState(() => (currentUser?.role === "accounting" ? "accounting" : "catalog"));
 
   const selectProgram = (progId, buId) => {
     setProgramId(progId);

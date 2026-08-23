@@ -458,7 +458,9 @@ export function AuthProvider({ children }) {
   };
 
   const adminUpdateUser = async (id, patch) => {
-    const allowedRoles = ["user", "student", "instructor", "admin"];
+    // ACCOUNTING-02: "accounting" added as an assignable role — same
+    // allowlist pattern as every other role here, no new RBAC system.
+    const allowedRoles = ["user", "student", "instructor", "admin", "accounting"];
     const roleNext = patch.role != null && allowedRoles.includes(patch.role) ? patch.role : null;
     const clean = {
       ...(patch.name  != null && { name:  String(patch.name).trim()  }),
