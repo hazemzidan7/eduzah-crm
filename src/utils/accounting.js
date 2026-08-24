@@ -380,6 +380,24 @@ export function currentMonthRange(now = new Date()) {
   return { from, to };
 }
 
+/**
+ * ACCOUNTING-05 — the current calendar week's boundaries, Saturday through
+ * Friday (Egypt's weekend is Friday-Saturday, so this treats Saturday as day
+ * one of the week — a documented, single convention, not Sunday/Monday). A
+ * real calendar week, never a rolling 7-day window. Uses the same
+ * localIsoDate helper as currentMonthRange/todayIso above, for the same
+ * reason (local calendar components, not a UTC-converted timestamp).
+ */
+export function thisWeekRange(now = new Date()) {
+  const daysSinceSaturday = (now.getDay() + 1) % 7; // JS getDay(): Sun=0..Sat=6 -> Sat=0..Fri=6
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysSinceSaturday);
+  const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6);
+  return {
+    from: localIsoDate(start.getFullYear(), start.getMonth(), start.getDate()),
+    to: localIsoDate(end.getFullYear(), end.getMonth(), end.getDate()),
+  };
+}
+
 // ─── ACCOUNTING-04: Report periods ───────────────────────────────────────
 // Real calendar boundaries only — never a rolling N-day window, per the
 // approved spec. All four period types share the same localIsoDate helper

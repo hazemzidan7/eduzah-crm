@@ -105,6 +105,18 @@ export default function Sidebar() {
       </div>
 
       <nav style={{ flex: 1, overflowY: "auto" }}>
+        {/* ACCOUNTING-05 — executive overview, strictly Admin-only (not
+            Accounting staff, not Sales/users) — separate from both the CRM
+            items below and the Accounting section further down. */}
+        {isAdmin && (
+          <NavRow
+            active={section === "management"}
+            onClick={() => setSection("management")}
+            icon={<IconBarChart size={18} />}
+            label={collapsed ? "" : tx("لوحة الإدارة", "Management")}
+          />
+        )}
+
         {isAdmin && primaryItems.map((it) => (
           <NavRow
             key={it.key}
