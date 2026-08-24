@@ -3,11 +3,12 @@ import { Card, Input } from "../../../components/UI";
 import { C } from "../../../theme";
 import {
   IconBarChart, IconTrendUp, IconTrendDown, IconUndo, IconSwap, IconWallet, IconPeople,
-  IconGrid, IconBox, IconMoney, IconHistory, IconBell,
+  IconGrid, IconBox, IconMoney, IconHistory, IconBell, IconCalendarCheck,
 } from "../../../components/Icons";
 import { useLang } from "../../../context/LangContext";
 import { useCustomers } from "../../../context/CustomerContext";
 import { useAccounting } from "../../../context/AccountingContext";
+import { useFollowUps } from "../../../context/FollowUpContext";
 import { useLeadStatus } from "../../../context/LeadStatusContext";
 import { useCatalog } from "../../../context/CatalogContext";
 import { useCrmNav } from "../../../context/CrmNavContext";
@@ -16,6 +17,7 @@ import {
   reportPeriodRange, REPORT_PERIODS, thisWeekRange, currentMonthRange,
 } from "../../../utils/accounting";
 import { effectivePaymentRecords } from "../../../utils/paymentRecords";
+import { computeFollowUpDashboardStats } from "../../../utils/followUps";
 import { StatCard, BalanceCard } from "../accounting/AccountingBadges";
 import {
   MANAGEMENT_PERIODS, MANAGEMENT_PERIOD_OPTIONS,
@@ -102,8 +104,9 @@ export default function ManagementDashboard() {
   const { lang } = useLang();
   const ar = lang === "ar";
   const tx = (a, e) => (ar ? a : e);
-  const { customers, customerById, engagements } = useCustomers();
+  const { customers, customerById, engagements, engagementById } = useCustomers();
   const { transactions } = useAccounting();
+  const { followUps } = useFollowUps();
   const { statuses } = useLeadStatus();
   const { nodeById } = useCatalog();
   const { setSection, goToCatalog } = useCrmNav();
@@ -121,7 +124,26 @@ export default function ManagementDashboard() {
   }, [periodType, customFrom, customTo]);
 
   const periodTransactions = useMemo(() => filterTransactions(transactions, { dateFrom: from, dateTo: to }), [transactions, from, to]);
-  const metrics = useMemo(() => computeReportMetrics(periodTransactions), [periodTransactions]);
+  // BUGFIX (FINALIZATION STEP 3) — computeReportMetrics' deposits/
+  // installments/fullPayments split only resolves when a paymentTypeFor
+  // hook is supplied (see utils/accounting.js's own docstring); without one
+  // every transaction's paymentType reads as null and the Payment Summary
+  // split silently stays 0/0/0 forever, even though Total Income is correct.
+  // This was missing here. Exact same resolver AccountingReports.jsx already
+  // uses for the identical figures — not a new rule, just wiring the
+  // existing one in here too.
+  const paymentTypeFor = (t) => {
+    if (!t.relatedEngagementId || !t.relatedPaymentId) return null;
+    const engagement = engagementById(t.relatedEngagementId);
+    if (!engagement) return null;
+    const record = effectivePaymentRecords(engagement).find((r) => r.id === t.relatedPaymentId);
+    return record?.paymentType || null;
+  };
+  const metrics = useMemo(
+    () => computeReportMetrics(periodTransactions, { paymentTypeFor }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [periodTransactions, engagementById],
+  );
   const balances = useMemo(() => computeAccountBalances(transactions), [transactions]); // all-time, same as Accounting Dashboard
   const statusCounts = useMemo(() => computePaymentStatusCounts(engagements, { dateFrom: from, dateTo: to }), [engagements, from, to]);
   const alerts = useMemo(() => computePaymentAlerts(engagements), [engagements]);
@@ -129,6 +151,11 @@ export default function ManagementDashboard() {
   const funnel = useMemo(() => computeLeadFunnel(engagements, statuses), [engagements, statuses]);
   const programRows = useMemo(() => computeProgramPerformance(engagements, periodTransactions), [engagements, periodTransactions]);
   const recentActivity = useMemo(() => computeRecentActivity(engagements, periodTransactions, { limit: 10 }), [engagements, periodTransactions]);
+  // CRM-05 — small Follow-up summary (section 8 of the spec), always
+  // current-state (not period-scoped, same reasoning as the Payment
+  // Verification alerts above) — reads FollowUpContext directly, no new
+  // Firestore listener, no duplicate of the full Follow-ups page.
+  const followUpStats = useMemo(() => computeFollowUpDashboardStats(followUps), [followUps]);
 
   const totalLeads = useMemo(() => engagements.filter((e) => !e.archivedAt).length, [engagements]);
   const newLeadsInPeriod = useMemo(
@@ -140,6 +167,7 @@ export default function ManagementDashboard() {
 
   const goPayments = () => setSection("payments");
   const goAccounting = () => setSection("accounting");
+  const goFollowUps = () => setSection("followups");
 
   return (
     <div>
@@ -261,6 +289,18 @@ export default function ManagementDashboard() {
         </div>
       </div>
 
+      {/* ── Follow-ups — small summary only, the full list lives on its own
+          page (Sidebar "المتابعات"); clicking any card jumps there. ── */}
+      <div style={{ ...sectionTitleSx, display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }} onClick={goFollowUps}>
+        <IconBell size={12} /> {tx("المتابعات", "Follow-ups")}
+      </div>
+      <div style={grid4}>
+        <StatCard Icon={IconBell} color={C.danger} label={tx("متأخرة", "Overdue")} value={followUpStats.overdue} />
+        <StatCard Icon={IconCalendarCheck} color={C.orange} label={tx("اليوم", "Due Today")} value={followUpStats.dueToday} />
+        <StatCard Icon={IconCalendarCheck} color={C.muted} label={tx("قادمة", "Upcoming")} value={followUpStats.upcoming} />
+        <StatCard Icon={IconCalendarCheck} color={C.success} label={tx("مكتملة اليوم", "Completed Today")} value={followUpStats.completedToday} />
+      </div>
+
       {/* ── Section 5: Program Performance ── */}
       <div style={sectionTitleSx}>{tx("أداء البرامج", "Program Performance")}</div>
       <ProgramPerformanceTable rows={programRows} nodeById={nodeById} ar={ar} tx={tx} />
@@ -282,6 +322,7 @@ export default function ManagementDashboard() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             <QuickAction icon={<IconBox size={16} />} label={tx("الكتالوج / خط المبيعات", "Catalog / Sales Sheet")} onClick={goToCatalog} />
             <QuickAction icon={<IconGrid size={16} />} label={tx("العملاء", "Customers")} onClick={goToCatalog} />
+            <QuickAction icon={<IconBell size={16} />} label={tx("المتابعات", "Follow-ups")} onClick={goFollowUps} />
             <QuickAction icon={<IconMoney size={16} />} label={tx("مراجعة المدفوعات", "Payment Verification")} onClick={goPayments} />
             <QuickAction icon={<IconWallet size={16} />} label={tx("المحاسبة", "Accounting")} onClick={goAccounting} />
             <QuickAction icon={<IconBarChart size={16} />} label={tx("التقارير", "Reports")} onClick={goAccounting} />

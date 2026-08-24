@@ -43,8 +43,11 @@ export default function App() {
           <Route path="/setup-admin" element={<BootstrapAdmin />} />
 
           {/* ACCOUNTING-02: "accounting" role can also reach AdminShell — the
-              Sidebar/AdminContent gate which sections each role actually sees. */}
-          <Route path="/admin/*" element={<RequireAuth roles={["admin", "accounting"]}><AdminShell /></RequireAuth>} />
+              Sidebar/AdminContent gate which sections each role actually sees.
+              CRM-05 FINALIZATION: "sales" added the same way — Sidebar only
+              shows them Follow-ups, and AdminShell hard-redirects them away
+              from any other section (see AdminShell.jsx). */}
+          <Route path="/admin/*" element={<RequireAuth roles={["admin", "accounting", "sales"]}><AdminShell /></RequireAuth>} />
 
           <Route path="/" element={<Navigate to="/admin" replace />} />
           <Route path="*" element={<Navigate to="/admin" replace />} />

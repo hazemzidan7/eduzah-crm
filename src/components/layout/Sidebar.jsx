@@ -5,7 +5,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useCatalog } from "../../context/CatalogContext";
 import { useCrmNav } from "../../context/CrmNavContext";
 import {
-  IconPeople, IconGrid, IconBell, IconHistory, IconBox, IconBarChart,
+  IconPeople, IconGrid, IconBell, IconCalendarCheck, IconHistory, IconBox, IconBarChart,
   IconGear, IconChevronDown, IconChevronRight, IconChevronsCollapse, IconMoney, IconWallet,
 } from "../Icons";
 
@@ -86,6 +86,11 @@ export default function Sidebar() {
   // only, per the approved permissions. No new RBAC system, just this check.
   const isAdmin = currentUser?.role === "admin";
   const canAccounting = isAdmin || currentUser?.role === "accounting";
+  // CRM-05 FINALIZATION: "sales" role gets exactly the Follow-ups section —
+  // every other item in this sidebar (Management/Customers/Sales Sheet/
+  // Reminders/Import History/Payment Verification/Accounting/Catalog/
+  // Reports/Users/Settings) stays isAdmin-only, unchanged.
+  const canFollowUps = isAdmin || currentUser?.role === "sales";
 
   return (
     <aside style={{
@@ -140,6 +145,20 @@ export default function Sidebar() {
             onClick={() => setSection("payments")}
             icon={<IconMoney size={18} />}
             label={collapsed ? "" : tx("مراجعة المدفوعات", "Payment Verification")}
+          />
+        )}
+
+        {/* CRM-05 — global, cross-Program Follow-ups list. Deliberately not
+            gated by hasProgram (spans every Program at once), same shape as
+            Payment Verification above. CRM-05 FINALIZATION: the one section
+            "sales" role can see — see canFollowUps above and
+            firestore.rules' isSalesStaff(). */}
+        {canFollowUps && (
+          <NavRow
+            active={section === "followups"}
+            onClick={() => setSection("followups")}
+            icon={<IconCalendarCheck size={18} />}
+            label={collapsed ? "" : tx("المتابعات", "Follow-ups")}
           />
         )}
 

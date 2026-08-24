@@ -460,7 +460,13 @@ export function AuthProvider({ children }) {
   const adminUpdateUser = async (id, patch) => {
     // ACCOUNTING-02: "accounting" added as an assignable role — same
     // allowlist pattern as every other role here, no new RBAC system.
-    const allowedRoles = ["user", "student", "instructor", "admin", "accounting"];
+    // CRM-05 FINALIZATION: "sales" added the same way — Follow-ups-only
+    // access, see firestore.rules' isSalesStaff(). Note: there is no Users
+    // management UI yet (that page is still "Coming Soon" in AdminShell),
+    // so assigning this role today still requires editing the user's doc
+    // directly (e.g. via Firebase Console) — same situation "accounting"
+    // was already in before this change.
+    const allowedRoles = ["user", "student", "instructor", "admin", "accounting", "sales"];
     const roleNext = patch.role != null && allowedRoles.includes(patch.role) ? patch.role : null;
     const clean = {
       ...(patch.name  != null && { name:  String(patch.name).trim()  }),

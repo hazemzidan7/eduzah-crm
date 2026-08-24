@@ -29,6 +29,22 @@ service cloud.firestore {
         && userDoc().role == 'accounting';
     }
 
+    /* ── CRM-05 FINALIZATION: the one role allowed into Follow-ups without
+       full CRM/admin access — mirrors isAccountingStaff() exactly, same "one
+       more allowed role string" shape, no new RBAC system. Investigation
+       confirmed no existing role can be reused for this: every other role
+       (user/student/instructor/accounting) is unrelated to CRM work, and
+       "admin" is the only role that currently does Sales work in production
+       — there is no way to give a subset of admins Follow-up-only visibility
+       without a role distinct from admin. Scoped to followUps only; every
+       other CRM collection (customers/engagements/etc.) below is untouched
+       and stays admin-only. ── */
+    function isSalesStaff() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && userDoc().role == 'sales';
+    }
+
     /* ── users ───────────────────────────────────────── */
     match /users/{userId} {
       allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
@@ -57,6 +73,34 @@ service cloud.firestore {
     match /leadStatuses/{id}            { allow read, write: if isAdmin(); }
     match /customers/{id}               { allow read, write: if isAdmin(); }
     match /engagements/{id}             { allow read, write: if isAdmin(); }
+    /* ── CRM-05 FINALIZATION: Follow-ups — admin gets everything (see all,
+       create/edit/complete/cancel/assign any). Sales staff are scoped to
+       their OWN queue only (resource.data.assignedTo == their uid) — this is
+       the real Firestore-level boundary, not just a hidden Sidebar button.
+       - create: sales may only create a follow-up assigned to themselves
+         (assigning to someone else is an admin-only action, "Assign
+         Follow-ups" in the spec).
+       - update: sales may only touch a follow-up already assigned to them,
+         and may not reassign it, or repoint customerId/engagementId/
+         createdBy — only dueAt/note/status/result/completedAt/completedBy/
+         updatedAt actually change through the app's own update paths.
+       - delete: admin-only (the app never hard-deletes a follow-up, only
+         sets status: "cancelled"). ── */
+    match /followUps/{id} {
+      allow read: if isAdmin() || (isSalesStaff() && resource.data.assignedTo == request.auth.uid);
+      allow create: if isAdmin()
+        || (isSalesStaff()
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.assignedTo == request.auth.uid);
+      allow update: if isAdmin()
+        || (isSalesStaff()
+          && resource.data.assignedTo == request.auth.uid
+          && request.resource.data.assignedTo == resource.data.assignedTo
+          && request.resource.data.customerId == resource.data.customerId
+          && request.resource.data.engagementId == resource.data.engagementId
+          && request.resource.data.createdBy == resource.data.createdBy);
+      allow delete: if isAdmin();
+    }
     match /tags/{id}                    { allow read, write: if isAdmin(); }
     match /customFieldDefinitions/{id}  { allow read, write: if isAdmin(); }
     match /dictionaries/{id}            { allow read, write: if isAdmin(); }

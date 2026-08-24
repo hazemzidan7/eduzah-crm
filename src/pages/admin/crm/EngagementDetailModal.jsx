@@ -7,7 +7,11 @@ import { useCatalog } from "../../../context/CatalogContext";
 import { useLeadStatus } from "../../../context/LeadStatusContext";
 import { useCustomers } from "../../../context/CustomerContext";
 import { useCustomFields } from "../../../context/CustomFieldContext";
+import { useFollowUps } from "../../../context/FollowUpContext";
 import LeadStatusBadge from "../../../components/crm/LeadStatusBadge";
+import { getDueBucket, sortFollowUps } from "../../../utils/followUps";
+import FollowUpFormModal from "./followups/FollowUpFormModal";
+import CompleteFollowUpModal from "./followups/CompleteFollowUpModal";
 import { canonicalFieldLabel } from "../../../constants/importCanonicalFields";
 import {
   EDUCATIONAL_LEVEL_OPTIONS, EMPLOYMENT_STATUS_OPTIONS,
@@ -27,6 +31,12 @@ const ACTIVITY_TYPES = [
   { v: "call", ar: "مكالمة", en: "Call" },
   { v: "whatsapp", ar: "واتساب", en: "WhatsApp" },
 ];
+
+const FOLLOW_UP_BUCKET_COLOR = { overdue: "danger", today: "orange", upcoming: "muted", completed: "success", cancelled: "muted" };
+const FOLLOW_UP_BUCKET_LABEL = {
+  overdue: ["متأخرة", "Overdue"], today: ["اليوم", "Today"], upcoming: ["قادمة", "Upcoming"],
+  completed: ["مكتملة", "Completed"], cancelled: ["ملغاة", "Cancelled"],
+};
 
 const PRIORITY_OPTIONS = [
   { v: "low", ar: "منخفضة", en: "Low" },
@@ -124,6 +134,7 @@ export default function EngagementDetailModal({ engagement, onClose }) {
     addPaymentRecord, startPaymentReview, confirmPaymentRecord, rejectPaymentRecord, migrateLegacyPayments,
   } = useCustomers();
   const { fieldDefsForBusinessUnit } = useCustomFields();
+  const { followUpsForEngagement, cancelFollowUp } = useFollowUps();
 
   const customer = customerById(engagement.customerId);
   const businessUnit = nodeById(engagement.businessUnitId);
@@ -172,6 +183,17 @@ export default function EngagementDetailModal({ engagement, onClose }) {
       setPaymentError(tx("تعذّر التأكيد: يوجد تعارض دفع مؤكد بنفس البيانات", "Couldn't confirm: a confirmed duplicate payment conflict exists"));
     }
   };
+
+  // CRM-05 — this Engagement's own follow-ups (dedicated followUps
+  // collection; separate from the simple nextFollowUpDate field above, which
+  // is untouched). Complete/Edit reuse the exact same modals the global
+  // Follow-ups page uses — no duplicate CRUD logic.
+  const engagementFollowUps = sortFollowUps(followUpsForEngagement(engagement.id));
+  const [addingFollowUp, setAddingFollowUp] = useState(false);
+  const [editingFollowUp, setEditingFollowUp] = useState(null);
+  const [completingFollowUp, setCompletingFollowUp] = useState(null);
+  const [confirmCancelFollowUpId, setConfirmCancelFollowUpId] = useState(null);
+  const handleCancelFollowUp = async (id) => { await cancelFollowUp(id); setConfirmCancelFollowUpId(null); };
 
   const [activityType, setActivityType] = useState("note");
   const [activityText, setActivityText] = useState("");
@@ -255,6 +277,7 @@ export default function EngagementDetailModal({ engagement, onClose }) {
   const sectionTitleSx = { fontSize: 12.5, fontWeight: 800, color: "#fff", margin: "20px 0 10px", paddingBottom: 6, borderBottom: `1px solid ${C.border}` };
 
   return (
+    <>
     <Modal title={customer?.fullName || tx("تفاصيل العميل", "Customer Details")} onClose={onClose}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
         <LeadStatusBadge statusId={engagement.statusId} />
@@ -373,6 +396,45 @@ export default function EngagementDetailModal({ engagement, onClose }) {
         </div>
       </div>
 
+      {/* ── CRM-05: Follow-ups — dedicated records (assignee, due date/time,
+          complete-with-result, chained next follow-up), separate from the
+          simple "Next follow-up date" field above. ── */}
+      <div style={{ ...sectionTitleSx, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span>{tx("المتابعات", "Follow-ups")}</span>
+        <Btn sm v="ghost" onClick={() => setAddingFollowUp(true)}>{tx("+ إضافة متابعة", "+ Add Follow-up")}</Btn>
+      </div>
+      {engagementFollowUps.length === 0 && <div style={{ fontSize: 12, color: C.muted, marginBottom: 12 }}>{tx("لا توجد متابعات بعد", "No follow-ups yet")}</div>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+        {engagementFollowUps.map((f) => {
+          const bucket = getDueBucket(f);
+          const [labelAr, labelEn] = FOLLOW_UP_BUCKET_LABEL[bucket] || [bucket, bucket];
+          const color = C[FOLLOW_UP_BUCKET_COLOR[bucket]] || C.muted;
+          const assignee = users.find((u) => u.id === f.assignedTo);
+          return (
+            <Card key={f.id} style={{ padding: "8px 12px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span dir="ltr" style={{ fontSize: 12.5, fontWeight: 700 }}>{f.dueAt ? new Date(f.dueAt).toLocaleString(ar ? "ar-EG" : "en-US", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}</span>
+                <span style={{ fontSize: 11, fontWeight: 800, color }}>{ar ? labelAr : labelEn}</span>
+              </div>
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{tx("مسؤول", "Assigned")}: {assignee?.name || assignee?.email || tx("غير معيّن", "Unassigned")}</div>
+              {f.note && <div style={{ fontSize: 12, marginTop: 4 }}>{f.note}</div>}
+              {f.status === "completed" && f.result && <div style={{ fontSize: 12, color: C.success, marginTop: 4 }}>✓ {f.result}</div>}
+              {f.status === "pending" && (
+                <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                  <Btn sm v="primary" onClick={() => setCompletingFollowUp(f)}>{tx("إكمال", "Complete")}</Btn>
+                  <Btn sm v="ghost" onClick={() => setEditingFollowUp(f)}>{tx("تعديل", "Edit")}</Btn>
+                  {confirmCancelFollowUpId === f.id ? (
+                    <Btn sm v="danger" onClick={() => handleCancelFollowUp(f.id)}>{tx("تأكيد الإلغاء", "Confirm Cancel")}</Btn>
+                  ) : (
+                    <Btn sm v="ghost" onClick={() => setConfirmCancelFollowUpId(f.id)}>{tx("إلغاء", "Cancel")}</Btn>
+                  )}
+                </div>
+              )}
+            </Card>
+          );
+        })}
+      </div>
+
       <Input
         label={tx("ملاحظات المبيعات", "Sales notes")}
         value={salesNotesDraft}
@@ -484,5 +546,36 @@ export default function EngagementDetailModal({ engagement, onClose }) {
         ))}
       </div>
     </Modal>
+
+    {addingFollowUp && (
+      <FollowUpFormModal
+        engagement={engagement}
+        studentName={customer?.fullName}
+        studentPhone={customer?.phone}
+        programLabel={program?.name_en}
+        ar={ar} tx={tx}
+        onClose={() => setAddingFollowUp(false)}
+      />
+    )}
+    {editingFollowUp && (
+      <FollowUpFormModal
+        followUp={editingFollowUp}
+        engagement={engagement}
+        studentName={customer?.fullName}
+        programLabel={program?.name_en}
+        ar={ar} tx={tx}
+        onClose={() => setEditingFollowUp(null)}
+      />
+    )}
+    {completingFollowUp && (
+      <CompleteFollowUpModal
+        followUp={completingFollowUp}
+        studentName={customer?.fullName}
+        programLabel={program?.name_en}
+        ar={ar} tx={tx}
+        onClose={() => setCompletingFollowUp(null)}
+      />
+    )}
+    </>
   );
 }
