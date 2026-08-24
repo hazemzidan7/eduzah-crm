@@ -60,7 +60,7 @@ export default function ImportWizard({ program }) {
         {STEP_LABELS.map((label, i) => (
           <div key={i} style={{
             padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 700,
-            background: i === step ? C.red : i < step ? "rgba(52,211,153,.15)" : "rgba(255,255,255,.06)",
+            background: i === step ? C.red : i < step ? "rgba(34,197,94,.15)" : "#fff",
             color: i === step ? "#fff" : i < step ? C.success : C.muted,
           }}>
             {i + 1}. {label}

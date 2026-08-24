@@ -67,7 +67,7 @@ export default function CompleteFollowUpModal({ followUp, studentName, programLa
       </label>
 
       {addNext && (
-        <div style={{ padding: 12, borderRadius: 10, background: "rgba(255,255,255,.04)", marginBottom: 14 }}>
+        <div style={{ padding: 12, borderRadius: 10, background: "#F8FAFC", marginBottom: 14 }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
             <Input label={tx("التاريخ", "Date")} type="date" value={nextDate} onChange={setNextDate} />
             <Input label={tx("الوقت", "Time")} type="time" value={nextTime} onChange={setNextTime} />

@@ -26,7 +26,7 @@ export default function CrmSettingsTab() {
           <button key={s.key} onClick={() => setSection(s.key)} style={{
             padding: "6px 14px", borderRadius: 8, border: "none", cursor: "pointer",
             fontWeight: 700, fontSize: 12, fontFamily: "'Cairo',sans-serif",
-            background: section === s.key ? C.red : "rgba(255,255,255,.08)",
+            background: section === s.key ? C.red : C.faint,
             color: section === s.key ? "#fff" : C.muted,
             transition: "all .2s",
           }}>{ar ? s.ar : s.en}</button>

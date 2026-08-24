@@ -119,7 +119,7 @@ export default function AccountingPage() {
                 value={filters.search}
                 onChange={(e) => setFilter({ search: e.target.value })}
                 placeholder={tx("بحث بالوصف أو اسم العميل…", "Search description or customer name…")}
-                style={{ background: "rgba(255,255,255,.06)", border: `1.5px solid ${C.border}`, borderRadius: 10, paddingBlock: 9, paddingInlineStart: 34, paddingInlineEnd: 14, color: "#fff", fontFamily: "'Cairo',sans-serif", fontSize: 12.5, outline: "none", minWidth: 220 }}
+                style={{ background: "#fff", border: `1.5px solid ${C.border}`, borderRadius: 10, paddingBlock: 9, paddingInlineStart: 34, paddingInlineEnd: 14, color: C.text, fontFamily: "'Cairo',sans-serif", fontSize: 12.5, outline: "none", minWidth: 220 }}
               />
             </div>
 

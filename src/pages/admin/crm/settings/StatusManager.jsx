@@ -76,12 +76,12 @@ export default function StatusManager() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={tx("بحث بالاسم أو المفتاح…", "Search name or key…")}
-          style={{ background: "rgba(255,255,255,.06)", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "8px 12px", color: "#fff", fontFamily: "'Cairo',sans-serif", fontSize: 12.5, outline: "none", minWidth: 200 }}
+          style={{ background: "#fff", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "8px 12px", color: C.text, fontFamily: "'Cairo',sans-serif", fontSize: 12.5, outline: "none", minWidth: 200 }}
         />
         <select
           value={scopeFilter}
           onChange={(e) => setScopeFilter(e.target.value)}
-          style={{ background: "#2a1540", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "8px 12px", color: "#fff", fontFamily: "'Cairo',sans-serif", fontSize: 12.5 }}
+          style={{ background: "#fff", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "8px 12px", color: C.text, fontFamily: "'Cairo',sans-serif", fontSize: 12.5 }}
         >
           <option value="all">{tx("الكل", "All")}</option>
           <option value="global">{tx("عام فقط", "Global only")}</option>

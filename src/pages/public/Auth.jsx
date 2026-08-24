@@ -38,10 +38,10 @@ const Field = ({ label, children, error }) => (
 
 const inputSx = (err) => ({
   width: "100%", boxSizing: "border-box",
-  background: "rgba(50,29,61,.6)",
+  background: "#fff",
   border: `1.5px solid ${err ? C.danger : C.border}`,
   borderRadius: 10, padding: "10px 13px",
-  color: "#fff", fontFamily: font, fontSize: 13, outline: "none",
+  color: C.text, fontFamily: font, fontSize: 13, outline: "none",
 });
 
 /* ── Password strength ── */
@@ -340,7 +340,7 @@ export function LoginPage() {
         description={ar ? "سجّل دخولك إلى منصة Eduzah للتدريب المهني." : "Sign in to the Eduzah professional training platform."}
       />
       <div role="form" aria-label={ar ? "تسجيل الدخول" : "Login"}
-        style={{ background: "rgba(50,29,61,.92)", backdropFilter: "blur(24px)", border: `1px solid ${C.border}`, borderRadius: 22, padding: 28, width: "100%", maxWidth: 380 }}>
+        style={{ background: "#fff", backdropFilter: "blur(24px)", border: `1px solid ${C.border}`, borderRadius: 22, boxShadow: "0 20px 60px rgba(15,23,42,.08)", padding: 28, width: "100%", maxWidth: 380 }}>
 
         <div style={{ textAlign: "center", marginBottom: 24 }}>
           <div style={{ display:"inline-block", background:"#fff", borderRadius:14, padding:"10px 20px", marginBottom:8 }}>
@@ -364,9 +364,9 @@ export function LoginPage() {
         </button>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-          <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,.12)" }} />
-          <span style={{ color: "rgba(248,250,252,.4)", fontSize: 11 }}>{ar ? "أو بالبريد" : "or with email"}</span>
-          <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,.12)" }} />
+          <div style={{ flex: 1, height: 1, background: "#E2E8F0" }} />
+          <span style={{ color: "#94A3B8", fontSize: 11 }}>{ar ? "أو بالبريد" : "or with email"}</span>
+          <div style={{ flex: 1, height: 1, background: "#E2E8F0" }} />
         </div>
 
         <Field label={ar ? "البريد الإلكتروني" : "Email"}>
@@ -395,7 +395,7 @@ export function LoginPage() {
 
         {/* NO_PROFILE: orphaned auth account — offer re-register or WhatsApp */}
         {noProfile && (
-          <div role="alert" style={{ background: "rgba(250,166,51,.1)", border: `1px solid rgba(250,166,51,.4)`, borderRadius: 11, padding: "12px 14px", fontSize: 12, marginBottom: 14, lineHeight: 1.8 }}>
+          <div role="alert" style={{ background: "rgba(245,158,11,.1)", border: `1px solid rgba(245,158,11,.4)`, borderRadius: 11, padding: "12px 14px", fontSize: 12, marginBottom: 14, lineHeight: 1.8 }}>
             <div style={{ fontWeight: 700, color: C.orange, marginBottom: 4 }}>
               {ar ? "البيانات غير مكتملة" : "Incomplete profile"}
             </div>
@@ -418,7 +418,7 @@ export function LoginPage() {
         )}
 
         <Btn children={ar ? "تسجيل الدخول" : "Login"} full onClick={submit}
-          style={{ padding: "12px", fontSize: 14, boxShadow: `0 8px 25px rgba(217,27,91,.4)` }} />
+          style={{ padding: "12px", fontSize: 14, boxShadow: `0 8px 25px rgba(37,99,235,.35)` }} />
 
         <PhoneAuthBlock mode="login" lang={lang} onSuccess={() => navigate("/dashboard")} />
 
@@ -505,7 +505,7 @@ export function RegisterPage() {
         description={lang === "ar" ? "أنشئ حساباً على Eduzah للتدريب المهني والكورسات." : "Create your Eduzah account for professional training and courses."}
       />
       <div role="form" aria-label={lang === "ar" ? "إنشاء حساب" : "Register"}
-        style={{ background: "rgba(50,29,61,.92)", backdropFilter: "blur(24px)", border: `1px solid ${C.border}`, borderRadius: 22, padding: 28, width: "100%", maxWidth: 440 }}>
+        style={{ background: "#fff", backdropFilter: "blur(24px)", border: `1px solid ${C.border}`, borderRadius: 22, boxShadow: "0 20px 60px rgba(15,23,42,.08)", padding: 28, width: "100%", maxWidth: 440 }}>
 
         <div style={{ textAlign: "center", marginBottom: 22 }}>
           <div style={{ display:"inline-block", background:"#fff", borderRadius:14, padding:"10px 20px", marginBottom:8 }}>
@@ -529,9 +529,9 @@ export function RegisterPage() {
         </button>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-          <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,.12)" }} />
-          <span style={{ color: "rgba(248,250,252,.4)", fontSize: 11 }}>{lang === "ar" ? "أو بالبريد" : "or with email"}</span>
-          <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,.12)" }} />
+          <div style={{ flex: 1, height: 1, background: "#E2E8F0" }} />
+          <span style={{ color: "#94A3B8", fontSize: 11 }}>{lang === "ar" ? "أو بالبريد" : "or with email"}</span>
+          <div style={{ flex: 1, height: 1, background: "#E2E8F0" }} />
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -551,7 +551,7 @@ export function RegisterPage() {
         </Field>
 
         {emailTaken && (
-          <div style={{ background: "rgba(250,166,51,.12)", border: `1px solid ${C.orange}40`, borderRadius: 10, padding: "12px 14px", fontSize: 12, color: C.muted, marginBottom: 14, lineHeight: 1.7 }}>
+          <div style={{ background: "rgba(245,158,11,.12)", border: `1px solid ${C.orange}40`, borderRadius: 10, padding: "12px 14px", fontSize: 12, color: C.muted, marginBottom: 14, lineHeight: 1.7 }}>
             {lang === "ar"
               ? "استخدم تسجيل الدخول إن كان عندك حساب، أو «نسيت كلمة المرور» لاستلام رابط في البريد وتعيين كلمة مرور جديدة."
               : "Sign in if you already have an account, or use “Forgot password” to get an email link and set a new password."}
@@ -575,7 +575,7 @@ export function RegisterPage() {
         </div>
 
         <Btn children={lang === "ar" ? "إنشاء الحساب" : "Create Account"} full onClick={submit}
-          style={{ padding: "12px", fontSize: 14, boxShadow: `0 8px 25px rgba(217,27,91,.4)` }} />
+          style={{ padding: "12px", fontSize: 14, boxShadow: `0 8px 25px rgba(37,99,235,.35)` }} />
 
         <PhoneAuthBlock
           mode="register"
@@ -615,14 +615,14 @@ export function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
 
   const cardSx = {
-    background: "rgba(50,29,61,.92)",
+    background: "#fff",
     backdropFilter: "blur(24px)",
     border: `1px solid ${C.border}`,
     borderRadius: 22,
     padding: 28,
     width: "100%",
     maxWidth: 440,
-    boxShadow: "0 24px 60px rgba(0,0,0,.35)",
+    boxShadow: "0 20px 60px rgba(15,23,42,.08)",
   };
 
   const submitEmail = async () => {
@@ -703,8 +703,8 @@ export function ForgotPasswordPage() {
 
   const iconCircle = (child) => (
     <div style={{
-      width: 56, height: 56, borderRadius: "50%", background: "rgba(52,211,153,.15)",
-      border: "2px solid rgba(52,211,153,.4)", display: "flex", alignItems: "center", justifyContent: "center",
+      width: 56, height: 56, borderRadius: "50%", background: "rgba(34,197,94,.15)",
+      border: "2px solid rgba(34,197,94,.4)", display: "flex", alignItems: "center", justifyContent: "center",
       margin: "0 auto 16px", fontSize: 22, fontWeight: 900, color: C.success,
     }}>{child}</div>
   );
@@ -741,7 +741,7 @@ export function ForgotPasswordPage() {
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputSx(!!err)} dir="ltr" disabled={loading} autoComplete="email" />
             </Field>
             {err && <div role="alert" style={{ color: C.danger, fontSize: 12, marginBottom: 12 }}>{err}</div>}
-            <Btn children={loading ? "…" : (ar ? "إرسال رمز التحقق" : "Send verification code")} full onClick={submitEmail} style={{ boxShadow: "0 8px 25px rgba(217,27,91,.35)" }} />
+            <Btn children={loading ? "…" : (ar ? "إرسال رمز التحقق" : "Send verification code")} full onClick={submitEmail} style={{ boxShadow: "0 8px 25px rgba(37,99,235,.3)" }} />
           </>
         )}
 
@@ -781,7 +781,7 @@ export function ForgotPasswordPage() {
             {err && <div role="alert" style={{ color: C.danger, fontSize: 12, margin: "12px 0" }}>{err}</div>}
             <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
               <Btn children={ar ? "→ تغيير البريد" : "← Change email"} v="outline" onClick={() => { setView("formEmail"); setErr(""); }} style={{ flex: "0 1 auto", padding: "11px 16px" }} />
-              <Btn children={loading ? "…" : (ar ? "حفظ كلمة المرور" : "Save password")} onClick={submitOtp} style={{ flex: 1, minWidth: 160, boxShadow: "0 8px 25px rgba(217,27,91,.35)" }} disabled={loading} />
+              <Btn children={loading ? "…" : (ar ? "حفظ كلمة المرور" : "Save password")} onClick={submitOtp} style={{ flex: 1, minWidth: 160, boxShadow: "0 8px 25px rgba(37,99,235,.3)" }} disabled={loading} />
             </div>
           </>
         )}
@@ -818,7 +818,7 @@ export function ForgotPasswordPage() {
             <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.8, marginBottom: 16 }}>
               {ar ? "تم تحديث كلمة المرور. يمكنك تسجيل الدخول الآن." : "Your password was updated. You can sign in now."}
             </p>
-            <Btn children={ar ? "تسجيل الدخول" : "Login"} full onClick={() => navigate("/login")} style={{ boxShadow: "0 8px 25px rgba(217,27,91,.35)" }} />
+            <Btn children={ar ? "تسجيل الدخول" : "Login"} full onClick={() => navigate("/login")} style={{ boxShadow: "0 8px 25px rgba(37,99,235,.3)" }} />
           </div>
         )}
 
@@ -878,14 +878,14 @@ export function ResetPasswordPage() {
 
   const ar = lang === "ar";
   const cardSx = {
-    background: "rgba(50,29,61,.92)",
+    background: "#fff",
     backdropFilter: "blur(24px)",
     border: `1px solid ${C.border}`,
     borderRadius: 22,
     padding: 28,
     width: "100%",
     maxWidth: 420,
-    boxShadow: "0 24px 60px rgba(0,0,0,.35)",
+    boxShadow: "0 20px 60px rgba(15,23,42,.08)",
   };
 
   return (
@@ -907,9 +907,9 @@ export function ResetPasswordPage() {
           <p style={{ color: C.danger, textAlign: "center", lineHeight: 1.7 }}>{ar ? "رابط غير صالح. افتح الرابط من البريد الإلكتروني." : "Invalid link. Open the link from your email."}</p>
         ) : ok ? (
           <>
-            <div style={{ width: 56, height: 56, borderRadius: "50%", background: "rgba(52,211,153,.15)", border: "2px solid rgba(52,211,153,.4)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 24, color: C.success, fontWeight: 900 }}>✓</div>
+            <div style={{ width: 56, height: 56, borderRadius: "50%", background: "rgba(34,197,94,.15)", border: "2px solid rgba(34,197,94,.4)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 24, color: C.success, fontWeight: 900 }}>✓</div>
             <h1 style={{ fontSize: 20, marginBottom: 12, textAlign: "center" }}>{ar ? "تم التحديث" : "Password updated"}</h1>
-            <Btn children={ar ? "تسجيل الدخول" : "Login"} full onClick={() => navigate("/login")} style={{ boxShadow: "0 8px 25px rgba(217,27,91,.35)" }} />
+            <Btn children={ar ? "تسجيل الدخول" : "Login"} full onClick={() => navigate("/login")} style={{ boxShadow: "0 8px 25px rgba(37,99,235,.3)" }} />
           </>
         ) : (
           <>
@@ -922,7 +922,7 @@ export function ResetPasswordPage() {
             <div style={{ marginTop: 10 }}>
               <PassField label={ar ? "تأكيد" : "Confirm"} value={confirm} onChange={setConfirm} error={errs.confirm} placeholder="••••••••" lang={lang} />
             </div>
-            <Btn children={submitting ? "…" : (ar ? "حفظ" : "Save")} full onClick={submit} style={{ marginTop: 16, boxShadow: "0 8px 25px rgba(217,27,91,.35)" }} disabled={submitting} />
+            <Btn children={submitting ? "…" : (ar ? "حفظ" : "Save")} full onClick={submit} style={{ marginTop: 16, boxShadow: "0 8px 25px rgba(37,99,235,.3)" }} disabled={submitting} />
           </>
         )}
       </div>

@@ -36,9 +36,9 @@ export default function UploadStep({ wiz, patch, onNext }) {
   return (
     <div>
       <h3 style={{ fontWeight: 800, fontSize: 15, marginTop: 0 }}>{tx("رفع ملف", "Upload a file")}</h3>
-      <div style={{ background: "rgba(255,255,255,.04)", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: 12.5, color: C.muted }}>
+      <div style={{ background: "#F8FAFC", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: 12.5, color: C.muted }}>
         {tx("سيتم تعيين كل الطلاب المستوردين إلى ", "Every imported student will be assigned to ")}
-        <strong style={{ color: "#fff" }}>{wiz.program.name_en}</strong>
+        <strong style={{ color: C.text }}>{wiz.program.name_en}</strong>
       </div>
       <div style={{ marginBottom: 14 }}>
         <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 4 }}>
@@ -47,10 +47,10 @@ export default function UploadStep({ wiz, patch, onNext }) {
         <input
           type="file" accept=".xlsx,.xls,.csv"
           onChange={(e) => setFile(e.target.files?.[0] || null)}
-          style={{ color: "#fff", fontFamily: "'Cairo',sans-serif", fontSize: 12.5 }}
+          style={{ color: C.text, fontFamily: "'Cairo',sans-serif", fontSize: 12.5 }}
         />
       </div>
-      {error && <div style={{ color: "#f87171", fontSize: 12, marginBottom: 10 }}>{error}</div>}
+      {error && <div style={{ color: C.danger, fontSize: 12, marginBottom: 10 }}>{error}</div>}
       <Btn v="primary" disabled={analyzing} onClick={submit}>
         {analyzing ? tx("جاري التحليل…", "Analyzing…") : tx("تحليل الملف", "Analyze File")}
       </Btn>

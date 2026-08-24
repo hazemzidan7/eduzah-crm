@@ -132,7 +132,7 @@ export default function PaymentVerificationQueue() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={tx("بحث بالاسم أو الهاتف…", "Search name or phone…")}
-            style={{ background: "rgba(255,255,255,.06)", border: `1.5px solid ${C.border}`, borderRadius: 10, paddingBlock: 9, paddingInlineStart: 34, paddingInlineEnd: 14, color: "#fff", fontFamily: "'Cairo',sans-serif", fontSize: 12.5, outline: "none", minWidth: 220 }}
+            style={{ background: "#fff", border: `1.5px solid ${C.border}`, borderRadius: 10, paddingBlock: 9, paddingInlineStart: 34, paddingInlineEnd: 14, color: C.text, fontFamily: "'Cairo',sans-serif", fontSize: 12.5, outline: "none", minWidth: 220 }}
           />
         </div>
       </div>
@@ -164,7 +164,7 @@ export default function PaymentVerificationQueue() {
                   <div>
                     <button
                       onClick={() => setOpenEngagementId(engagement.id)}
-                      style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "#fff", fontSize: 13.5, fontWeight: 800, fontFamily: "'Cairo',sans-serif", textDecoration: "underline dotted" }}
+                      style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: C.text, fontSize: 13.5, fontWeight: 800, fontFamily: "'Cairo',sans-serif", textDecoration: "underline dotted" }}
                     >
                       {customer?.fullName || tx("عميل غير معروف", "Unknown customer")}
                     </button>
@@ -186,10 +186,10 @@ export default function PaymentVerificationQueue() {
                     used everywhere else — not recomputed here. */}
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 14px", marginTop: 6, fontSize: 10.5 }} dir="ltr">
                   {typeof coursePrice === "number" && (
-                    <span style={{ color: C.muted }}>{tx("سعر الكورس", "Price")}: <b style={{ color: "#fff" }}>{coursePrice.toLocaleString()}</b></span>
+                    <span style={{ color: C.muted }}>{tx("سعر الكورس", "Price")}: <b style={{ color: C.text }}>{coursePrice.toLocaleString()}</b></span>
                   )}
                   {snapshot && (
-                    <span style={{ color: C.muted }}>{tx("متوقع الآن", "Expected now")}: <b style={{ color: "#fff" }}>{(snapshot.depositAmount ?? 0).toLocaleString()} {snapshot.currency || "EGP"}</b></span>
+                    <span style={{ color: C.muted }}>{tx("متوقع الآن", "Expected now")}: <b style={{ color: C.text }}>{(snapshot.depositAmount ?? 0).toLocaleString()} {snapshot.currency || "EGP"}</b></span>
                   )}
                   <span style={{ color: C.muted }}>{tx("المدفوع (مؤكد)", "Confirmed paid")}: <b style={{ color: C.success }}>{amountPaid.toLocaleString()}</b></span>
                   <span style={{ color: C.muted }}>{tx("المتبقي", "Remaining")}: <b style={{ color: remaining > 0 ? C.orange : C.muted }}>{remaining.toLocaleString()}</b></span>

@@ -19,10 +19,10 @@ const Field = ({ label, children, error }) => (
 
 const inputSx = (err) => ({
   width: "100%", boxSizing: "border-box",
-  background: "rgba(50,29,61,.6)",
+  background: "#fff",
   border: `1.5px solid ${err ? C.danger : C.border}`,
   borderRadius: 10, padding: "10px 13px",
-  color: "#fff", fontFamily: font, fontSize: 13, outline: "none",
+  color: C.text, fontFamily: font, fontSize: 13, outline: "none",
 });
 
 const validatePassword = (p) => {
@@ -133,7 +133,7 @@ export default function BootstrapAdmin() {
         title={ar ? "إعداد أول مدير — Eduzah" : "First admin setup — Eduzah"}
         description={ar ? "إنشاء حساب المدير الأول (مرة واحدة)." : "One-time first admin account."}
       />
-      <div style={{ background: "rgba(50,29,61,.92)", border: `1px solid ${C.border}`, borderRadius: 22, padding: 28, width: "100%", maxWidth: 440 }}>
+      <div style={{ background: "#fff", border: `1px solid ${C.border}`, borderRadius: 22, padding: 28, width: "100%", maxWidth: 440 }}>
         <h1 style={{ fontSize: 20, marginBottom: 8 }}>{ar ? "إعداد أول مدير" : "First admin setup"}</h1>
 
         {ready === false && (

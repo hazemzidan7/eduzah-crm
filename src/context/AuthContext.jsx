@@ -907,8 +907,8 @@ export function AuthProvider({ children }) {
   };
 
   if (loading) return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--page-bg, #1a0f24)", color: "var(--page-text, #f8fafc)" }}>
-      <div style={{ width: 36, height: 36, border: "3px solid rgba(217,27,91,.3)", borderTopColor: "#d91b5b", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--page-bg, #F8FAFC)", color: "var(--page-text, #0F172A)" }}>
+      <div style={{ width: 36, height: 36, border: "3px solid rgba(37,99,235,.25)", borderTopColor: "#2563EB", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );

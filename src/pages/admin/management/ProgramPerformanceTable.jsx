@@ -23,7 +23,7 @@ export default function ProgramPerformanceTable({ rows, nodeById, ar, tx }) {
     <div className="edu-sheet-scroll" style={{ overflowX: "auto", borderRadius: 12, border: `1px solid ${C.border}`, marginBottom: 22 }}>
       <table style={{ width: "100%", minWidth: 620, borderCollapse: "collapse" }}>
         <thead>
-          <tr style={{ background: "rgba(255,255,255,.04)" }}>
+          <tr style={{ background: "#F8FAFC" }}>
             <th style={th}>{tx("البرنامج", "Program")}</th>
             <th style={{ ...th, textAlign: "end" }}>{tx("الطلاب", "Students")}</th>
             <th style={{ ...th, textAlign: "end" }}>{tx("الإيراد (للفترة)", "Revenue (period)")}</th>
@@ -35,7 +35,7 @@ export default function ProgramPerformanceTable({ rows, nodeById, ar, tx }) {
           {rows.map((r, i) => {
             const node = nodeById(r.catalogNodeId);
             return (
-              <tr key={r.catalogNodeId} style={{ background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,.02)" }}>
+              <tr key={r.catalogNodeId} style={{ background: i % 2 === 0 ? "transparent" : "#FBFCFE" }}>
                 <td style={{ ...td, fontWeight: 700 }} dir="ltr">{node ? node.name_en : r.catalogNodeId}</td>
                 <td style={{ ...td, textAlign: "end" }}>{r.students.toLocaleString()}</td>
                 <td style={{ ...td, textAlign: "end", color: C.success, fontWeight: 700 }} dir="ltr">{r.revenue.toLocaleString()}</td>

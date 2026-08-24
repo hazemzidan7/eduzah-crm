@@ -59,7 +59,7 @@ export default function CatalogNodeRow({ node, depth, expandedIds, onToggleExpan
         display: "flex", alignItems: "center", gap: 8,
         padding: "8px 10px", borderRadius: 8,
         marginInlineStart: depth * 22,
-        background: depth === 0 ? "rgba(255,255,255,.04)" : "transparent",
+        background: depth === 0 ? "#F8FAFC" : "transparent",
         borderBottom: `1px solid ${C.border}`,
         opacity: node.isActive ? 1 : 0.5,
       }}>
@@ -78,7 +78,7 @@ export default function CatalogNodeRow({ node, depth, expandedIds, onToggleExpan
         }}>
           {ar ? node.name_ar : node.name_en}
         </span>
-        <span style={{ fontSize: 10, color: C.muted, background: "rgba(255,255,255,.08)", borderRadius: 20, padding: "2px 8px" }}>
+        <span style={{ fontSize: 10, color: C.muted, background: "#F1F5F9", borderRadius: 20, padding: "2px 8px" }}>
           {typeDisplay}
         </span>
         {node.code && <span style={{ fontSize: 10, color: C.muted }}>#{node.code}</span>}
@@ -130,7 +130,7 @@ export default function CatalogNodeRow({ node, depth, expandedIds, onToggleExpan
       )}
       {archiveState?.error && (
         <Modal title={tx("خطأ", "Error")} onClose={() => setArchiveState(null)}>
-          <p style={{ fontSize: 13, color: "#f87171" }}>{archiveState.error}</p>
+          <p style={{ fontSize: 13, color: C.danger }}>{archiveState.error}</p>
         </Modal>
       )}
 
@@ -142,7 +142,7 @@ export default function CatalogNodeRow({ node, depth, expandedIds, onToggleExpan
               `"${node.name_en || node.name_ar}" will be permanently deleted — this cannot be undone. To keep a record, use Archive instead.`,
             )}
           </p>
-          {deleteError && <p style={{ fontSize: 12, color: "#f87171", marginBottom: 12 }}>{deleteError}</p>}
+          {deleteError && <p style={{ fontSize: 12, color: C.danger, marginBottom: 12 }}>{deleteError}</p>}
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
             <Btn v="purple" onClick={() => setConfirmDelete(false)}>{tx("إلغاء", "Cancel")}</Btn>
             <Btn v="danger" onClick={tryDelete}>{tx("حذف نهائي", "Delete permanently")}</Btn>

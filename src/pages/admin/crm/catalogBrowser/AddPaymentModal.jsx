@@ -190,7 +190,7 @@ export default function AddPaymentModal({ engagement, onClose }) {
         </div>
       )}
 
-      <div style={{ padding: "10px 14px", borderRadius: 10, background: "rgba(255,255,255,.04)", border: `1px solid ${C.border}`, marginBottom: 16 }}>
+      <div style={{ padding: "10px 14px", borderRadius: 10, background: "#F8FAFC", border: `1px solid ${C.border}`, marginBottom: 16 }}>
         <div style={{ fontSize: 10.5, fontWeight: 800, color: C.muted, textTransform: "uppercase", marginBottom: 8 }}>
           {tx("المتوقع بعد التأكيد", "Projected after confirmation")}
         </div>

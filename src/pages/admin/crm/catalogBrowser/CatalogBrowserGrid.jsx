@@ -1,5 +1,5 @@
 import { Card } from "../../../../components/UI";
-import { C } from "../../../../theme";
+import { C, radius } from "../../../../theme";
 import { useCatalog } from "../../../../context/CatalogContext";
 import { useCustomers } from "../../../../context/CustomerContext";
 
@@ -36,11 +36,17 @@ export default function CatalogBrowserGrid({ nodes, onOpenNode, ar, tx }) {
           <Card
             key={n.id}
             onClick={() => onOpenNode(n)}
-            style={{ padding: 16, cursor: "pointer", transition: "transform .15s", border: `1px solid ${n.color || C.border}` }}
+            style={{ padding: 16, cursor: "pointer", transition: "transform .15s, box-shadow .15s", borderTop: `3px solid ${n.color || C.red}` }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-              {n.icon && <span style={{ fontSize: 18 }}>{n.icon}</span>}
-              <div dir={isProgram ? "ltr" : undefined} style={{ fontWeight: 800, fontSize: 14.5 }}>{isProgram ? n.name_en : (ar ? n.name_ar : n.name_en)}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: radius.md, flexShrink: 0,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                background: `${n.color || C.red}1a`, fontSize: 18,
+              }}>
+                {n.icon || (isProgram ? "🎓" : "📁")}
+              </div>
+              <div dir={isProgram ? "ltr" : undefined} style={{ fontWeight: 800, fontSize: 14.5, color: C.text }}>{isProgram ? n.name_en : (ar ? n.name_ar : n.name_en)}</div>
             </div>
             <div style={{ fontSize: 12, color: C.muted }}>
               {isProgram

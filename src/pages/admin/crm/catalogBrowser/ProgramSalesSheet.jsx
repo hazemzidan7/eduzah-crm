@@ -15,8 +15,8 @@ import EngagementDetailModal from "../EngagementDetailModal";
 import AddStudentModal from "./AddStudentModal";
 import AddPaymentModal from "./AddPaymentModal";
 
-const th = { textAlign: "center", fontSize: 10, letterSpacing: 0.3, textTransform: "uppercase", color: "rgba(255,255,255,.88)", fontWeight: 800, padding: "11px 12px", borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap", background: "#2c1a3a", position: "sticky", top: 0, zIndex: 2, boxShadow: "0 2px 6px rgba(0,0,0,.25)" };
-const td = { padding: "8px 10px", fontSize: 12.5, textAlign: "center", borderBottom: "1px solid rgba(255,255,255,.09)", verticalAlign: "middle", whiteSpace: "nowrap" };
+const th = { textAlign: "center", fontSize: 10, letterSpacing: 0.3, textTransform: "uppercase", color: "#475569", fontWeight: 800, padding: "11px 12px", borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap", background: "#F8FAFC", position: "sticky", top: 0, zIndex: 2, boxShadow: "0 1px 0 #E2E8F0" };
+const td = { padding: "8px 10px", fontSize: 12.5, textAlign: "center", borderBottom: "1px solid #E2E8F0", verticalAlign: "middle", whiteSpace: "nowrap" };
 
 // Name + Phone are pinned while scrolling horizontally so a rep never loses
 // track of who they're looking at — they must be adjacent columns (nothing
@@ -24,14 +24,14 @@ const td = { padding: "8px 10px", fontSize: 12.5, textAlign: "center", borderBot
 const NAME_COL_W = 170;
 const PHONE_COL_W = 168;
 const stickyTh1 = { ...th, insetInlineStart: 0, zIndex: 3, width: NAME_COL_W, minWidth: NAME_COL_W };
-const stickyTd1 = { ...td, position: "sticky", insetInlineStart: 0, background: "#331f42", zIndex: 1, width: NAME_COL_W, minWidth: NAME_COL_W };
-const pinnedEdgeShadow = "4px 0 8px -2px rgba(0,0,0,.4)";
-const stickyTh2 = { ...th, insetInlineStart: NAME_COL_W, zIndex: 3, width: PHONE_COL_W, minWidth: PHONE_COL_W, boxShadow: `0 2px 6px rgba(0,0,0,.25), ${pinnedEdgeShadow}` };
-const stickyTd2 = { ...td, position: "sticky", insetInlineStart: NAME_COL_W, background: "#331f42", zIndex: 1, width: PHONE_COL_W, minWidth: PHONE_COL_W, boxShadow: pinnedEdgeShadow };
+const stickyTd1 = { ...td, position: "sticky", insetInlineStart: 0, background: "#fff", zIndex: 1, width: NAME_COL_W, minWidth: NAME_COL_W };
+const pinnedEdgeShadow = "4px 0 8px -2px rgba(15,23,42,.08)";
+const stickyTh2 = { ...th, insetInlineStart: NAME_COL_W, zIndex: 3, width: PHONE_COL_W, minWidth: PHONE_COL_W, boxShadow: `0 1px 0 #E2E8F0, ${pinnedEdgeShadow}` };
+const stickyTd2 = { ...td, position: "sticky", insetInlineStart: NAME_COL_W, background: "#fff", zIndex: 1, width: PHONE_COL_W, minWidth: PHONE_COL_W, boxShadow: pinnedEdgeShadow };
 /* Marks where the payment/financial column group begins, so Price→Confirmation
    reads as one visually grouped block instead of just more columns. */
-const thGroupStart = { ...th, borderInlineStart: "1px solid rgba(250,166,51,.35)" };
-const tdGroupStart = { ...td, borderInlineStart: "1px solid rgba(250,166,51,.18)" };
+const thGroupStart = { ...th, borderInlineStart: "1px solid rgba(245,158,11,.35)" };
+const tdGroupStart = { ...td, borderInlineStart: "1px solid rgba(245,158,11,.18)" };
 
 const ROWS_PER_PAGE_OPTIONS = [10, 25, 50, 100];
 
@@ -208,7 +208,7 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={tx("بحث بالاسم أو الهاتف أو البريد…", "Search name, phone, email…")}
-              style={{ background: "rgba(255,255,255,.06)", border: `1.5px solid ${C.border}`, borderRadius: 10, paddingBlock: 9, paddingInlineStart: 34, paddingInlineEnd: 14, color: "#fff", fontFamily: "'Cairo',sans-serif", fontSize: 12.5, outline: "none", minWidth: 240, transition: "border-color .15s" }}
+              style={{ background: "#fff", border: `1.5px solid ${C.border}`, borderRadius: 10, paddingBlock: 9, paddingInlineStart: 34, paddingInlineEnd: 14, color: C.text, fontFamily: "'Cairo',sans-serif", fontSize: 12.5, outline: "none", minWidth: 240, transition: "border-color .15s" }}
             />
           </div>
           <div style={{ position: "relative" }}>
@@ -216,7 +216,7 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
             {filtersOpen && (
               <>
                 <div onClick={() => setFiltersOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 1400 }} />
-                <div style={{ position: "absolute", top: "100%", insetInlineEnd: 0, marginTop: 6, zIndex: 1401, background: "#331f42", border: `1px solid ${C.border}`, borderRadius: radius.md, minWidth: 200, padding: 8, boxShadow: shadow.lg }}>
+                <div style={{ position: "absolute", top: "100%", insetInlineEnd: 0, marginTop: 6, zIndex: 1401, background: "#fff", border: `1px solid ${C.border}`, borderRadius: radius.md, minWidth: 200, padding: 8, boxShadow: shadow.lg }}>
                   <div style={{ fontSize: 10.5, fontWeight: 800, color: C.muted, textTransform: "uppercase", padding: "2px 8px 6px" }}>{tx("الموظف المسؤول", "Assigned Rep")}</div>
                   <button className="edu-row-menu-item" style={{ fontWeight: assigneeFilter === "" ? 800 : 600 }} onClick={() => { setAssigneeFilter(""); setFiltersOpen(false); }}>{tx("الكل", "All")}</button>
                   {admins.map((a) => (
@@ -404,8 +404,8 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.muted }}>
               {tx("صفوف لكل صفحة", "Rows per page")}
-              <select value={rowsPerPage} onChange={(e) => setRowsPerPage(Number(e.target.value))} style={{ background: "#241536", border: `1px solid ${C.border}`, borderRadius: 6, color: "#fff", padding: "4px 8px", fontFamily: "'Cairo',sans-serif", fontSize: 12, cursor: "pointer" }}>
-                {ROWS_PER_PAGE_OPTIONS.map((n) => <option key={n} value={n} style={{ background: "#321d3d" }}>{n}</option>)}
+              <select value={rowsPerPage} onChange={(e) => setRowsPerPage(Number(e.target.value))} style={{ background: "#fff", border: `1px solid ${C.border}`, borderRadius: 6, color: C.text, padding: "4px 8px", fontFamily: "'Cairo',sans-serif", fontSize: 12, cursor: "pointer" }}>
+                {ROWS_PER_PAGE_OPTIONS.map((n) => <option key={n} value={n} style={{ background: "#fff" }}>{n}</option>)}
               </select>
             </div>
           </div>
@@ -434,7 +434,7 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
             <div onClick={closeRowMenu} style={{ position: "fixed", inset: 0, zIndex: 1400 }} />
             <div style={{
               position: "fixed", top: rowMenu.top, left: rowMenu.left, zIndex: 1401,
-              background: "#331f42", border: `1px solid ${C.border}`, borderRadius: radius.md,
+              background: "#fff", border: `1px solid ${C.border}`, borderRadius: radius.md,
               boxShadow: shadow.lg, minWidth: 190, padding: 6, display: "flex", flexDirection: "column", gap: 2,
             }}>
               <button className="edu-row-menu-item" onClick={() => { scheduleFollowUp(eng); closeRowMenu(); }}>
@@ -448,7 +448,7 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
   );
 }
 
-const iconLinkSx = { display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none", padding: "4px", borderRadius: 6, background: "rgba(255,255,255,.06)", transition: "background .15s", color: "#fff" };
+const iconLinkSx = { display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none", padding: "4px", borderRadius: 6, background: "#fff", transition: "background .15s", color: C.text };
 
 // Active filter = Red (the brand's "selected state" color); inactive stays a
 // quiet Purple-tinted surface so the pill bar itself still reads as Eduzah.
@@ -467,8 +467,8 @@ function pageBtnSx(active, disabled) {
     minWidth: 28, height: 28, padding: "0 6px", borderRadius: 7, border: "none",
     cursor: disabled ? "default" : "pointer", fontWeight: 700, fontSize: 12,
     fontFamily: "'Cairo',sans-serif",
-    background: active ? C.red : "rgba(255,255,255,.06)",
-    color: active ? "#fff" : disabled ? "rgba(255,255,255,.3)" : C.muted,
+    background: active ? C.red : "#fff",
+    color: active ? "#fff" : disabled ? "#CBD5E1" : C.muted,
     transition: "all .15s",
   };
 }

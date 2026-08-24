@@ -36,7 +36,7 @@ export default function SheetSelectStep({ wiz, patch, onNext, onBack }) {
         {wiz.parsed.sheets.map((s) => (
           <label key={s.name} style={{
             display: "flex", alignItems: "center", gap: 10, padding: "10px 14px",
-            background: "rgba(255,255,255,.04)", borderRadius: 10, cursor: "pointer", fontSize: 13,
+            background: "#F8FAFC", borderRadius: 10, cursor: "pointer", fontSize: 13,
           }}>
             <input type="checkbox" checked={selected.has(s.name)} onChange={() => toggle(s.name)} />
             <span style={{ fontWeight: 700 }}>{s.name}</span>

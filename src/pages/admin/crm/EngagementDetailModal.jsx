@@ -274,7 +274,7 @@ export default function EngagementDetailModal({ engagement, onClose }) {
     await updateEngagement(engagement.id, { salesNotes: salesNotesDraft });
   };
 
-  const sectionTitleSx = { fontSize: 12.5, fontWeight: 800, color: "#fff", margin: "20px 0 10px", paddingBottom: 6, borderBottom: `1px solid ${C.border}` };
+  const sectionTitleSx = { fontSize: 12.5, fontWeight: 800, color: C.text, margin: "20px 0 10px", paddingBottom: 6, borderBottom: `1px solid ${C.border}` };
 
   return (
     <>
@@ -518,14 +518,14 @@ export default function EngagementDetailModal({ engagement, onClose }) {
 
       <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, margin: "16px 0 8px", textTransform: "uppercase" }}>{tx("إضافة نشاط", "Log activity")}</div>
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        <select value={activityType} onChange={(e) => setActivityType(e.target.value)} style={{ background: "#2a1540", border: `1px solid ${C.border}`, borderRadius: 8, color: "#fff", fontSize: 12.5, padding: "8px 10px" }}>
+        <select value={activityType} onChange={(e) => setActivityType(e.target.value)} style={{ background: "#fff", border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 12.5, padding: "8px 10px" }}>
           {ACTIVITY_TYPES.map((t) => <option key={t.v} value={t.v}>{ar ? t.ar : t.en}</option>)}
         </select>
         <input
           value={activityText}
           onChange={(e) => setActivityText(e.target.value)}
           placeholder={tx("تفاصيل (اختياري)...", "Details (optional)...")}
-          style={{ flex: 1, background: "rgba(255,255,255,.06)", border: `1.5px solid ${C.border}`, borderRadius: 8, color: "#fff", fontFamily: "'Cairo',sans-serif", fontSize: 12.5, padding: "8px 10px" }}
+          style={{ flex: 1, background: "#fff", border: `1.5px solid ${C.border}`, borderRadius: 8, color: C.text, fontFamily: "'Cairo',sans-serif", fontSize: 12.5, padding: "8px 10px" }}
         />
         <Btn sm v="primary" disabled={saving} onClick={logActivity}>{tx("إضافة", "Add")}</Btn>
       </div>

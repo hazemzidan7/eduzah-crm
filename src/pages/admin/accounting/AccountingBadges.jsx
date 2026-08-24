@@ -18,7 +18,7 @@ export function TransactionTypeBadge({ type, ar }) {
   return (
     <span style={{
       display: "inline-flex", alignItems: "center", gap: 5,
-      background: `${color}26`, color: "#fff", border: `1px solid ${color}88`,
+      background: `${color}26`, color: C.text, border: `1px solid ${color}88`,
       borderRadius: 999, padding: "4.5px 11px 4.5px 9px", fontSize: 11, fontWeight: 800,
       whiteSpace: "nowrap", letterSpacing: 0.2,
     }}>
@@ -44,7 +44,7 @@ export function AccountCell({ tx, ar }) {
   return <span style={{ fontSize: 12 }}>{optionLabel(ACCOUNT_OPTIONS, tx.account, ar)}</span>;
 }
 
-export const typeAmountColor = (type) => (TYPE_STYLE[type] || {}).color || "#fff";
+export const typeAmountColor = (type) => (TYPE_STYLE[type] || {}).color || C.text;
 
 // ACCOUNTING-04: moved here (unchanged) from AccountingDashboard.jsx so
 // AccountingReports.jsx can reuse the exact same card look — pure move, no
@@ -53,12 +53,12 @@ export function BalanceCard({ label, value, highlight, ar }) {
   return (
     <Card style={{ padding: "16px 18px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-        <div style={{ width: 30, height: 30, borderRadius: 8, background: highlight ? `${C.red}33` : "rgba(255,255,255,.08)", display: "flex", alignItems: "center", justifyContent: "center", color: highlight ? C.red : C.muted }}>
+        <div style={{ width: 30, height: 30, borderRadius: 8, background: highlight ? `${C.red}1a` : C.faint, display: "flex", alignItems: "center", justifyContent: "center", color: highlight ? C.red : C.muted }}>
           <IconWallet size={15} />
         </div>
         <div style={{ fontSize: 12, fontWeight: 700, color: C.muted }}>{label}</div>
       </div>
-      <div style={{ fontSize: 20, fontWeight: 900, color: value < 0 ? C.danger : "#fff" }} dir="ltr">
+      <div style={{ fontSize: 20, fontWeight: 900, color: value < 0 ? C.danger : C.text }} dir="ltr">
         {value.toLocaleString()} <span style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>{ar ? "ج.م" : "EGP"}</span>
       </div>
     </Card>

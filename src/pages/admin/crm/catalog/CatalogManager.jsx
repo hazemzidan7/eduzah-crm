@@ -115,12 +115,12 @@ export default function CatalogManager() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={tx("بحث بالاسم أو الكود…", "Search name or code…")}
-          style={{ background: "rgba(255,255,255,.06)", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "8px 12px", color: "#fff", fontFamily: "'Cairo',sans-serif", fontSize: 12.5, outline: "none", minWidth: 200 }}
+          style={{ background: "#fff", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "8px 12px", color: C.text, fontFamily: "'Cairo',sans-serif", fontSize: 12.5, outline: "none", minWidth: 200 }}
         />
         <select
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value)}
-          style={{ background: "#2a1540", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "8px 12px", color: "#fff", fontFamily: "'Cairo',sans-serif", fontSize: 12.5 }}
+          style={{ background: "#fff", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "8px 12px", color: C.text, fontFamily: "'Cairo',sans-serif", fontSize: 12.5 }}
         >
           <option value="all">{tx("كل الأنواع", "All types")}</option>
           {nodeTypes.map((t) => (

@@ -45,7 +45,7 @@ export default function StatusRow({ node, depth, expandedIds, onToggleExpand, sh
         display: "flex", alignItems: "center", gap: 8,
         padding: "8px 10px", borderRadius: 8,
         marginInlineStart: depth * 22,
-        background: depth === 0 ? "rgba(255,255,255,.04)" : "transparent",
+        background: depth === 0 ? "#F8FAFC" : "transparent",
         borderBottom: `1px solid ${C.border}`,
         opacity: node.isActive ? 1 : 0.5,
       }}>
@@ -117,7 +117,7 @@ export default function StatusRow({ node, depth, expandedIds, onToggleExpand, sh
       )}
       {archiveState?.error && (
         <Modal title={tx("خطأ", "Error")} onClose={() => setArchiveState(null)}>
-          <p style={{ fontSize: 13, color: "#f87171" }}>{archiveState.error}</p>
+          <p style={{ fontSize: 13, color: C.danger }}>{archiveState.error}</p>
         </Modal>
       )}
     </div>

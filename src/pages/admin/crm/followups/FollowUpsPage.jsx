@@ -139,7 +139,7 @@ export default function FollowUpsPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={tx("بحث بالاسم أو الهاتف أو البرنامج…", "Search name, phone, or program…")}
-            style={{ background: "rgba(255,255,255,.06)", border: `1.5px solid ${C.border}`, borderRadius: 10, paddingBlock: 9, paddingInlineStart: 34, paddingInlineEnd: 14, color: "#fff", fontFamily: "'Cairo',sans-serif", fontSize: 12.5, outline: "none", minWidth: 240 }}
+            style={{ background: "#fff", border: `1.5px solid ${C.border}`, borderRadius: 10, paddingBlock: 9, paddingInlineStart: 34, paddingInlineEnd: 14, color: C.text, fontFamily: "'Cairo',sans-serif", fontSize: 12.5, outline: "none", minWidth: 240 }}
           />
         </div>
       </div>
@@ -160,7 +160,7 @@ export default function FollowUpsPage() {
                   <div style={{ minWidth: 180 }}>
                     <button
                       onClick={() => f.engagement && setOpenEngagementId(f.engagement.id)}
-                      style={{ background: "none", border: "none", padding: 0, cursor: f.engagement ? "pointer" : "default", color: "#fff", fontSize: 13.5, fontWeight: 800, fontFamily: "'Cairo',sans-serif", textDecoration: f.engagement ? "underline dotted" : "none" }}
+                      style={{ background: "none", border: "none", padding: 0, cursor: f.engagement ? "pointer" : "default", color: C.text, fontSize: 13.5, fontWeight: 800, fontFamily: "'Cairo',sans-serif", textDecoration: f.engagement ? "underline dotted" : "none" }}
                     >
                       {f.displayName || tx("عميل غير معروف", "Unknown customer")}
                     </button>
@@ -173,12 +173,12 @@ export default function FollowUpsPage() {
                 </div>
 
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 16px", marginTop: 8, fontSize: 11.5 }}>
-                  <span style={{ color: C.muted }}>{tx("الموعد", "Due")}: <b style={{ color: bucket === "overdue" ? C.danger : "#fff" }} dir="ltr">{fmt(f.dueAt)}</b></span>
-                  <span style={{ color: C.muted }}>{tx("المسؤول", "Assigned")}: <b style={{ color: "#fff" }}>{f.assigneeLabel || tx("غير معيّن", "Unassigned")}</b></span>
-                  <span style={{ color: C.muted }}>{tx("آخر نشاط", "Last activity")}: <b style={{ color: "#fff" }}>{f.lastActivity?.at ? fmt(f.lastActivity.at) : "—"}</b></span>
+                  <span style={{ color: C.muted }}>{tx("الموعد", "Due")}: <b style={{ color: bucket === "overdue" ? C.danger : C.text }} dir="ltr">{fmt(f.dueAt)}</b></span>
+                  <span style={{ color: C.muted }}>{tx("المسؤول", "Assigned")}: <b style={{ color: C.text }}>{f.assigneeLabel || tx("غير معيّن", "Unassigned")}</b></span>
+                  <span style={{ color: C.muted }}>{tx("آخر نشاط", "Last activity")}: <b style={{ color: C.text }}>{f.lastActivity?.at ? fmt(f.lastActivity.at) : "—"}</b></span>
                 </div>
 
-                {f.note && <div style={{ fontSize: 12, color: "rgba(255,255,255,.9)", marginTop: 8 }}>{f.note}</div>}
+                {f.note && <div style={{ fontSize: 12, color: "#334155", marginTop: 8 }}>{f.note}</div>}
                 {f.status === "completed" && f.result && (
                   <div style={{ fontSize: 12, color: C.success, marginTop: 8 }}>✓ {f.result}</div>
                 )}

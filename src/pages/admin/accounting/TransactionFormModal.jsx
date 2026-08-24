@@ -177,7 +177,7 @@ export default function TransactionFormModal({ transaction, ar, tx, onClose }) {
                 display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 10,
                 border: `1.5px solid ${active ? t.color : C.border}`,
                 background: active ? `${t.color}26` : "transparent",
-                color: "#fff", fontFamily: "'Cairo',sans-serif", fontSize: 12.5, fontWeight: 800,
+                color: C.text, fontFamily: "'Cairo',sans-serif", fontSize: 12.5, fontWeight: 800,
                 cursor: isEdit ? "not-allowed" : "pointer", opacity: isEdit && !active ? 0.4 : 1,
               }}
             >

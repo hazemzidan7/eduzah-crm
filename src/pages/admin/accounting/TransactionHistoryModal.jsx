@@ -63,7 +63,7 @@ export default function TransactionHistoryModal({ transaction, ar, tx, onClose }
           {history.map((entry, i) => {
             const changedKeys = Object.keys(entry.newValue || {});
             return (
-              <div key={i} style={{ padding: "10px 12px", borderRadius: 10, border: `1px solid ${C.border}`, background: "rgba(255,255,255,.03)" }}>
+              <div key={i} style={{ padding: "10px 12px", borderRadius: 10, border: `1px solid ${C.border}`, background: "#F8FAFC" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, flexWrap: "wrap", gap: 4 }}>
                   <div style={{ fontSize: 12.5, fontWeight: 800 }}>
                     {entry.editedByName || tx("مستخدم غير معروف", "Unknown user")}

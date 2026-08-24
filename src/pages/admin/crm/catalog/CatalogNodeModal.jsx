@@ -145,7 +145,7 @@ export default function CatalogNodeModal({ parentNode, editNode, onClose }) {
         />
       )}
       {!isRoot && showNewType && (
-        <div style={{ background: "rgba(255,255,255,.04)", borderRadius: 10, padding: 12, marginBottom: 12 }}>
+        <div style={{ background: "#F8FAFC", borderRadius: 10, padding: 12, marginBottom: 12 }}>
           <Input label={tx("اسم النوع بالعربي", "Type name (Arabic)")} value={newTypeAr} onChange={setNewTypeAr} />
           <Input label={tx("اسم النوع بالإنجليزي", "Type name (English)")} value={newTypeEn} onChange={setNewTypeEn} />
           <div style={{ display: "flex", gap: 8 }}>
@@ -163,12 +163,12 @@ export default function CatalogNodeModal({ parentNode, editNode, onClose }) {
       <Input label={tx("وصف (اختياري)", "Description (optional)")} value={description} onChange={setDescription} rows={2} />
 
       {type === "program" && (
-        <div style={{ background: "rgba(255,255,255,.04)", borderRadius: 10, padding: 12, marginBottom: 12 }}>
+        <div style={{ background: "#F8FAFC", borderRadius: 10, padding: 12, marginBottom: 12 }}>
           <div style={{ fontSize: 11, fontWeight: 800, color: C.muted, textTransform: "uppercase", marginBottom: 8 }}>{tx("التسعير (CRM-CATALOG-01)", "Pricing (CRM-CATALOG-01)")}</div>
           {editNode?.slug ? (
             <div style={{ marginBottom: 16 }}>
               <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 4 }}>{tx("المعرف (slug) — لا يتغيّر بعد الحفظ", "Slug — immutable once saved")}</label>
-              <div dir="ltr" style={{ background: "rgba(255,255,255,.04)", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "9px 13px", fontSize: 13, color: C.muted }}>
+              <div dir="ltr" style={{ background: "#F8FAFC", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "9px 13px", fontSize: 13, color: C.muted }}>
                 {editNode.slug}
               </div>
             </div>
@@ -209,7 +209,7 @@ export default function CatalogNodeModal({ parentNode, editNode, onClose }) {
         <Select label={tx("الأب", "Parent")} value={parentId} onChange={setParentId} options={parentOptions} />
       )}
 
-      {error && <div style={{ color: "#f87171", fontSize: 12, marginBottom: 10 }}>{error}</div>}
+      {error && <div style={{ color: C.danger, fontSize: 12, marginBottom: 10 }}>{error}</div>}
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
         <Btn v="purple" onClick={onClose}>{tx("إلغاء", "Cancel")}</Btn>
         <Btn v="primary" disabled={saving} onClick={submit}>{tx("حفظ", "Save")}</Btn>

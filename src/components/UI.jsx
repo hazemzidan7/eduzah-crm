@@ -21,10 +21,10 @@ export function Card({ children, style={}, onClick }) {
   return (
     <div onClick={onClick} onMouseEnter={()=>setH(true)} onMouseLeave={()=>setH(false)}
       style={{
-        color:"rgba(248,250,252,.96)",
-        background:h?"rgba(116,62,148,.72)":"rgba(94,50,120,.62)",
-        border:`1px solid ${h?C.purple+"66":"rgba(255,255,255,.18)"}`,
-        borderRadius:radius.lg, padding:22, backdropFilter:"blur(12px)",
+        color:C.text,
+        background:C.cardBg,
+        border:`1px solid ${h?"#CBD5E1":C.border}`,
+        borderRadius:radius.lg, padding:22,
         boxShadow: h ? shadow.md : shadow.sm,
         transition:"background .2s, border-color .2s, box-shadow .25s",
         cursor:onClick?"pointer":"default",
@@ -43,8 +43,11 @@ export function PBar({ value, color=C.red, h=6 }) {
   );
 }
 
+// Soft semantic badge — light tint background + matching solid text, per
+// the "do not rely on color alone" rule (this always pairs with a text
+// label, never an icon-only/color-only indicator).
 export function Badge({ children, color=C.red }) {
-  return <span style={{background:color+"40",color:"#fff",border:`1px solid ${color}b0`,borderRadius:radius.pill,padding:"4.5px 12px",fontSize:11.5,fontWeight:800,whiteSpace:"nowrap",letterSpacing:0.3,display:"inline-block",textShadow:"0 1px 2px rgba(0,0,0,.35)"}}>{children}</span>;
+  return <span style={{background:color+"1a",color,border:`1px solid ${color}40`,borderRadius:radius.pill,padding:"4.5px 12px",fontSize:11.5,fontWeight:800,whiteSpace:"nowrap",letterSpacing:0.3,display:"inline-block"}}>{children}</span>;
 }
 
 export function Stars({ n=5 }) {
@@ -75,7 +78,7 @@ function DarkPickerWrap({ type, value, onChange, style = {}, placeholder, onFocu
   const [hover, setHover] = useState(false);
   const [focus, setFocus] = useState(false);
   const cls = type === "date" ? "edu-date-input" : "edu-time-input";
-  const iconColor = focus ? C.red : hover ? "#f8fafc" : "rgba(226, 232, 240, 0.92)";
+  const iconColor = focus ? C.red : hover ? C.text : C.textMuted;
 
   const openPicker = (e) => {
     e.preventDefault();
@@ -163,10 +166,10 @@ export function DarkTimeInput({ value, onChange, style = {}, ...rest }) {
 }
 
 const fieldBaseSx = (error, focused) => ({
-  background:"rgba(255,255,255,.055)",
+  background:"#fff",
   border:`1.5px solid ${error?C.danger:focused?C.red:C.border}`,
   borderRadius:radius.md, padding:"11px 14px",
-  color:"#fff", fontFamily:font, fontSize:13, outline:"none",
+  color:C.text, fontFamily:font, fontSize:13, outline:"none",
   width:"100%", boxSizing:"border-box",
   boxShadow: focused ? shadow.glowRed : "none",
   transition:"border-color .18s, box-shadow .18s, background .18s",
@@ -203,8 +206,8 @@ export function Select({ label, value, onChange, options=[] }) {
     <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:16}}>
       {label && <label style={{fontSize:12,fontWeight:700,color:C.muted}}>{label}</label>}
       <select value={value} onChange={e=>onChange(e.target.value)} onFocus={()=>setF(true)} onBlur={()=>setF(false)}
-        style={{background:"#2a1540",border:`1.5px solid ${f?C.red:C.border}`,borderRadius:radius.md,padding:"11px 14px",color:"#fff",fontFamily:font,fontSize:13,outline:"none",cursor:"pointer",boxShadow:f?shadow.glowRed:"none",transition:"border-color .18s, box-shadow .18s"}}>
-        {options.map(o => <option key={o.v} value={o.v} style={{background:"#321d3d"}}>{o.l}</option>)}
+        style={{background:"#fff",border:`1.5px solid ${f?C.red:C.border}`,borderRadius:radius.md,padding:"11px 14px",color:C.text,fontFamily:font,fontSize:13,outline:"none",cursor:"pointer",boxShadow:f?shadow.glowRed:"none",transition:"border-color .18s, box-shadow .18s"}}>
+        {options.map(o => <option key={o.v} value={o.v} style={{background:"#fff",color:C.text}}>{o.l}</option>)}
       </select>
     </div>
   );
@@ -212,13 +215,13 @@ export function Select({ label, value, onChange, options=[] }) {
 
 export function Modal({ children, onClose, title }) {
   return (
-    <div style={{position:"fixed",inset:0,background:"rgba(10,4,18,.78)",backdropFilter:"blur(3px)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={onClose}>
-      <div style={{background:"#2a1540",border:`1px solid ${C.border}`,borderRadius:radius.lg,padding:26,maxWidth:520,width:"100%",maxHeight:"88vh",overflow:"auto",boxShadow:shadow.lg,animation:"fadeUp .22s ease"}} onClick={e=>e.stopPropagation()}>
-        {title && <div style={{fontWeight:800,fontSize:16,marginBottom:20,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+    <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,.45)",backdropFilter:"blur(2px)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={onClose}>
+      <div style={{background:"#fff",color:C.text,border:`1px solid ${C.border}`,borderRadius:radius.lg,padding:26,maxWidth:520,width:"100%",maxHeight:"88vh",overflow:"auto",boxShadow:shadow.lg,animation:"fadeUp .22s ease"}} onClick={e=>e.stopPropagation()}>
+        {title && <div style={{fontWeight:800,fontSize:16,marginBottom:20,display:"flex",justifyContent:"space-between",alignItems:"center",color:C.text}}>
           {title}
-          <button style={{background:"rgba(255,255,255,.06)",border:"none",borderRadius:radius.pill,width:28,height:28,color:C.muted,fontSize:15,cursor:"pointer",fontFamily:font,transition:"background .15s, color .15s"}}
-            onMouseEnter={(e)=>{e.currentTarget.style.background="rgba(255,255,255,.14)";e.currentTarget.style.color="#fff";}}
-            onMouseLeave={(e)=>{e.currentTarget.style.background="rgba(255,255,255,.06)";e.currentTarget.style.color=C.muted;}}
+          <button style={{background:"#F1F5F9",border:"none",borderRadius:radius.pill,width:28,height:28,color:C.muted,fontSize:15,cursor:"pointer",fontFamily:font,transition:"background .15s, color .15s"}}
+            onMouseEnter={(e)=>{e.currentTarget.style.background="#E2E8F0";e.currentTarget.style.color=C.text;}}
+            onMouseLeave={(e)=>{e.currentTarget.style.background="#F1F5F9";e.currentTarget.style.color=C.muted;}}
             onClick={onClose}>✕</button>
         </div>}
         {children}

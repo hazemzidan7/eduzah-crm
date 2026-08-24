@@ -111,7 +111,7 @@ export default function PaymentRecordCard({ record, engagement, conflicts, ar, t
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder={tx("سبب الرفض...", "Rejection reason...")}
-                style={{ flex: 1, background: "rgba(255,255,255,.06)", border: `1.5px solid ${C.border}`, borderRadius: 8, color: "#fff", fontFamily: "'Cairo',sans-serif", fontSize: 12, padding: "6px 10px" }}
+                style={{ flex: 1, background: "#fff", border: `1.5px solid ${C.border}`, borderRadius: 8, color: C.text, fontFamily: "'Cairo',sans-serif", fontSize: 12, padding: "6px 10px" }}
               />
               <Btn sm v="primary" disabled={!reason.trim()} onClick={() => { onReject(reason.trim()); setRejecting(false); setReason(""); }}>{tx("تأكيد الرفض", "Confirm Reject")}</Btn>
             </div>

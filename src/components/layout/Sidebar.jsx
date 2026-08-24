@@ -43,7 +43,11 @@ function DisclosureChevron({ ar, size }) {
 // a quieter Purple tint instead of competing with the primary items.
 function NavRow({ active, disabled, indent = 0, onClick, icon, label, labelDir, title, trailing, tone = "primary" }) {
   const [hover, setHover] = useState(false);
-  const activeBg = tone === "primary" ? C.red : `${C.purple}4d`;
+  // Active = a soft tint background + matching-color text/icon (never a
+  // solid fill with white text) — per the bright design system's "Active
+  // Sidebar Background #EFF6FF / Active Sidebar Text #2563EB" rule.
+  const activeBg = tone === "primary" ? C.sidebarActiveBg : `${C.purple}1a`;
+  const activeColor = tone === "primary" ? C.sidebarActiveText : C.purple;
   return (
     <button
       onClick={disabled ? undefined : onClick}
@@ -55,8 +59,8 @@ function NavRow({ active, disabled, indent = 0, onClick, icon, label, labelDir, 
         display: "flex", alignItems: "center", gap: 10, width: "100%",
         padding: `9px 12px 9px ${12 + indent}px`, marginBottom: 2,
         border: "none", borderRadius: 10, cursor: disabled ? "not-allowed" : "pointer",
-        background: active ? activeBg : (hover && !disabled ? "rgba(255,255,255,.07)" : "transparent"),
-        color: active ? "#fff" : disabled ? "rgba(255,255,255,.32)" : "rgba(255,255,255,.82)",
+        background: active ? activeBg : (hover && !disabled ? "#F1F5F9" : "transparent"),
+        color: active ? activeColor : disabled ? "#CBD5E1" : "#334155",
         fontFamily: "'Cairo',sans-serif", fontSize: 13, fontWeight: active ? 800 : 600,
         transition: "background .15s, color .15s", textAlign: "start",
       }}
@@ -95,7 +99,7 @@ export default function Sidebar() {
   return (
     <aside style={{
       width: collapsed ? 68 : 240, flexShrink: 0, minHeight: "100vh",
-      background: "#2c1a3a", borderInlineEnd: "1px solid rgba(255,255,255,.08)",
+      background: C.sidebarBg, borderInlineEnd: `1px solid ${C.border}`,
       display: "flex", flexDirection: "column", padding: "16px 10px",
       transition: "width .18s ease", overflow: "hidden",
     }}>
@@ -175,7 +179,7 @@ export default function Sidebar() {
 
         {isAdmin && (
           <>
-            {!collapsed && <div style={{ height: 1, background: "rgba(255,255,255,.08)", margin: "10px 4px" }} />}
+            {!collapsed && <div style={{ height: 1, background: "#E2E8F0", margin: "10px 4px" }} />}
 
             <NavRow
               active={section === "catalog"}
@@ -223,7 +227,7 @@ export default function Sidebar() {
               </div>
             )}
 
-            {!collapsed && <div style={{ height: 1, background: "rgba(255,255,255,.08)", margin: "10px 4px" }} />}
+            {!collapsed && <div style={{ height: 1, background: "#E2E8F0", margin: "10px 4px" }} />}
 
             {bottomItems.map((it) => (
               <NavRow
@@ -239,7 +243,7 @@ export default function Sidebar() {
         )}
       </nav>
 
-      <div style={{ borderTop: "1px solid rgba(255,255,255,.08)", paddingTop: 10, marginTop: 8 }}>
+      <div style={{ borderTop: "1px solid #E2E8F0", paddingTop: 10, marginTop: 8 }}>
         {!collapsed && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 6px 10px" }}>
             <div style={{ width: 30, height: 30, borderRadius: "50%", background: C.red, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, color: "#fff", flexShrink: 0, fontSize: 12.5 }}>
@@ -256,7 +260,7 @@ export default function Sidebar() {
           onClick={() => setCollapsed((c) => !c)}
           style={{
             display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%",
-            padding: "7px 0", border: "1px solid rgba(255,255,255,.1)", borderRadius: 8,
+            padding: "7px 0", border: "1px solid #E2E8F0", borderRadius: 8,
             background: "transparent", color: C.muted, cursor: "pointer",
           }}
         >

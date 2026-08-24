@@ -77,7 +77,7 @@ export default function ValueMappingStep({ wiz, patch, onNext, onBack }) {
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {items.map((item) => (
-            <div key={item.raw} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 10, alignItems: "center", padding: "8px 12px", background: "rgba(255,255,255,.04)", borderRadius: 10 }}>
+            <div key={item.raw} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 10, alignItems: "center", padding: "8px 12px", background: "#F8FAFC", borderRadius: 10 }}>
               <div style={{ fontSize: 12.5, fontWeight: 700 }}>{item.raw}</div>
               <Select value={resolutions[item.raw] || ""} onChange={(v) => setResolutions((p) => ({ ...p, [item.raw]: v }))} options={statusOptions} />
               {item.source !== "dictionary" && resolutions[item.raw] && (

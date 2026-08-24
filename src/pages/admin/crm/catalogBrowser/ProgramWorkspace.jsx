@@ -99,7 +99,7 @@ function StatCard({ label, value, color, Icon }) {
         {Icon ? <Icon size={19} /> : <div style={{ width: 8, height: 8, borderRadius: 4, background: color }} />}
       </div>
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 21, fontWeight: 900, color: "#fff", lineHeight: 1.1 }}>{value}</div>
+        <div style={{ fontSize: 21, fontWeight: 900, color: C.text, lineHeight: 1.1 }}>{value}</div>
         <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.3, whiteSpace: "nowrap" }}>{label}</div>
       </div>
     </Card>

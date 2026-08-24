@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Modal, Input, Select, Btn } from "../../../../components/UI";
+import { C } from "../../../../theme";
 import { useLeadStatus } from "../../../../context/LeadStatusContext";
 import { useCatalog } from "../../../../context/CatalogContext";
 import { useLang } from "../../../../context/LangContext";
@@ -116,7 +117,7 @@ export default function StatusModal({ parentStatus, editStatus, onClose }) {
         </label>
       </div>
 
-      {error && <div style={{ color: "#f87171", fontSize: 12, marginBottom: 10 }}>{error}</div>}
+      {error && <div style={{ color: C.danger, fontSize: 12, marginBottom: 10 }}>{error}</div>}
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
         <Btn v="purple" onClick={onClose}>{tx("إلغاء", "Cancel")}</Btn>
         <Btn v="primary" disabled={saving} onClick={submit}>{tx("حفظ", "Save")}</Btn>

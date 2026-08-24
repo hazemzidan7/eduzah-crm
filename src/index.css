@@ -5,42 +5,46 @@
 .app-shell { min-height: 100vh; }
 
 /* ─── Design tokens ──────────────────────────────────────────── */
+/* Bright / cheerful / modern SaaS palette — replaces the old dark purple
+   identity. Variable NAMES kept where reused across many components (nav,
+   inputs, chips), only values changed, so downstream CSS didn't need a
+   rename. */
 :root {
   /* Page */
-  --page-bg:      #241531;
-  --page-text:    #f8fafc;
-  --page-muted:   rgba(248, 250, 252, 0.82);
-  --page-border:  rgba(255, 255, 255, 0.14);
-  --surface:      rgba(50, 29, 61, 0.92);
-  --surface-hover:rgba(62, 36, 78, 0.95);
+  --page-bg:      #F8FAFC;
+  --page-text:    #0F172A;
+  --page-muted:   #64748B;
+  --page-border:  #E2E8F0;
+  --surface:      #FFFFFF;
+  --surface-hover:#F8FAFC;
 
   /* Inputs */
-  --input-bg:          rgba(50, 29, 61, 0.55);
-  --input-border:      rgba(255, 255, 255, 0.18);
-  --input-placeholder: rgba(255, 255, 255, 0.55);
-  --select-option-bg:  #321d3d;
+  --input-bg:          #FFFFFF;
+  --input-border:      #E2E8F0;
+  --input-placeholder: #94A3B8;
+  --select-option-bg:  #FFFFFF;
 
   /* Chip / filter pills */
-  --chip-inactive-bg:     rgba(255, 255, 255, 0.1);
-  --chip-inactive-text:   #f1f5f9;
-  --chip-inactive-border: rgba(255, 255, 255, 0.22);
+  --chip-inactive-bg:     #EFF6FF;
+  --chip-inactive-text:   #334155;
+  --chip-inactive-border: #E2E8F0;
 
-  /* Navigation — dark, coherent with page */
-  --nav-bg:         rgba(26, 10, 46, 0.97);
-  --nav-bg-scrolled:rgba(20,  6, 36, 0.99);
-  --nav-text:       #f8fafc;
-  --nav-link-idle:  rgba(248, 250, 252, 0.65);
-  --nav-border:     rgba(255, 255, 255, 0.10);
+  /* Navigation / top bar — bright, white */
+  --nav-bg:         #FFFFFF;
+  --nav-bg-scrolled:#FFFFFF;
+  --nav-text:       #0F172A;
+  --nav-link-idle:  #64748B;
+  --nav-border:     #E2E8F0;
 
   /* Brand colours (mirrors theme.js) */
-  --c-red:     #d91b5b;
-  --c-red-dark:#b81650;
-  --c-orange:  #faa633;
-  --c-purple:  #672d86;
-  --c-purple-mid: #844bab;
-  --c-success: #34d399;
-  --c-danger:  #f87171;
-  --c-warning: #fbbf24;
+  --c-red:     #2563EB;
+  --c-red-dark:#1D4ED8;
+  --c-orange:  #F59E0B;
+  --c-purple:  #8B5CF6;
+  --c-purple-mid: #7C3AED;
+  --c-success: #22C55E;
+  --c-danger:  #EF4444;
+  --c-warning: #F59E0B;
 
   /* Typography scale */
   --text-display: clamp(2.2rem, 5vw,  3.6rem);
@@ -85,7 +89,7 @@ header { background: var(--nav-bg); }
 
 /* ─── Scrollbar ──────────────────────────────────────────────── */
 ::-webkit-scrollbar       { width: 5px; }
-::-webkit-scrollbar-thumb { background: #672d86; border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
 
 /* ─── Form resets ────────────────────────────────────────────── */
 input::placeholder,
@@ -145,25 +149,25 @@ input.edu-datetime-input { position: relative; }
 .btn-full { width: 100%; }
 
 .btn-primary { background: var(--c-red);    color: #fff; }
-.btn-primary:not(:disabled):hover { background: var(--c-red-dark); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(217,27,91,.35); }
+.btn-primary:not(:disabled):hover { background: var(--c-red-dark); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(37,99,235,.28); }
 
-.btn-outline { background: transparent; color: #fff; border: 1.5px solid rgba(255,255,255,.2); }
-.btn-outline:not(:disabled):hover { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.4); transform: translateY(-1px); }
+.btn-outline { background: #fff; color: #334155; border: 1.5px solid #E2E8F0; }
+.btn-outline:not(:disabled):hover { background: #F8FAFC; border-color: #CBD5E1; transform: translateY(-1px); }
 
-.btn-orange { background: var(--c-orange); color: #321d3d; }
-.btn-orange:not(:disabled):hover { background: #e0901f; transform: translateY(-1px); }
+.btn-orange { background: var(--c-orange); color: #fff; }
+.btn-orange:not(:disabled):hover { background: #D97706; transform: translateY(-1px); }
 
-.btn-ghost  { background: transparent; color: rgba(255,255,255,.72); border: none; }
-.btn-ghost:not(:disabled):hover  { color: #fff; }
+.btn-ghost  { background: transparent; color: #64748B; border: none; }
+.btn-ghost:not(:disabled):hover  { color: #0F172A; background: #F1F5F9; }
 
 .btn-danger  { background: var(--c-danger); color: #fff; }
-.btn-danger:not(:disabled):hover { background: #dc2626; transform: translateY(-1px); }
+.btn-danger:not(:disabled):hover { background: #DC2626; transform: translateY(-1px); }
 
 .btn-success { background: var(--c-success); color: #fff; }
-.btn-success:not(:disabled):hover { background: #059669; transform: translateY(-1px); }
+.btn-success:not(:disabled):hover { background: #16A34A; transform: translateY(-1px); }
 
-.btn-purple  { background: var(--c-purple); color: #fff; }
-.btn-purple:not(:disabled):hover { background: #522a6b; transform: translateY(-1px); }
+.btn-purple  { background: #EFF6FF; color: #2563EB; }
+.btn-purple:not(:disabled):hover { background: #DBEAFE; transform: translateY(-1px); }
 
 /* Google OAuth button */
 .btn-google {
@@ -192,7 +196,7 @@ input.edu-datetime-input { position: relative; }
 }
 .card-hover:hover {
   transform:  translateY(-5px);
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.12);
 }
 
 /* ─── Nav link utilities ─────────────────────────────────────── */
@@ -211,12 +215,12 @@ input.edu-datetime-input { position: relative; }
 }
 .nav-link:hover {
   color:      var(--nav-text);
-  background: rgba(255, 255, 255, 0.07);
+  background: #F1F5F9;
 }
 .nav-link.active {
   color:      var(--c-red);
-  background: rgba(217, 27, 91, 0.12);
-  border-color: rgba(217, 27, 91, 0.25);
+  background: #EFF6FF;
+  border-color: #DBEAFE;
 }
 
 /* ─── Streak badge ───────────────────────────────────────────── */
@@ -323,38 +327,38 @@ input.edu-datetime-input { position: relative; }
   width: 16px;
 }
 .edu-sheet-scroll::-webkit-scrollbar-track {
-  background: rgba(255,255,255,.06);
+  background: #F1F5F9;
 }
 .edu-sheet-scroll::-webkit-scrollbar-thumb {
-  background-color: var(--c-purple-mid);
+  background-color: #CBD5E1;
   border-radius: 999px;
-  border: 3px solid #2c1a3a;
+  border: 3px solid #F8FAFC;
 }
 .edu-sheet-scroll::-webkit-scrollbar-thumb:hover {
   background-color: var(--c-red);
 }
 .edu-sheet-scroll::-webkit-scrollbar-corner {
-  background: #2c1a3a;
+  background: #F8FAFC;
 }
 
 .edu-sheet-row td { transition: background 0.12s; }
-.edu-sheet-row:hover td { background: rgba(103,45,134,.10); }
-.edu-sheet-row:nth-child(even) td { background: rgba(103,45,134,.05); }
-.edu-sheet-row:nth-child(even):hover td { background: rgba(103,45,134,.16); }
-/* Selected = Red, per the brand's "active elements / selected states" rule —
-   distinct from the purple hover/zebra tints used for plain scanning. */
-.edu-sheet-row.is-selected td { background: rgba(217,27,91,.16) !important; }
-.edu-sheet-row.is-selected:hover td { background: rgba(217,27,91,.22) !important; }
+.edu-sheet-row:hover td { background: #F8FAFC; }
+.edu-sheet-row:nth-child(even) td { background: #FBFCFE; }
+.edu-sheet-row:nth-child(even):hover td { background: #F1F5F9; }
+/* Selected = brand primary blue, per the "active elements / selected
+   states" rule — distinct from the neutral hover/zebra tints above. */
+.edu-sheet-row.is-selected td { background: #EFF6FF !important; }
+.edu-sheet-row.is-selected:hover td { background: #DBEAFE !important; }
 
 /* Compact overflow menu (⋮) for a row's less-frequent actions. */
 .edu-row-menu-item {
   display: flex; align-items: center; gap: 8px;
   width: 100%; background: transparent; border: none;
-  color: #fff; font-family: var(--font); font-size: 12.5px; font-weight: 600;
+  color: #334155; font-family: var(--font); font-size: 12.5px; font-weight: 600;
   padding: 8px 10px; border-radius: 6px; cursor: pointer; text-align: start;
   transition: background .15s;
 }
-.edu-row-menu-item:hover { background: rgba(255,255,255,.08); }
+.edu-row-menu-item:hover { background: #F1F5F9; }
 
 /* Inline sheet inputs stay invisible until interacted with, so the table
    reads as data first and only reveals itself as editable on hover/focus.
@@ -362,18 +366,18 @@ input.edu-datetime-input { position: relative; }
 .edu-sheet-row input,
 .edu-sheet-row select {
   border-color: transparent !important;
-  border-bottom: 1px dashed rgba(255,255,255,.14) !important;
+  border-bottom: 1px dashed #CBD5E1 !important;
   border-radius: 4px !important;
 }
 .edu-sheet-row input:hover,
 .edu-sheet-row select:hover {
-  background: rgba(255,255,255,.05) !important;
-  border-bottom-color: rgba(255,255,255,.32) !important;
+  background: #F1F5F9 !important;
+  border-bottom-color: #94A3B8 !important;
 }
 .edu-sheet-row input:focus,
 .edu-sheet-row select:focus {
-  background: rgba(255,255,255,.09) !important;
-  border-color: rgba(217,27,91,.55) !important;
+  background: #EFF6FF !important;
+  border-color: rgba(37,99,235,.55) !important;
   border-bottom-style: solid !important;
 }
 
@@ -391,11 +395,11 @@ input.edu-datetime-input { position: relative; }
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: rgba(255,255,255,.06);
+  background: #F8FAFC;
   border: 1px solid var(--page-border);
   border-radius: 999px;
   padding: 7px 14px 7px 12px;
-  color: #fff;
+  color: #334155;
   font-family: var(--font);
   font-size: 12.5px;
   font-weight: 700;
@@ -403,8 +407,8 @@ input.edu-datetime-input { position: relative; }
   transition: background .15s, border-color .15s, transform .15s;
 }
 .edu-crumb-back:hover {
-  background: rgba(255,255,255,.12);
-  border-color: rgba(255,255,255,.28);
+  background: #F1F5F9;
+  border-color: #CBD5E1;
 }
 .edu-crumb-back:active { transform: translateY(1px); }
 .edu-crumb-back .edu-crumb-arrow { font-size: 14px; line-height: 1; }
@@ -422,7 +426,7 @@ input.edu-datetime-input { position: relative; }
   font-weight: 600;
 }
 .edu-crumb-node.is-current {
-  color: #fff;
+  color: #0F172A;
   font-weight: 800;
 }
 .edu-crumb-node-btn {
@@ -434,13 +438,13 @@ input.edu-datetime-input { position: relative; }
   cursor: pointer;
   transition: background .15s, color .15s;
 }
-.edu-crumb-node-btn:hover { background: rgba(255,255,255,.08); color: #fff; }
+.edu-crumb-node-btn:hover { background: #F1F5F9; color: #0F172A; }
 
 /* ─── Focus-visible ring (keyboard users) ────────────────────── */
 button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 a:focus-visible {
-  outline: 2px solid rgba(217,27,91,.65);
+  outline: 2px solid rgba(37,99,235,.55);
   outline-offset: 2px;
 }

@@ -5,8 +5,8 @@ import { useCustomers } from "../../../../context/CustomerContext";
 import LeadStatusBadge from "../../../../components/crm/LeadStatusBadge";
 import EngagementDetailModal from "../EngagementDetailModal";
 
-const td = { padding: "11px 14px", fontSize: 12.5, textAlign: "center", borderBottom: "1px solid rgba(255,255,255,.09)", verticalAlign: "middle" };
-const th = { textAlign: "center", fontSize: 10.5, letterSpacing: 0.5, textTransform: "uppercase", color: "rgba(255,255,255,.88)", fontWeight: 800, padding: "12px 14px", borderBottom: `1px solid ${C.border}` };
+const td = { padding: "11px 14px", fontSize: 12.5, textAlign: "center", borderBottom: "1px solid #E2E8F0", verticalAlign: "middle" };
+const th = { textAlign: "center", fontSize: 10.5, letterSpacing: 0.5, textTransform: "uppercase", color: "#475569", fontWeight: 800, padding: "12px 14px", borderBottom: `1px solid ${C.border}` };
 
 /** Every engagement in this program with a scheduled next-follow-up date,
  * split into overdue (needs attention now) and upcoming. */

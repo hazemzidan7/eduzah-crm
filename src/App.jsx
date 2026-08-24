@@ -18,7 +18,7 @@ const AdminShell         = lazy(() => import("./pages/admin/AdminShell"));
 
 const Loader = () => (
   <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-    <div style={{ width: 36, height: 36, border: "3px solid rgba(217,27,91,.3)", borderTopColor: "#d91b5b", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+    <div style={{ width: 36, height: 36, border: "3px solid rgba(37,99,235,.25)", borderTopColor: "#2563EB", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
     <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
   </div>
 );

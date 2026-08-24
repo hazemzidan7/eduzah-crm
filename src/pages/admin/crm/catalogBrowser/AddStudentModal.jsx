@@ -67,12 +67,12 @@ export default function AddStudentModal({ program, businessUnitId, onClose }) {
       <Select label={tx("نوع الحضور", "Attendance Type")} value={attendanceType} onChange={setAttendanceType} options={attendanceOptions} />
       <div style={{ marginBottom: 12 }}>
         <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 4 }}>{tx("البرنامج", "Program")}</label>
-        <div dir="ltr" style={{ background: "rgba(255,255,255,.04)", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "9px 13px", fontSize: 13 }}>
+        <div dir="ltr" style={{ background: "#F8FAFC", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "9px 13px", fontSize: 13 }}>
           {program.name_en}
         </div>
       </div>
       <Input label={tx("تاريخ التسجيل", "Registration Date")} type="date" value={registrationDate} onChange={setRegistrationDate} />
-      {error && <div style={{ color: "#f87171", fontSize: 12, marginBottom: 10 }}>{error}</div>}
+      {error && <div style={{ color: C.danger, fontSize: 12, marginBottom: 10 }}>{error}</div>}
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
         <Btn v="purple" onClick={onClose}>{tx("إلغاء", "Cancel")}</Btn>
         <Btn v="primary" disabled={saving} onClick={submit}>{saving ? tx("جاري الإضافة…", "Adding…") : tx("إضافة الطالب", "Add Student")}</Btn>

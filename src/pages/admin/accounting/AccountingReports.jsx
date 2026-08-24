@@ -31,7 +31,7 @@ function NavButton({ onClick, pointLeft, title }) {
       title={title}
       style={{
         width: 32, height: 32, borderRadius: 8, border: `1px solid ${C.border}`,
-        background: "rgba(255,255,255,.06)", color: "#fff", cursor: "pointer",
+        background: "#fff", color: C.text, cursor: "pointer",
         display: "flex", alignItems: "center", justifyContent: "center",
       }}
     >

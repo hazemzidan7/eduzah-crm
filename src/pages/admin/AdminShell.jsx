@@ -77,7 +77,7 @@ function AdminContent() {
 export default function AdminShell() {
   return (
     <CrmNavProvider>
-      <div style={{ minHeight: "100vh", background: "#241531", color: "#fff", display: "flex" }}>
+      <div style={{ minHeight: "100vh", background: C.bg, color: C.text, display: "flex" }}>
         <Sidebar />
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
           <TopBar />

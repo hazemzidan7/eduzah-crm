@@ -54,7 +54,7 @@ function AlertRow({ label, count, onClick, severity }) {
         display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%",
         background: `${color}18`, border: `1px solid ${color}55`, borderRadius: 10,
         padding: "10px 14px", marginBottom: 8, cursor: onClick ? "pointer" : "default",
-        fontFamily: "'Cairo',sans-serif", color: "#fff",
+        fontFamily: "'Cairo',sans-serif", color: C.text,
       }}
     >
       <span style={{ fontSize: 12.5, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
@@ -251,7 +251,7 @@ export default function ManagementDashboard() {
               <div>{tx("حالة نهائية", "Terminal")}: <b>{funnel.terminal}</b></div>
               <div>{tx("مسجَّل (كل الأوقات)", "Enrolled (all-time)")}: <b style={{ color: C.success }}>{funnel.enrolled}</b></div>
             </div>
-            <div style={{ padding: "8px 10px", borderRadius: 8, background: "rgba(255,255,255,.04)", marginBottom: 10 }}>
+            <div style={{ padding: "8px 10px", borderRadius: 8, background: "#F8FAFC", marginBottom: 10 }}>
               <div style={{ fontSize: 11, color: C.muted }}>{tx("معدل التحويل (تسجيل / كل العملاء، كل الأوقات)", "Conversion Rate (enrolled / all-time leads)")}</div>
               <div style={{ fontSize: 18, fontWeight: 900, color: C.success }} dir="ltr">{conversionRate.toFixed(1)}%</div>
             </div>
@@ -342,7 +342,7 @@ function QuickAction({ icon, label, onClick }) {
       onClick={onClick}
       style={{
         display: "flex", alignItems: "center", gap: 8, padding: "12px 14px", borderRadius: 10,
-        background: "rgba(255,255,255,.05)", border: `1px solid ${C.border}`, color: "#fff",
+        background: "#fff", border: `1px solid ${C.border}`, color: C.text,
         fontFamily: "'Cairo',sans-serif", fontSize: 12.5, fontWeight: 700, cursor: "pointer", textAlign: "start",
       }}
     >

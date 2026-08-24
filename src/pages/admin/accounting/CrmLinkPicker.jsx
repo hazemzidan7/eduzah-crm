@@ -39,7 +39,7 @@ export default function CrmLinkPicker({ tx, ar, type, customerId, engagementId, 
   const records = type === TRANSACTION_TYPES.REFUND ? allRecords.filter((r) => r.status === "confirmed") : allRecords;
 
   return (
-    <div style={{ marginBottom: 16, padding: 12, borderRadius: 10, border: `1px dashed ${C.border}`, background: "rgba(255,255,255,.03)" }}>
+    <div style={{ marginBottom: 16, padding: 12, borderRadius: 10, border: `1px dashed ${C.border}`, background: "#F8FAFC" }}>
       <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 8 }}>
         {tx("ربط بعميل من الـ CRM (اختياري)", "Link to a CRM customer (optional)")}
       </div>
@@ -50,7 +50,7 @@ export default function CrmLinkPicker({ tx, ar, type, customerId, engagementId, 
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={tx("ابحث بالاسم أو الهاتف…", "Search name or phone…")}
-            style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,.055)", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "10px 12px", color: "#fff", fontFamily: "'Cairo',sans-serif", fontSize: 13, outline: "none" }}
+            style={{ width: "100%", boxSizing: "border-box", background: "#fff", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "10px 12px", color: C.text, fontFamily: "'Cairo',sans-serif", fontSize: 13, outline: "none" }}
           />
           {matches.length > 0 && (
             <div style={{ marginTop: 6, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
@@ -59,7 +59,7 @@ export default function CrmLinkPicker({ tx, ar, type, customerId, engagementId, 
                   key={c.id}
                   type="button"
                   onClick={() => { onChange({ customerId: c.id, engagementId: null, paymentId: null }); setQuery(""); }}
-                  style={{ display: "block", width: "100%", textAlign: "start", padding: "8px 12px", background: "transparent", border: "none", borderBottom: `1px solid ${C.border}`, color: "#fff", cursor: "pointer", fontFamily: "'Cairo',sans-serif", fontSize: 12.5 }}
+                  style={{ display: "block", width: "100%", textAlign: "start", padding: "8px 12px", background: "transparent", border: "none", borderBottom: `1px solid ${C.border}`, color: C.text, cursor: "pointer", fontFamily: "'Cairo',sans-serif", fontSize: 12.5 }}
                 >
                   {c.fullName || tx("بدون اسم", "Unnamed")} <span style={{ color: C.muted }} dir="ltr">· {c.phone || "—"}</span>
                 </button>

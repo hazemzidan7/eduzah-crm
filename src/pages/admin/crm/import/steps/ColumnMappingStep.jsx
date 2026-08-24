@@ -8,9 +8,9 @@ import { useImportEngine } from "../../../../../hooks/useImportEngine";
 import { CANONICAL_FIELDS, canonicalFieldLabel } from "../../../../../constants/importCanonicalFields";
 
 const SOURCE_LABEL = {
-  dictionary: { ar: "معروف (من القاموس)", en: "Known (dictionary)", color: "#34d399" },
-  fuzzy: { ar: "مقترح", en: "Suggested", color: "#fbbf24" },
-  unknown: { ar: "غير معروف", en: "Unknown", color: "#f87171" },
+  dictionary: { ar: "معروف (من القاموس)", en: "Known (dictionary)", color: C.success },
+  fuzzy: { ar: "مقترح", en: "Suggested", color: C.warning },
+  unknown: { ar: "غير معروف", en: "Unknown", color: C.danger },
 };
 
 export default function ColumnMappingStep({ wiz, patch, onNext, onBack }) {
@@ -61,7 +61,7 @@ export default function ColumnMappingStep({ wiz, patch, onNext, onBack }) {
     <div>
       <h3 style={{ fontWeight: 800, fontSize: 15, marginTop: 0 }}>{tx("مطابقة الأعمدة", "Column Mapping")}</h3>
       {missingRequired.length > 0 && (
-        <div style={{ background: "rgba(239,68,68,.12)", border: "1px solid rgba(239,68,68,.35)", borderRadius: 10, padding: "10px 14px", fontSize: 12.5, marginBottom: 14, color: "#fecaca" }}>
+        <div style={{ background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.3)", borderRadius: 10, padding: "10px 14px", fontSize: 12.5, marginBottom: 14, color: C.danger }}>
           {tx("حقول مطلوبة غير مربوطة بعد: ", "Required fields not mapped yet: ")}
           {missingRequired.map((f) => canonicalFieldLabel(f, lang)).join("، ")}
         </div>
@@ -71,7 +71,7 @@ export default function ColumnMappingStep({ wiz, patch, onNext, onBack }) {
           const meta = initial.meta[h];
           const src = SOURCE_LABEL[meta?.source || "unknown"];
           return (
-            <div key={h} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 10, alignItems: "center", padding: "8px 12px", background: "rgba(255,255,255,.04)", borderRadius: 10 }}>
+            <div key={h} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 10, alignItems: "center", padding: "8px 12px", background: "#F8FAFC", borderRadius: 10 }}>
               <div style={{ fontSize: 12.5, fontWeight: 700 }}>{h}</div>
               <Select value={columnMap[h] || ""} onChange={(v) => setColumnMap((p) => ({ ...p, [h]: v }))} options={fieldOptions} />
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

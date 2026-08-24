@@ -126,7 +126,7 @@ export default function ValidationSummaryStep({ wiz, onBack }) {
           <div style={{ fontSize: 11.5, color: C.muted, marginTop: 4 }}>{progress.done} / {progress.total}</div>
         </div>
       )}
-      {error && <div style={{ color: "#f87171", fontSize: 12, marginBottom: 10 }}>{error}</div>}
+      {error && <div style={{ color: C.danger, fontSize: 12, marginBottom: 10 }}>{error}</div>}
 
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <Btn v="purple" disabled={committing} onClick={onBack}>{tx("رجوع", "Back")}</Btn>
@@ -138,5 +138,5 @@ export default function ValidationSummaryStep({ wiz, onBack }) {
   );
 }
 
-const th = { textAlign: "center", fontSize: 10.5, letterSpacing: 0.5, textTransform: "uppercase", color: "rgba(255,255,255,.88)", fontWeight: 800, padding: "10px 12px", borderBottom: "1px solid rgba(255,255,255,.14)" };
-const td = { padding: "9px 12px", fontSize: 12.5, textAlign: "center", borderBottom: "1px solid rgba(255,255,255,.09)" };
+const th = { textAlign: "center", fontSize: 10.5, letterSpacing: 0.5, textTransform: "uppercase", color: "#475569", fontWeight: 800, padding: "10px 12px", borderBottom: "1px solid #E2E8F0" };
+const td = { padding: "9px 12px", fontSize: 12.5, textAlign: "center", borderBottom: "1px solid #E2E8F0" };

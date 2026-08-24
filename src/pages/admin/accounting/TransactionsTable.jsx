@@ -36,7 +36,7 @@ export default function TransactionsTable({ transactions, ar, tx, customerById, 
     <div className="edu-sheet-scroll" style={{ overflowX: "auto", borderRadius: 12, border: `1px solid ${C.border}` }}>
       <table style={{ width: "100%", minWidth: 860, borderCollapse: "collapse" }}>
         <thead>
-          <tr style={{ background: "rgba(255,255,255,.04)" }}>
+          <tr style={{ background: "#F8FAFC" }}>
             <th style={th}>{tx("التاريخ", "Date")}</th>
             <th style={th}>{tx("النوع", "Type")}</th>
             <th style={th}>{tx("الطالب / الوصف", "Student / Description")}</th>
@@ -52,7 +52,7 @@ export default function TransactionsTable({ transactions, ar, tx, customerById, 
             const customer = t.relatedCustomerId ? customerById?.(t.relatedCustomerId) : null;
             const studentOrDesc = customer?.fullName || t.note || "—";
             return (
-              <tr key={t.id} style={{ background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,.02)" }}>
+              <tr key={t.id} style={{ background: i % 2 === 0 ? "transparent" : "#FBFCFE" }}>
                 <td style={{ ...td, whiteSpace: "nowrap" }} dir="ltr">{t.date || "—"}</td>
                 <td style={td}><TransactionTypeBadge type={t.type} ar={ar} /></td>
                 <td style={{ ...td, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={studentOrDesc}>
@@ -70,7 +70,7 @@ export default function TransactionsTable({ transactions, ar, tx, customerById, 
                       type="button"
                       onClick={() => onEdit(t)}
                       title={tx("تعديل", "Edit")}
-                      style={{ background: "rgba(255,255,255,.06)", border: "none", borderRadius: 8, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", color: C.muted, cursor: "pointer" }}
+                      style={{ background: "#fff", border: "none", borderRadius: 8, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", color: C.muted, cursor: "pointer" }}
                     >
                       <IconEdit size={13} />
                     </button>
@@ -79,9 +79,9 @@ export default function TransactionsTable({ transactions, ar, tx, customerById, 
                       onClick={() => onViewHistory(t)}
                       title={tx("سجل التعديلات", "Edit History")}
                       style={{
-                        position: "relative", background: "rgba(255,255,255,.06)", border: "none", borderRadius: 8,
+                        position: "relative", background: "#fff", border: "none", borderRadius: 8,
                         width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center",
-                        color: (t.editHistory || []).length > 0 ? "#fff" : C.muted, cursor: "pointer",
+                        color: (t.editHistory || []).length > 0 ? C.red : C.muted, cursor: "pointer",
                       }}
                     >
                       <IconHistory size={13} />

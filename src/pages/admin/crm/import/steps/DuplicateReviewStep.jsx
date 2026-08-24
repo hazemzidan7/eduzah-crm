@@ -66,7 +66,7 @@ export default function DuplicateReviewStep({ wiz, patch, onNext, onBack }) {
                   <span>{wiz.cleanedRecords[i].fullName || "—"} {gi === 0 && <span style={{ color: C.success }}>({tx("الأساسي", "primary")})</span>}</span>
                   {gi > 0 && (
                     <select value={decisions[i] || "skip"} onChange={(e) => setDecision(i, e.target.value)}
-                      style={{ background: "#2a1540", border: `1px solid ${C.border}`, borderRadius: 6, color: "#fff", fontSize: 11, padding: "2px 6px" }}>
+                      style={{ background: "#fff", border: `1px solid ${C.border}`, borderRadius: 6, color: C.text, fontSize: 11, padding: "2px 6px" }}>
                       {DECISION_OPTIONS.map((o) => <option key={o.v} value={o.v}>{ar ? o.ar : o.en}</option>)}
                     </select>
                   )}
@@ -90,7 +90,7 @@ export default function DuplicateReviewStep({ wiz, patch, onNext, onBack }) {
                   {m.engagementMatch && <span style={{ color: C.orange }}> · {tx("لديه تعامل بالفعل مع هذا البرنامج", "already has an engagement with this Program")}</span>}
                 </div>
                 <select value={decisions[m.index] || "merge"} onChange={(e) => setDecision(m.index, e.target.value)}
-                  style={{ background: "#2a1540", border: `1px solid ${C.border}`, borderRadius: 6, color: "#fff", fontSize: 11, padding: "2px 6px" }}>
+                  style={{ background: "#fff", border: `1px solid ${C.border}`, borderRadius: 6, color: C.text, fontSize: 11, padding: "2px 6px" }}>
                   {DECISION_OPTIONS.map((o) => <option key={o.v} value={o.v}>{ar ? o.ar : o.en}</option>)}
                 </select>
               </div>
