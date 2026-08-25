@@ -8,6 +8,7 @@ import {
   getDoc,
   onSnapshot,
   arrayUnion,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "./AuthContext";
@@ -17,6 +18,7 @@ import { effectivePaymentRecords, findPaymentConflicts, hasBlockingConflict } fr
 import { ACCOUNTING_EVENTS_COLLECTION, buildConfirmedPaymentEvent } from "../utils/accountingEvents";
 import { buildPricingSnapshot, applyPaymentPlan } from "../utils/pricingSnapshot";
 import { ACCOUNTING_TRANSACTIONS_COLLECTION, buildTransaction, buildIncomeDraftFromConfirmedPayment } from "../utils/accounting";
+import { buildCustomerDeletionSet, chunkDeletionOps } from "../utils/deleteCustomer";
 
 const CustomerCtx = createContext(null);
 
@@ -107,6 +109,38 @@ export function CustomerProvider({ children }) {
   };
   const restoreCustomer = async (id) => {
     await updateDoc(doc(db, "customers", id), { archivedAt: null, updatedAt: new Date().toISOString() });
+  };
+
+  // ADMIN-DELETE-STUDENT — permanently deletes one customer and every record
+  // that actually belongs to them, matched by ID only (utils/deleteCustomer's
+  // buildCustomerDeletionSet — never by name/amount/date similarity). Reaches
+  // into accountingTransactions/accountingEvents directly, same as
+  // createAccountingIncomeFromPayment/emitAccountingEvent above already do —
+  // not a new pattern. followUps/transactions live in other contexts, so the
+  // caller (the delete-confirmation UI, which already holds both via
+  // useFollowUps()/useAccounting()) passes their current arrays in.
+  //
+  // Admin-only at the real Firestore boundary already: customers/engagements/
+  // accountingEvents are isAdmin()-only write, accountingTransactions is
+  // isAdmin()-or-accounting, and followUps' delete rule is explicitly
+  // isAdmin()-only — no firestore.rules change needed for this feature.
+  //
+  // The deletion set is rebuilt fresh from whatever `engagements` this
+  // provider holds right now (not a snapshot passed in), so a retry after a
+  // partial failure — or after the customer is already gone — only ever
+  // touches what's still actually left; nothing unrelated can be reached.
+  // Batched at Firestore's 500-op limit (chunkDeletionOps), chunks committed
+  // sequentially; the customer doc is always the last op in the last chunk.
+  const deleteCustomerCascade = async (customerId, { followUps, transactions } = {}) => {
+    const deletionSet = buildCustomerDeletionSet(customerId, { engagements, followUps, transactions });
+    const chunks = chunkDeletionOps(deletionSet);
+    for (const chunk of chunks) {
+      if (chunk.length === 0) continue;
+      const batch = writeBatch(db);
+      for (const op of chunk) batch.delete(doc(db, op.collection, op.id));
+      await batch.commit();
+    }
+    return deletionSet;
   };
 
   // ── ENGAGEMENT-LEVEL DEDUP (does this person already have a relationship with this Program?) ──
@@ -490,7 +524,7 @@ export function CustomerProvider({ children }) {
     <CustomerCtx.Provider value={{
       customers, engagements, loading,
       findCustomerByPhone, findCustomerByEmail, customerById,
-      addCustomer, resolveOrCreateCustomer, updateCustomer, archiveCustomer, restoreCustomer,
+      addCustomer, resolveOrCreateCustomer, updateCustomer, archiveCustomer, restoreCustomer, deleteCustomerCascade,
       findEngagement, engagementById, engagementsForCustomer, engagementsForBusinessUnit,
       addEngagement, mergeStudentProfile, resolveOrCreateEngagement, updateEngagement,
       changeEngagementStatus, changeEnrollmentStatus, logEngagementActivity, archiveEngagement, restoreEngagement,

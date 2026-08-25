@@ -12,6 +12,7 @@ import LeadStatusBadge from "../../../components/crm/LeadStatusBadge";
 import { getDueBucket, sortFollowUps } from "../../../utils/followUps";
 import FollowUpFormModal from "./followups/FollowUpFormModal";
 import CompleteFollowUpModal from "./followups/CompleteFollowUpModal";
+import DeleteStudentModal from "./DeleteStudentModal";
 import { canonicalFieldLabel } from "../../../constants/importCanonicalFields";
 import {
   EDUCATIONAL_LEVEL_OPTIONS, EMPLOYMENT_STATUS_OPTIONS,
@@ -125,7 +126,8 @@ export default function EngagementDetailModal({ engagement, onClose }) {
   const { lang } = useLang();
   const ar = lang === "ar";
   const tx = (a, e) => (ar ? a : e);
-  const { users } = useAuth();
+  const { users, currentUser } = useAuth();
+  const isAdmin = currentUser?.role === "admin";
   const { nodeById } = useCatalog();
   const { effectiveStatuses } = useLeadStatus();
   const {
@@ -194,6 +196,10 @@ export default function EngagementDetailModal({ engagement, onClose }) {
   const [completingFollowUp, setCompletingFollowUp] = useState(null);
   const [confirmCancelFollowUpId, setConfirmCancelFollowUpId] = useState(null);
   const handleCancelFollowUp = async (id) => { await cancelFollowUp(id); setConfirmCancelFollowUpId(null); };
+
+  // ADMIN-DELETE-STUDENT — admin-only, confirmation-gated permanent delete
+  // of this customer and everything linked to them (see DeleteStudentModal).
+  const [deletingStudent, setDeletingStudent] = useState(false);
 
   const [activityType, setActivityType] = useState("note");
   const [activityText, setActivityText] = useState("");
@@ -279,12 +285,17 @@ export default function EngagementDetailModal({ engagement, onClose }) {
   return (
     <>
     <Modal title={customer?.fullName || tx("تفاصيل العميل", "Customer Details")} onClose={onClose}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-        <LeadStatusBadge statusId={engagement.statusId} />
-        <span style={{ fontSize: 12, color: C.muted }}>
-          {businessUnit ? (ar ? businessUnit.name_ar : businessUnit.name_en) : "—"}
-          {program ? <> · <span dir="ltr">{program.name_en}</span></> : ""}
-        </span>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <LeadStatusBadge statusId={engagement.statusId} />
+          <span style={{ fontSize: 12, color: C.muted }}>
+            {businessUnit ? (ar ? businessUnit.name_ar : businessUnit.name_en) : "—"}
+            {program ? <> · <span dir="ltr">{program.name_en}</span></> : ""}
+          </span>
+        </div>
+        {isAdmin && (
+          <Btn sm v="danger" onClick={() => setDeletingStudent(true)}>{tx("حذف الطالب", "Delete Student")}</Btn>
+        )}
       </div>
 
       {!editingProfile && (
@@ -574,6 +585,14 @@ export default function EngagementDetailModal({ engagement, onClose }) {
         programLabel={program?.name_en}
         ar={ar} tx={tx}
         onClose={() => setCompletingFollowUp(null)}
+      />
+    )}
+    {deletingStudent && customer && (
+      <DeleteStudentModal
+        customer={customer}
+        ar={ar} tx={tx}
+        onClose={() => setDeletingStudent(false)}
+        onDeleted={() => { setDeletingStudent(false); onClose(); }}
       />
     )}
     </>
