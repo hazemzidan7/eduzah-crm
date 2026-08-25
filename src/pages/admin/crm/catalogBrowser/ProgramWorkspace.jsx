@@ -1,7 +1,8 @@
-import { useMemo } from "react";
-import { Card } from "../../../../components/UI";
+import { useMemo, useState } from "react";
+import { Card, Btn } from "../../../../components/UI";
 import { C } from "../../../../theme";
 import { useLang } from "../../../../context/LangContext";
+import { useAuth } from "../../../../context/AuthContext";
 import { useCatalog } from "../../../../context/CatalogContext";
 import { useLeadStatus } from "../../../../context/LeadStatusContext";
 import { useCustomers } from "../../../../context/CustomerContext";
@@ -12,6 +13,7 @@ import ProgramPipelineView from "./ProgramPipelineView";
 import ProgramRemindersView from "./ProgramRemindersView";
 import ImportWizard from "../import/ImportWizard";
 import ImportHistoryList from "../import/ImportHistoryList";
+import DeleteTrackModal from "../DeleteTrackModal";
 
 const STATUS_ICONS = {
   not_contacted: IconSend, thinking: IconThinking, booked: IconCalendarCheck,
@@ -30,19 +32,31 @@ export default function ProgramWorkspace() {
   const { lang } = useLang();
   const ar = lang === "ar";
   const tx = (a, e) => (ar ? a : e);
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role === "admin";
   const { nodeById, descendantsOf } = useCatalog();
   const { effectiveStatuses } = useLeadStatus();
   const { engagements, loading } = useCustomers();
   const { programId, section } = useCrmNav();
+  const [deletingTrack, setDeletingTrack] = useState(false);
 
   const program = nodeById(programId);
   const businessUnitId = program?.path?.[0] || null;
 
+  // ADMIN-DELETE-TRACK: the selected Program's own id + every descendant
+  // node id (future "batch" nodes) — same scoping scopedEngagements below
+  // already uses, so "students of this Track" can never disagree between
+  // this page's own stats and the delete-confirmation preview.
+  const trackNodeIds = useMemo(() => {
+    if (!program) return [];
+    return [programId, ...descendantsOf(programId).map((d) => d.id)];
+  }, [program, programId, descendantsOf]);
+
   const scopedEngagements = useMemo(() => {
     if (!program) return [];
-    const ids = new Set([programId, ...descendantsOf(programId).map((d) => d.id)]);
+    const ids = new Set(trackNodeIds);
     return engagements.filter((e) => !e.archivedAt && e.catalogNodeId && ids.has(e.catalogNodeId));
-  }, [engagements, program, programId, descendantsOf]);
+  }, [engagements, program, trackNodeIds]);
 
   const statuses = effectiveStatuses(businessUnitId);
   const statusCounts = useMemo(() => {
@@ -65,13 +79,23 @@ export default function ProgramWorkspace() {
   return (
     <div>
       {/* ── Stats ── */}
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 18 }}>
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", marginBottom: 18 }}>
         <StatCard label={tx("إجمالي الطلاب", "Total Students")} value={scopedEngagements.length} color={C.purple} Icon={IconPeople} />
         {statuses.filter((s) => statusCounts.get(s.id) > 0).map((s) => (
           <StatCard key={s.id} label={ar ? s.name_ar : s.name_en} value={statusCounts.get(s.id) || 0} color={s.color || C.muted} Icon={STATUS_ICONS[s.key] || null} />
         ))}
         <StatCard label={tx("مسجَّلون", "Enrolled")} value={enrolledCount} color={C.success} Icon={IconMoney} />
         <StatCard label={tx("متابعات مجدولة", "Follow-ups scheduled")} value={remindersDue} color={C.orange} Icon={IconBell} />
+        {isAdmin && (
+          <Btn
+            sm v="danger"
+            disabled={scopedEngagements.length === 0}
+            onClick={() => setDeletingTrack(true)}
+            style={{ marginInlineStart: "auto" }}
+          >
+            {tx("حذف طلاب التراك", "Delete Track Students")}
+          </Btn>
+        )}
       </div>
 
       {loading ? (
@@ -84,6 +108,16 @@ export default function ProgramWorkspace() {
           {section === "import" && <ImportWizard key={program.id} program={program} />}
           {section === "importHistory" && <ImportHistoryList programId={program.id} />}
         </>
+      )}
+
+      {isAdmin && deletingTrack && (
+        <DeleteTrackModal
+          track={program}
+          trackNodeIds={trackNodeIds}
+          ar={ar} tx={tx}
+          onClose={() => setDeletingTrack(false)}
+          onDeleted={() => setDeletingTrack(false)}
+        />
       )}
     </div>
   );

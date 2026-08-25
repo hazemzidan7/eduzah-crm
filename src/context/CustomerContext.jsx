@@ -19,6 +19,7 @@ import { ACCOUNTING_EVENTS_COLLECTION, buildConfirmedPaymentEvent } from "../uti
 import { buildPricingSnapshot, applyPaymentPlan } from "../utils/pricingSnapshot";
 import { ACCOUNTING_TRANSACTIONS_COLLECTION, buildTransaction, buildIncomeDraftFromConfirmedPayment } from "../utils/accounting";
 import { buildCustomerDeletionSet, chunkDeletionOps } from "../utils/deleteCustomer";
+import { buildTrackDeletionPlan, chunkTrackDeletionOps } from "../utils/deleteTrack";
 
 const CustomerCtx = createContext(null);
 
@@ -141,6 +142,34 @@ export function CustomerProvider({ children }) {
       await batch.commit();
     }
     return deletionSet;
+  };
+
+  // ADMIN-DELETE-TRACK — permanently deletes every student of one Track
+  // (Program), reusing the exact same buildCustomerDeletionSet/
+  // deleteCustomerCascade path above for every customer whose ONLY
+  // engagement(s) are in the selected Track; a customer who also has an
+  // engagement in another Track keeps their record — only their in-Track
+  // engagement (and the payment/follow-up/accounting records that belong
+  // specifically to it) is removed. See utils/deleteTrack.js for the exact
+  // grouping/matching rules.
+  //
+  // Same "rebuilt fresh from live context state on every call" guarantee as
+  // deleteCustomerCascade: a retry after a partial failure only ever
+  // touches whatever the current `engagements`/passed-in followUps/
+  // transactions still contain, so nothing already deleted (and nothing
+  // outside the selected Track) can ever be reached twice or by mistake.
+  // Firestore rules already restrict customers/engagements/followUps/
+  // accountingEvents to isAdmin() — no rules change needed.
+  const deleteTrackCascade = async (trackNodeIds, { customers, followUps, transactions } = {}) => {
+    const plan = buildTrackDeletionPlan(trackNodeIds, { engagements, followUps, transactions, customers });
+    const chunks = chunkTrackDeletionOps(plan);
+    for (const chunk of chunks) {
+      if (chunk.length === 0) continue;
+      const batch = writeBatch(db);
+      for (const op of chunk) batch.delete(doc(db, op.collection, op.id));
+      await batch.commit();
+    }
+    return plan;
   };
 
   // ── ENGAGEMENT-LEVEL DEDUP (does this person already have a relationship with this Program?) ──
@@ -524,7 +553,7 @@ export function CustomerProvider({ children }) {
     <CustomerCtx.Provider value={{
       customers, engagements, loading,
       findCustomerByPhone, findCustomerByEmail, customerById,
-      addCustomer, resolveOrCreateCustomer, updateCustomer, archiveCustomer, restoreCustomer, deleteCustomerCascade,
+      addCustomer, resolveOrCreateCustomer, updateCustomer, archiveCustomer, restoreCustomer, deleteCustomerCascade, deleteTrackCascade,
       findEngagement, engagementById, engagementsForCustomer, engagementsForBusinessUnit,
       addEngagement, mergeStudentProfile, resolveOrCreateEngagement, updateEngagement,
       changeEngagementStatus, changeEnrollmentStatus, logEngagementActivity, archiveEngagement, restoreEngagement,
