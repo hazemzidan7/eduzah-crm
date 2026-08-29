@@ -26,6 +26,7 @@ import {
 } from "../../../utils/managementDashboard";
 import ProgramPerformanceTable from "./ProgramPerformanceTable";
 import SalesPerformanceView from "./SalesPerformanceView";
+import CrmDataExportView from "./CrmDataExportView";
 
 function pillStyle(active) {
   return {
@@ -193,14 +194,15 @@ export default function ManagementDashboard() {
         </div>
       </div>
 
-      {/* ── SALES-PERF-01: Overview / Sales Performance — same tab pattern
-          AccountingPage already uses; Overview is the default, unchanged
-          view, Sales Performance is purely additive and never runs unless
-          explicitly selected. ── */}
+      {/* ── SALES-PERF-01 / CRM-EXPORT-01: Overview / Sales Performance /
+          Data Export — same tab pattern AccountingPage already uses;
+          Overview is the default, unchanged view, the other two are purely
+          additive and never run unless explicitly selected. ── */}
       <div style={{ display: "flex", gap: 6, marginBottom: 18, borderBottom: `1px solid ${C.border}`, paddingBottom: 10 }}>
         {[
           { v: "overview", ar: "نظرة عامة", en: "Overview" },
           { v: "sales_performance", ar: "أداء المبيعات", en: "Sales Performance" },
+          { v: "export", ar: "تصدير البيانات", en: "Data Export" },
         ].map((t) => (
           <button key={t.v} onClick={() => setView(t.v)} style={pillStyle(view === t.v)}>{ar ? t.ar : t.en}</button>
         ))}
@@ -208,6 +210,8 @@ export default function ManagementDashboard() {
 
       {view === "sales_performance" ? (
         <SalesPerformanceView />
+      ) : view === "export" ? (
+        <CrmDataExportView ar={ar} tx={tx} />
       ) : (
       <>
       {/* ── Period filter ── */}
