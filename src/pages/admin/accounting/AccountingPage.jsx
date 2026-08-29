@@ -3,18 +3,21 @@ import { Btn, Input, Select } from "../../../components/UI";
 import { C } from "../../../theme";
 import { IconSearch, IconWallet } from "../../../components/Icons";
 import { useLang } from "../../../context/LangContext";
+import { useAuth } from "../../../context/AuthContext";
 import { useAccounting } from "../../../context/AccountingContext";
 import { useCustomers } from "../../../context/CustomerContext";
 import {
   TRANSACTION_TYPE_OPTIONS, ACCOUNT_OPTIONS,
   INCOME_CATEGORY_OPTIONS, EXPENSE_CATEGORY_OPTIONS, REFUND_CATEGORY_OPTIONS,
-  filterTransactions,
+  filterTransactions, excludeDeletedTransactions,
 } from "../../../utils/accounting";
 import AccountingDashboard from "./AccountingDashboard";
 import AccountingReports from "./AccountingReports";
 import TransactionsTable from "./TransactionsTable";
 import TransactionFormModal from "./TransactionFormModal";
 import TransactionHistoryModal from "./TransactionHistoryModal";
+import DeleteTransactionModal from "./DeleteTransactionModal";
+import AccountingHistoryView from "./AccountingHistoryView";
 
 const ALL_CATEGORY_OPTIONS = [...INCOME_CATEGORY_OPTIONS, ...EXPENSE_CATEGORY_OPTIONS, ...REFUND_CATEGORY_OPTIONS];
 
@@ -40,21 +43,31 @@ export default function AccountingPage() {
   const { lang } = useLang();
   const ar = lang === "ar";
   const tx = (a, e) => (ar ? a : e);
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role === "admin";
   const { transactions, loading } = useAccounting();
   const { customerById } = useCustomers();
+  // ACCOUNTING-DELETE-01 — every calculation/display below reads
+  // activeTransactions, never the raw `transactions` — a soft-deleted
+  // transaction must disappear from the Transactions list, the Dashboard,
+  // and every total. The raw `transactions` (still including deleted ones)
+  // is only ever needed by AccountingHistoryView, which reads
+  // useAccounting() itself for that.
+  const activeTransactions = useMemo(() => excludeDeletedTransactions(transactions), [transactions]);
 
-  const [view, setView] = useState("overview"); // ACCOUNTING-04: "overview" (default, unchanged) | "reports"
+  const [view, setView] = useState("overview"); // ACCOUNTING-04: "overview" (default, unchanged) | "reports" | "history" (Admin-only, ACCOUNTING-DELETE-01)
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [formOpen, setFormOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [historyTransaction, setHistoryTransaction] = useState(null);
+  const [deletingTransaction, setDeletingTransaction] = useState(null);
 
   const setFilter = (patch) => setFilters((f) => ({ ...f, ...patch }));
   const hasActiveFilters = Object.keys(EMPTY_FILTERS).some((k) => filters[k] !== EMPTY_FILTERS[k]);
 
-  const filtered = useMemo(() => filterTransactions(transactions, filters, {
+  const filtered = useMemo(() => filterTransactions(activeTransactions, filters, {
     searchTextFor: (t) => (t.relatedCustomerId ? customerById?.(t.relatedCustomerId)?.fullName || "" : ""),
-  }), [transactions, filters, customerById]);
+  }), [activeTransactions, filters, customerById]);
 
   // Newest first — a ledger is read chronologically-descending by default,
   // same convention as Payment Verification's "history" views.
@@ -71,6 +84,9 @@ export default function AccountingPage() {
   // click-time) so the modal always reflects the current editHistory[].
   const openHistory = (t) => setHistoryTransaction(t.id);
   const historyRecord = historyTransaction ? transactions.find((t) => t.id === historyTransaction) : null;
+
+  const openDelete = (t) => setDeletingTransaction(t);
+  const closeDelete = () => setDeletingTransaction(null);
 
   if (loading) {
     return <div style={{ color: C.muted, padding: 40, textAlign: "center" }}>{tx("جارٍ التحميل…", "Loading…")}</div>;
@@ -97,6 +113,11 @@ export default function AccountingPage() {
         {[
           { v: "overview", ar: "نظرة عامة", en: "Overview" },
           { v: "reports", ar: "التقارير", en: "Reports" },
+          // ACCOUNTING-DELETE-01 — Admin-only tab, same client-side gate
+          // shape as every other role-restricted item in this app; the real
+          // boundary is firestore.rules' accountingTransactionAudit rule
+          // (admin-only read), not this button being hidden.
+          ...(isAdmin ? [{ v: "history", ar: "سجل الحذف", en: "Deletion History" }] : []),
         ].map((t) => (
           <button key={t.v} onClick={() => setView(t.v)} style={pillStyle(view === t.v)}>{ar ? t.ar : t.en}</button>
         ))}
@@ -104,9 +125,11 @@ export default function AccountingPage() {
 
       {view === "reports" ? (
         <AccountingReports ar={ar} tx={tx} />
+      ) : view === "history" ? (
+        isAdmin ? <AccountingHistoryView ar={ar} tx={tx} /> : null
       ) : (
         <>
-          <AccountingDashboard transactions={transactions} ar={ar} tx={tx} />
+          <AccountingDashboard transactions={activeTransactions} ar={ar} tx={tx} />
 
           <div style={{ fontSize: 12, fontWeight: 800, color: C.muted, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 }}>
             {tx("الحركات", "Transactions")}
@@ -155,7 +178,11 @@ export default function AccountingPage() {
             ))}
           </div>
 
-          <TransactionsTable transactions={sorted} ar={ar} tx={tx} customerById={customerById} onEdit={openEdit} onViewHistory={openHistory} />
+          <TransactionsTable
+            transactions={sorted} ar={ar} tx={tx} customerById={customerById}
+            onEdit={openEdit} onViewHistory={openHistory}
+            onDelete={isAdmin ? openDelete : undefined}
+          />
         </>
       )}
 
@@ -165,6 +192,16 @@ export default function AccountingPage() {
 
       {historyRecord && (
         <TransactionHistoryModal transaction={historyRecord} ar={ar} tx={tx} onClose={() => setHistoryTransaction(null)} />
+      )}
+
+      {deletingTransaction && (
+        <DeleteTransactionModal
+          transaction={deletingTransaction}
+          customerById={customerById}
+          ar={ar} tx={tx}
+          onClose={closeDelete}
+          onDeleted={closeDelete}
+        />
       )}
     </div>
   );

@@ -14,7 +14,7 @@ import { useCatalog } from "../../../context/CatalogContext";
 import { useCrmNav } from "../../../context/CrmNavContext";
 import {
   ACCOUNT_OPTIONS, computeAccountBalances, computeReportMetrics, filterTransactions,
-  reportPeriodRange, REPORT_PERIODS, thisWeekRange, currentMonthRange,
+  reportPeriodRange, REPORT_PERIODS, thisWeekRange, currentMonthRange, excludeDeletedTransactions,
 } from "../../../utils/accounting";
 import { effectivePaymentRecords } from "../../../utils/paymentRecords";
 import { computeFollowUpDashboardStats } from "../../../utils/followUps";
@@ -130,7 +130,13 @@ export default function ManagementDashboard() {
     return { from: customFrom, to: customTo }; // CUSTOM
   }, [periodType, customFrom, customTo]);
 
-  const periodTransactions = useMemo(() => filterTransactions(transactions, { dateFrom: from, dateTo: to }), [transactions, from, to]);
+  // ACCOUNTING-DELETE-01 — a soft-deleted transaction must not appear in
+  // any Management Dashboard total (Executive Summary, Payment Summary,
+  // Money by Method, Program Performance, Recent Activity all derive from
+  // periodTransactions/balances below).
+  const activeTransactions = useMemo(() => excludeDeletedTransactions(transactions), [transactions]);
+
+  const periodTransactions = useMemo(() => filterTransactions(activeTransactions, { dateFrom: from, dateTo: to }), [activeTransactions, from, to]);
   // BUGFIX (FINALIZATION STEP 3) — computeReportMetrics' deposits/
   // installments/fullPayments split only resolves when a paymentTypeFor
   // hook is supplied (see utils/accounting.js's own docstring); without one
@@ -151,7 +157,7 @@ export default function ManagementDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [periodTransactions, engagementById],
   );
-  const balances = useMemo(() => computeAccountBalances(transactions), [transactions]); // all-time, same as Accounting Dashboard
+  const balances = useMemo(() => computeAccountBalances(activeTransactions), [activeTransactions]); // all-time, same as Accounting Dashboard
   const statusCounts = useMemo(() => computePaymentStatusCounts(engagements, { dateFrom: from, dateTo: to }), [engagements, from, to]);
   const alerts = useMemo(() => computePaymentAlerts(engagements), [engagements]);
   const funnel = useMemo(() => computeLeadFunnel(engagements, statuses), [engagements, statuses]);

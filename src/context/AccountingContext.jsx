@@ -1,14 +1,17 @@
 import { createContext, useContext, useState, useEffect } from "react";
-import { collection, doc, addDoc, updateDoc, getDoc, setDoc, onSnapshot, arrayUnion, query, where, getDocs } from "firebase/firestore";
+import { collection, doc, addDoc, updateDoc, getDoc, setDoc, onSnapshot, arrayUnion, query, where, getDocs, writeBatch } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "./AuthContext";
 import {
   ACCOUNTING_TRANSACTIONS_COLLECTION,
+  ACCOUNTING_TRANSACTION_AUDIT_COLLECTION,
   TRANSACTION_TYPES,
   validateTransaction,
   buildTransaction,
   buildEditHistoryEntry,
   diffForEditHistory,
+  buildDeleteAuditEntry,
+  buildRestoreAuditEntry,
 } from "../utils/accounting";
 
 // ACCOUNTING-DUP-01 — the actual enforcement boundary for "one confirmed
@@ -23,6 +26,17 @@ import {
 // still theoretically both pass — see AccountingContext's own module
 // comment / the audit report for why closing that fully would require a
 // bigger change than this task's scope) but does not eliminate it.
+//
+// ACCOUNTING-DELETE-01 — a soft-deleted Income transaction no longer counts
+// as "existing" here: filtered out client-side after the query (not via a
+// `where("isDeleted", "!=", true)` clause — Firestore's `!=` operator
+// excludes documents missing the field entirely, which would wrongly hide
+// every pre-existing transaction that predates this feature and has no
+// isDeleted field at all; the query itself stays exactly as it was). This
+// is also what makes restoring a deleted Income transaction safe: if
+// someone else already legitimately re-recorded that payment while the
+// original was deleted, restoring the original is blocked as a duplicate —
+// see restoreTransaction below.
 async function findExistingIncomeTransaction(paymentId, { excludeTransactionId } = {}) {
   const q = query(
     collection(db, ACCOUNTING_TRANSACTIONS_COLLECTION),
@@ -30,7 +44,7 @@ async function findExistingIncomeTransaction(paymentId, { excludeTransactionId }
     where("relatedPaymentId", "==", paymentId),
   );
   const snap = await getDocs(q);
-  return snap.docs.find((d) => d.id !== excludeTransactionId) || null;
+  return snap.docs.find((d) => d.id !== excludeTransactionId && d.data().isDeleted !== true) || null;
 }
 
 const AccountingCtx = createContext(null);
@@ -142,10 +156,65 @@ export function AccountingProvider({ children }) {
     await updateDoc(doc(db, ACCOUNTING_TRANSACTIONS_COLLECTION, id), patch);
   };
 
+  // ACCOUNTING-DELETE-01 — soft delete: the document is never removed
+  // (`isDeleted: true` only), which is exactly what keeps
+  // CustomerContext.createAccountingIncomeFromPayment's own idempotency
+  // check safe — that function only checks the doc's EXISTENCE (doc id =
+  // paymentId), not its isDeleted flag, so a soft-deleted automatic Income
+  // transaction can never be silently recreated even if the same payment's
+  // confirmation flow were somehow re-triggered. No change was needed there
+  // — investigated and confirmed, not assumed.
+  //
+  // Delete and restore are batched with their own audit-entry write so
+  // "the transaction changed state" and "there's a permanent record of it"
+  // can never happen one without the other. The `if (current.isDeleted)` /
+  // `if (!current.isDeleted)` early-return guards make both functions
+  // idempotent no-ops on their own already-applied state — the real
+  // double-submission guard (a double-click can't fire two writes), not
+  // just a disabled button in the UI.
+  const deleteTransaction = async (id, { reason }) => {
+    const current = transactionById(id);
+    if (!current || current.isDeleted) return;
+    const now = new Date().toISOString();
+    const batch = writeBatch(db);
+    batch.set(doc(collection(db, ACCOUNTING_TRANSACTION_AUDIT_COLLECTION)), buildDeleteAuditEntry(current, { currentUser, reason }));
+    batch.update(doc(db, ACCOUNTING_TRANSACTIONS_COLLECTION, id), {
+      isDeleted: true,
+      deletedAt: now,
+      deletedBy: currentUser?.id || null,
+      deletedByName: currentUser?.name || null,
+      deletionReason: reason || "",
+      updatedAt: now,
+    });
+    await batch.commit();
+  };
+
+  // Restoring never creates a new accountingTransactions document — it's
+  // strictly an update on the SAME existing doc, so it structurally cannot
+  // duplicate the automatic CRM integration's own transaction. What it CAN
+  // do is reactivate a duplicate if a replacement Income transaction was
+  // legitimately added for the same payment while the original sat deleted
+  // — the same findExistingIncomeTransaction guard ACCOUNTING-DUP-01 already
+  // uses for create/edit blocks that scenario here too.
+  const restoreTransaction = async (id) => {
+    const current = transactionById(id);
+    if (!current || !current.isDeleted) return;
+    if (current.type === TRANSACTION_TYPES.INCOME && current.relatedPaymentId) {
+      const dup = await findExistingIncomeTransaction(current.relatedPaymentId, { excludeTransactionId: id });
+      if (dup) throw new Error("DUPLICATE_INCOME_FOR_PAYMENT");
+    }
+    const now = new Date().toISOString();
+    const batch = writeBatch(db);
+    batch.set(doc(collection(db, ACCOUNTING_TRANSACTION_AUDIT_COLLECTION)), buildRestoreAuditEntry(current, { currentUser }));
+    batch.update(doc(db, ACCOUNTING_TRANSACTIONS_COLLECTION, id), { isDeleted: false, updatedAt: now });
+    await batch.commit();
+  };
+
   return (
     <AccountingCtx.Provider value={{
       transactions, loading, transactionById,
       addTransaction, addTransfer, addRefundTransaction, updateTransaction,
+      deleteTransaction, restoreTransaction,
     }}>
       {children}
     </AccountingCtx.Provider>

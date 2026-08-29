@@ -18,6 +18,17 @@
 export const ACCOUNTING_TRANSACTIONS_COLLECTION = "accountingTransactions";
 export const ACCOUNTING_CURRENCY = "EGP";
 
+// ACCOUNTING-DELETE-01: immutable delete/restore audit trail — its own
+// collection, deliberately NOT the transaction's own embedded editHistory[]
+// (ACCOUNTING-02's append-only-array pattern), because Accounting staff
+// have full document write access to accountingTransactions and an
+// embedded array field on that same document can't be made tamper-proof
+// against them at the Firestore rules level. A separate collection with
+// create-only, admin-only rules (see firestore.rules) can. See
+// AccountingContext.deleteTransaction/restoreTransaction, the only two
+// places that ever write here.
+export const ACCOUNTING_TRANSACTION_AUDIT_COLLECTION = "accountingTransactionAudit";
+
 export const TRANSACTION_TYPES = {
   INCOME: "income",
   EXPENSE: "expense",
@@ -646,4 +657,75 @@ export function findDuplicateIncomeTransactions(transactions) {
       transactionIds: list.map((t) => t.id),
       totalAmount: list.reduce((sum, t) => sum + (t.amount || 0), 0),
     }));
+}
+
+// ─── ACCOUNTING-DELETE-01: Soft Delete + Audit History + Restore ────────
+// Existing transactions with no `isDeleted` field at all (every document
+// written before this feature) are treated as isDeleted === false — never
+// migrated, per the approved spec. Every existing calculation
+// (computeTransactionTotals/computeAccountBalances/computeReportMetrics/
+// filterTransactions, and ACCOUNTING-DUP-01's own duplicate/refund-ceiling
+// checks above) is left completely unmodified — callers instead pass this
+// filtered list INTO them, so a soft-deleted transaction is invisible to
+// every calculation without a single line of those existing functions
+// changing.
+
+/** Excludes soft-deleted transactions — the one filter every calculation call site applies before doing anything else with `transactions`. */
+export function excludeDeletedTransactions(transactions) {
+  return (transactions || []).filter((t) => t.isDeleted !== true);
+}
+
+/**
+ * A full point-in-time snapshot of the transaction's own fields, captured
+ * at the moment of the action — not a live reference — so this record
+ * stays meaningful even after the transaction is later edited or restored.
+ * Field names for the delete action match the approved spec exactly
+ * (deletedBy/deletedByName/deletedAt/deletionReason); the restore action
+ * mirrors that shape with its own actor fields, since the spec only
+ * requires "a restore audit event" without dictating its exact names.
+ */
+export function buildDeleteAuditEntry(transaction, { currentUser, reason }) {
+  const now = new Date().toISOString();
+  return {
+    action: "delete",
+    transactionId: transaction.id,
+    transactionType: transaction.type,
+    amount: transaction.amount,
+    date: transaction.date || null,
+    account: transaction.account || null,
+    fromAccount: transaction.fromAccount || null,
+    toAccount: transaction.toAccount || null,
+    note: transaction.note || "",
+    relatedCustomerId: transaction.relatedCustomerId || null,
+    relatedEngagementId: transaction.relatedEngagementId || null,
+    relatedPaymentId: transaction.relatedPaymentId || null,
+    deletedBy: currentUser?.id || null,
+    deletedByName: currentUser?.name || null,
+    deletedAt: now,
+    deletionReason: reason || "",
+    createdAt: now,
+  };
+}
+
+/** Same snapshot shape as buildDeleteAuditEntry, for a restore action — see that function's own comment. */
+export function buildRestoreAuditEntry(transaction, { currentUser }) {
+  const now = new Date().toISOString();
+  return {
+    action: "restore",
+    transactionId: transaction.id,
+    transactionType: transaction.type,
+    amount: transaction.amount,
+    date: transaction.date || null,
+    account: transaction.account || null,
+    fromAccount: transaction.fromAccount || null,
+    toAccount: transaction.toAccount || null,
+    note: transaction.note || "",
+    relatedCustomerId: transaction.relatedCustomerId || null,
+    relatedEngagementId: transaction.relatedEngagementId || null,
+    relatedPaymentId: transaction.relatedPaymentId || null,
+    restoredBy: currentUser?.id || null,
+    restoredByName: currentUser?.name || null,
+    restoredAt: now,
+    createdAt: now,
+  };
 }

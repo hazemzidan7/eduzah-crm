@@ -1,6 +1,6 @@
 import { Card } from "../../../components/UI";
 import { C } from "../../../theme";
-import { IconEdit, IconHistory } from "../../../components/Icons";
+import { IconEdit, IconHistory, IconX } from "../../../components/Icons";
 import { TRANSACTION_TYPES, categoryOptionsForType, optionLabel } from "../../../utils/accounting";
 import { TransactionTypeBadge, AccountCell, typeAmountColor } from "./AccountingBadges";
 
@@ -23,7 +23,7 @@ const td = { padding: "10px 12px", fontSize: 12.5, verticalAlign: "middle" };
  * already filtered (AccountingPage owns search/type/account/category/date
  * via utils/accounting.filterTransactions) — this component only renders.
  */
-export default function TransactionsTable({ transactions, ar, tx, customerById, onEdit, onViewHistory }) {
+export default function TransactionsTable({ transactions, ar, tx, customerById, onEdit, onViewHistory, onDelete }) {
   if (transactions.length === 0) {
     return (
       <Card style={{ padding: 40, textAlign: "center" }}>
@@ -44,7 +44,7 @@ export default function TransactionsTable({ transactions, ar, tx, customerById, 
             <th style={th}>{tx("الحساب", "Account")}</th>
             <th style={{ ...th, textAlign: "end" }}>{tx("المبلغ", "Amount")}</th>
             <th style={th}>{tx("بواسطة", "Created By")}</th>
-            <th style={{ ...th, width: 76 }} />
+            <th style={{ ...th, width: 104 }} />
           </tr>
         </thead>
         <tbody>
@@ -95,6 +95,23 @@ export default function TransactionsTable({ transactions, ar, tx, customerById, 
                         </span>
                       )}
                     </button>
+                    {/* ACCOUNTING-DELETE-01 — Admin-only: AccountingPage only
+                        passes onDelete when the signed-in user is an admin,
+                        same "pass undefined to hide" convention this table
+                        already relies on for nothing else — the real
+                        enforcement is firestore.rules' field-level update
+                        rule, this is just not showing a button Accounting
+                        staff couldn't use anyway. */}
+                    {onDelete && (
+                      <button
+                        type="button"
+                        onClick={() => onDelete(t)}
+                        title={tx("حذف", "Delete")}
+                        style={{ background: "#fff", border: "none", borderRadius: 8, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", color: C.danger, cursor: "pointer" }}
+                      >
+                        <IconX size={13} />
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>

@@ -9,6 +9,7 @@ import { useCustomers } from "../../../context/CustomerContext";
 import {
   ACCOUNT_OPTIONS, REPORT_PERIODS, REPORT_PERIOD_OPTIONS,
   reportPeriodRange, shiftReportPeriod, filterTransactions, computeReportMetrics,
+  excludeDeletedTransactions,
 } from "../../../utils/accounting";
 import { effectivePaymentRecords } from "../../../utils/paymentRecords";
 import { StatCard } from "./AccountingBadges";
@@ -77,10 +78,14 @@ export default function AccountingReports({ ar, tx }) {
   const [periodType, setPeriodType] = useState(REPORT_PERIODS.MONTHLY); // default: current month
   const [anchor, setAnchor] = useState(() => new Date());
 
+  // ACCOUNTING-DELETE-01 — a soft-deleted transaction must not appear in
+  // any report figure.
+  const activeTransactions = useMemo(() => excludeDeletedTransactions(transactions), [transactions]);
+
   const { from, to } = useMemo(() => reportPeriodRange(periodType, anchor), [periodType, anchor]);
   const periodTransactions = useMemo(
-    () => filterTransactions(transactions, { dateFrom: from, dateTo: to }),
-    [transactions, from, to],
+    () => filterTransactions(activeTransactions, { dateFrom: from, dateTo: to }),
+    [activeTransactions, from, to],
   );
 
   // Resolves an income transaction's real CRM PaymentRecord.paymentType via

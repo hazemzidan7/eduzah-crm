@@ -114,8 +114,41 @@ service cloud.firestore {
 
     /* ── ACCOUNTING-01: Accounting Transactions — logically separate module,
        same admin-only access shape as everything else. Not yet connected
-       to accountingEvents/CRM. ── */
-    match /accountingTransactions/{id}  { allow read, write: if isAdmin() || isAccountingStaff(); }
+       to accountingEvents/CRM.
+       ACCOUNTING-DELETE-01: create/read access is UNCHANGED (still both
+       Admin and Accounting staff) — only `update` is split, so a normal
+       field edit (amount/category/date/...) still works exactly as before
+       for Accounting staff, but they cannot flip `isDeleted` either
+       direction (soft-delete or restore) — that's Admin-only, enforced
+       here, not just by hiding the button. `.get('isDeleted', false)`
+       (not bare `.isDeleted`) is required because pre-existing documents
+       from before this feature have no isDeleted field at all — the
+       approved spec's own "missing isDeleted == false" rule, applied at
+       the rules layer too. Real document deletion (`allow delete`) is left
+       exactly as it already was — unrelated to this feature, and narrowing
+       it would break the existing, separately-approved Customer/Track
+       deletion cascades (deleteCustomer.js/deleteTrack.js), which
+       legitimately hard-delete a customer's own accountingTransactions as
+       part of removing that customer entirely. This feature's own delete
+       action never calls a Firestore delete — only `update`. ── */
+    match /accountingTransactions/{id} {
+      allow read, create, delete: if isAdmin() || isAccountingStaff();
+      allow update: if isAdmin()
+        || (isAccountingStaff()
+          && request.resource.data.get('isDeleted', false) == resource.data.get('isDeleted', false));
+    }
+
+    /* ── ACCOUNTING-DELETE-01: immutable delete/restore audit trail for
+       Accounting Transactions. Admin-only end to end, including read —
+       existing policy grants Accounting staff no audit-history access, and
+       none is added here. No update/delete for ANYONE, including Admin —
+       an audit trail that could be edited or removed after the fact isn't
+       an audit trail; only AccountingContext.deleteTransaction/
+       restoreTransaction ever write here, and only ever via `create`. ── */
+    match /accountingTransactionAudit/{id} {
+      allow read, create: if isAdmin();
+      allow update, delete: if false;
+    }
 
     match /{document=**} { allow read, write: if false; }
   }

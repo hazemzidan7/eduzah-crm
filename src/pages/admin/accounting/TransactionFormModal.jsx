@@ -7,7 +7,7 @@ import { useCustomers } from "../../../context/CustomerContext";
 import {
   TRANSACTION_TYPES, ACCOUNT_OPTIONS, categoryOptionsForType,
   validateTransaction, normalizeTransactionFields, refundableAmountForPayment,
-  existingIncomeForPayment,
+  existingIncomeForPayment, excludeDeletedTransactions,
 } from "../../../utils/accounting";
 import { effectivePaymentRecords } from "../../../utils/paymentRecords";
 import CrmLinkPicker from "./CrmLinkPicker";
@@ -78,6 +78,11 @@ export default function TransactionFormModal({ transaction, ar, tx, onClose }) {
   const { transactions, addTransaction, addRefundTransaction, updateTransaction } = useAccounting();
   const { customerById, engagementsForCustomer } = useCustomers();
   const isEdit = !!transaction;
+  // ACCOUNTING-DELETE-01 — a soft-deleted transaction must not count toward
+  // the refund ceiling or the duplicate-Income check below; this is the one
+  // filter applied before either, everything else about those checks is
+  // unchanged.
+  const activeTransactions = excludeDeletedTransactions(transactions);
   const [form, setForm] = useState(() => draftFromTransaction(transaction));
   const [errors, setErrors] = useState([]);
   const [saving, setSaving] = useState(false);
@@ -128,7 +133,7 @@ export default function TransactionFormModal({ transaction, ar, tx, onClose }) {
     if (draft.relatedPaymentId && (!record || record.status !== "confirmed")) {
       errs.push("INVALID_PAYMENT_REFERENCE");
     } else if (record) {
-      const refundable = refundableAmountForPayment(record, transactions, { excludeTransactionId: isEdit ? transaction.id : undefined });
+      const refundable = refundableAmountForPayment(record, activeTransactions, { excludeTransactionId: isEdit ? transaction.id : undefined });
       if (typeof draft.amount === "number" && draft.amount > refundable) errs.push("REFUND_EXCEEDS_REFUNDABLE_AMOUNT");
     }
     return errs;
@@ -145,7 +150,7 @@ export default function TransactionFormModal({ transaction, ar, tx, onClose }) {
   // created ones — existingIncomeForPayment doesn't distinguish the two,
   // by design (see its own doc comment in utils/accounting.js).
   const duplicateIncomeMatch = form.type === TRANSACTION_TYPES.INCOME && form.paymentId
-    ? existingIncomeForPayment(transactions, form.paymentId, { excludeTransactionId: isEdit ? transaction.id : undefined })
+    ? existingIncomeForPayment(activeTransactions, form.paymentId, { excludeTransactionId: isEdit ? transaction.id : undefined })
     : null;
   const duplicateIncomeEngagement = duplicateIncomeMatch && form.customerId && form.engagementId
     ? engagementsForCustomer(form.customerId).find((e) => e.id === form.engagementId)
