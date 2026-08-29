@@ -77,11 +77,6 @@ export function computePaymentAlerts(engagements) {
   return { pending, underReview, conflicts, missingProof };
 }
 
-/** Overdue follow-ups — same definition the Reminders view already uses (nextFollowUpDate in the past). */
-export function computeOverdueFollowUps(engagements, todayIso) {
-  return (engagements || []).filter((e) => !e.archivedAt && e.nextFollowUpDate && e.nextFollowUpDate < todayIso).length;
-}
-
 /**
  * Lead-status funnel using ONLY existing, live-configured status data
  * (LeadStatusContext) — never a hardcoded assumption about which specific

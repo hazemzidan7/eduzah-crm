@@ -4,10 +4,12 @@ import { C, radius, shadow } from "../../../../theme";
 import { useAuth } from "../../../../context/AuthContext";
 import { useLeadStatus } from "../../../../context/LeadStatusContext";
 import { useCustomers } from "../../../../context/CustomerContext";
+import { useFollowUps } from "../../../../context/FollowUpContext";
 import { useCrmNav } from "../../../../context/CrmNavContext";
 import { toE164Phone } from "../../../../utils/phoneE164";
 import { ATTENDANCE_TYPE_OPTIONS, PAYMENT_PLAN_OPTIONS, ENROLLMENT_STATUS_OPTIONS } from "../../../../constants/crmOptions";
 import { confirmedAmountPaid, effectivePaymentRecords, findPaymentConflicts } from "../../../../utils/paymentRecords";
+import { buildDueAt, splitDueAt, nearestPendingFollowUpsByEngagement } from "../../../../utils/followUps";
 import { effectiveCoursePrice } from "../../../../utils/pricingSnapshot";
 import { InlineText, InlineNumber, InlineDate, InlineSelect, InlineStatusSelect, ComputedMoney } from "./InlineCells";
 import { IconSend, IconHistory, IconGrid, IconBell, IconSearch, IconFilter, IconEye, IconCalendar, IconMoreVertical, IconSort, IconWhatsapp, IconPhone, IconMoney } from "../../../../components/Icons";
@@ -69,9 +71,10 @@ function SortTh({ children, colKey, style, activeKey, dir, onToggle }) {
  * just hands it a pre-scoped engagement list.
  */
 export default function ProgramSalesSheet({ engagements, program, businessUnitId, ar, tx }) {
-  const { users } = useAuth();
+  const { users, currentUser } = useAuth();
   const { effectiveStatuses, statusById } = useLeadStatus();
   const { customerById, updateCustomer, updateEngagement, changeEngagementStatus, changeEnrollmentStatus, setEngagementPricingPlan, engagements: allEngagements } = useCustomers();
+  const { followUps, addFollowUp, updateFollowUp, cancelFollowUp } = useFollowUps();
   const { setSection } = useCrmNav();
 
   const [search, setSearch] = useState("");
@@ -114,6 +117,12 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
     return () => el.removeEventListener("wheel", onWheel);
   }, []);
 
+  // FOLLOW-UP-UNIFY-02 — computed once here (not per-row) so 100+ visible
+  // rows don't each independently scan the whole followUps collection. This
+  // Map is the single source the "Next Follow-up" column now reads AND
+  // writes through — see saveNextFollowUp.
+  const nearestPendingByEngagement = useMemo(() => nearestPendingFollowUpsByEngagement(followUps), [followUps]);
+
   const admins = users.filter((u) => u.role === "admin");
   const assigneeOptions = [
     { v: "", l: tx("غير معيّن", "Unassigned") },
@@ -131,7 +140,7 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
       case "assigned": { const a = admins.find((x) => x.id === e.ownerId); return (a?.name || a?.email || "").toLowerCase(); }
       case "status": { const s = statusById(e.statusId); return s ? (ar ? s.name_ar : s.name_en) : ""; }
       case "enrollment": return e.enrollmentStatus || "not_enrolled";
-      case "nextFollowUp": return e.nextFollowUpDate || "";
+      case "nextFollowUp": return nearestPendingByEngagement.get(e.id)?.dueAt || "";
       case "lastContact": { const t = [...(e.timeline || [])].sort((a, b) => (b.at || "").localeCompare(a.at || "")).find((x) => x.type !== "system"); return t?.at || ""; }
       case "remaining": return (effectiveCoursePrice(e) || 0) - confirmedAmountPaid(e);
       case "paid": return confirmedAmountPaid(e);
@@ -168,7 +177,7 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
     }
     return rows;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [engagements, statusFilter, assigneeFilter, search, sortKey, sortDir, customerById, statusById, admins]);
+  }, [engagements, statusFilter, assigneeFilter, search, sortKey, sortDir, customerById, statusById, admins, nearestPendingByEngagement]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
@@ -181,12 +190,86 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
   const patchPayment = (engagement, key, val) =>
     updateEngagement(engagement.id, { payment: { ...(engagement.payment || {}), [key]: val } });
 
-  // Quick one-click default (3 days out); the Next Follow-up cell itself
-  // stays editable for picking an exact date.
-  const scheduleFollowUp = (engagement) => {
-    const d = new Date();
-    d.setDate(d.getDate() + 3);
-    updateEngagement(engagement.id, { nextFollowUpDate: d.toISOString().slice(0, 10) });
+  // FOLLOW-UP-UNIFY-01/02 — every follow-up-touching action in this sheet
+  // (the quick "+3 days" action AND the inline "Next Follow-up" column
+  // below) funnels through addFollowUp/updateFollowUp/cancelFollowUp
+  // (FollowUpContext) — the exact same functions every other Follow-up
+  // creation path already uses, never a parallel model. followUpOpInFlightRef
+  // is a single shared in-flight guard, keyed by engagementId: it blocks a
+  // second follow-up-touching call for the same engagement from firing while
+  // an earlier one hasn't resolved yet — protects both against a literal
+  // double-click AND against the quick action and the inline cell racing
+  // each other for the same row (nearestPendingByEngagement is derived from
+  // live context state, so a call made before the previous write's Firestore
+  // update has round-tripped could otherwise both see "no existing pending
+  // follow-up" and both create one).
+  const followUpOpInFlightRef = useRef(new Set());
+
+  const scheduleFollowUp = async (engagement) => {
+    if (followUpOpInFlightRef.current.has(engagement.id)) return;
+    followUpOpInFlightRef.current.add(engagement.id);
+    try {
+      const d = new Date();
+      d.setDate(d.getDate() + 3);
+      // Local calendar date, not toISOString().slice(0,10) — that converts
+      // to UTC first and can land a day early in timezones ahead of UTC
+      // (e.g. Cairo), same fix already established in utils/followUps.js.
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      const customer = customerById(engagement.customerId);
+      await addFollowUp({
+        customerId: engagement.customerId,
+        engagementId: engagement.id,
+        dueAt: buildDueAt(dateStr, "17:00"),
+        assignedTo: engagement.ownerId || currentUser?.id || null,
+        customerName: customer?.fullName || null,
+        customerPhone: customer?.phone || null,
+        programLabel: program?.name_en || null,
+      });
+    } finally {
+      followUpOpInFlightRef.current.delete(engagement.id);
+    }
+  };
+
+  // FOLLOW-UP-UNIFY-02 — the "Next Follow-up" column's inline date cell.
+  // Picking a date either UPDATES the engagement's soonest pending
+  // follow-up's dueAt (never creates a second one for an edit — the "don't
+  // duplicate when editing an existing pending follow-up" requirement) or,
+  // when none exists yet, CREATEs one (same shape as scheduleFollowUp
+  // above). Clearing the date CANCELs the soonest pending follow-up, via the
+  // exact same cancelFollowUp the Follow-ups page's own Cancel button uses —
+  // there is no "null date" concept on a canonical follow-up, so this is the
+  // one action that actually matches what clearing used to mean. Only ever
+  // touches the ONE soonest pending record; any other pending or already
+  // completed/cancelled follow-up on this engagement is untouched.
+  const saveNextFollowUp = async (engagement, dateStr) => {
+    if (followUpOpInFlightRef.current.has(engagement.id)) return;
+    followUpOpInFlightRef.current.add(engagement.id);
+    try {
+      const existing = nearestPendingByEngagement.get(engagement.id);
+      if (!dateStr) {
+        if (existing) await cancelFollowUp(existing.id);
+        return;
+      }
+      if (existing) {
+        // Keep whatever time-of-day the follow-up already had — changing
+        // just the date shouldn't silently reset a deliberately-chosen time.
+        const { time } = splitDueAt(existing.dueAt);
+        await updateFollowUp(existing.id, { dueAt: buildDueAt(dateStr, time || "17:00") });
+      } else {
+        const customer = customerById(engagement.customerId);
+        await addFollowUp({
+          customerId: engagement.customerId,
+          engagementId: engagement.id,
+          dueAt: buildDueAt(dateStr, "17:00"),
+          assignedTo: engagement.ownerId || currentUser?.id || null,
+          customerName: customer?.fullName || null,
+          customerPhone: customer?.phone || null,
+          programLabel: program?.name_en || null,
+        });
+      }
+    } finally {
+      followUpOpInFlightRef.current.delete(engagement.id);
+    }
   };
 
   const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString(ar ? "ar-EG" : "en-US", { day: "numeric", month: "short" }) : "—";
@@ -366,7 +449,10 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
                       </td>
                       <td style={td}>{lastContact?.at ? fmtDate(lastContact.at) : "—"}</td>
                       <td style={td}>
-                        <InlineDate value={e.nextFollowUpDate} onSave={(v) => updateEngagement(e.id, { nextFollowUpDate: v })} />
+                        <InlineDate
+                          value={nearestPendingByEngagement.get(e.id) ? splitDueAt(nearestPendingByEngagement.get(e.id).dueAt).date : ""}
+                          onSave={(v) => saveNextFollowUp(e, v)}
+                        />
                       </td>
                       <td style={td}>
                         <InlineSelect value={e.ownerId} onSave={(v) => updateEngagement(e.id, { ownerId: v })} options={assigneeOptions} minWidth={90} />

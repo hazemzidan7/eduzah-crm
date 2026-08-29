@@ -390,12 +390,14 @@ export default function EngagementDetailModal({ engagement, onClose }) {
         <Select label={tx("الموظف المسؤول", "Assigned employee")} value={engagement.ownerId || ""} onChange={(v) => updateEngagement(engagement.id, { ownerId: v || null })} options={assigneeOptions} />
         <Select label={tx("الأولوية", "Priority")} value={engagement.priority || "normal"} onChange={(v) => updateEngagement(engagement.id, { priority: v })} options={priorityOptions} />
       </div>
-      <Input
-        label={tx("تاريخ المتابعة القادم", "Next follow-up date")}
-        type="date"
-        value={engagement.nextFollowUpDate || ""}
-        onChange={(v) => updateEngagement(engagement.id, { nextFollowUpDate: v || null })}
-      />
+      {/* FOLLOW-UP-UNIFY-01 — the standalone "Next follow-up date" field that
+          used to live here (bound directly to the legacy
+          engagement.nextFollowUpDate) has been removed: it was a second,
+          independent write path to a field the rest of the app no longer
+          reads for follow-up scheduling. The canonical Follow-ups section
+          right below is sorted soonest-due-first (see sortFollowUps), so the
+          "what's next" information isn't lost — it's just the same real
+          record everywhere else, not a separate shadow field. */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px", marginBottom: 4 }}>
         <div style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 10.5, color: C.muted, fontWeight: 700, textTransform: "uppercase" }}>{tx("آخر تواصل", "Last contact")}</div>

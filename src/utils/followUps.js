@@ -183,6 +183,28 @@ export function getDueBucket(followUp, now = new Date()) {
   return "upcoming";
 }
 
+/**
+ * FOLLOW-UP-UNIFY-02 — the single soonest PENDING follow-up per engagement
+ * (by dueAt ascending; ISO instants sort correctly as plain strings, same
+ * trick sortFollowUps above relies on). Used anywhere a UI surface needs
+ * exactly ONE "next follow-up" per engagement — e.g. the Sales Sheet's
+ * dense "Next Follow-up" column, which has room for only one date per row.
+ * When an engagement has several pending follow-ups, only the nearest one
+ * is ever returned; every other pending record is untouched by whatever the
+ * caller does with this result (never collapsed, never merged, never lost —
+ * a view with room to show all of them, like the Follow-ups page or
+ * ProgramRemindersView, reads `followUps` directly instead of this).
+ */
+export function nearestPendingFollowUpsByEngagement(followUps) {
+  const map = new Map();
+  for (const f of (followUps || [])) {
+    if (f.status !== FOLLOW_UP_STATUSES.PENDING) continue;
+    const current = map.get(f.engagementId);
+    if (!current || (f.dueAt || "") < (current.dueAt || "")) map.set(f.engagementId, f);
+  }
+  return map;
+}
+
 /** Default sort: Overdue, then Due Today, then Upcoming, then Completed/Cancelled — soonest-due first within each group. */
 export function sortFollowUps(list, now = new Date()) {
   return [...(list || [])].sort((a, b) => {

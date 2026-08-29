@@ -7,6 +7,7 @@ import { useCustomers } from "../../../context/CustomerContext";
 import {
   TRANSACTION_TYPES, ACCOUNT_OPTIONS, categoryOptionsForType,
   validateTransaction, normalizeTransactionFields, refundableAmountForPayment,
+  existingIncomeForPayment,
 } from "../../../utils/accounting";
 import { effectivePaymentRecords } from "../../../utils/paymentRecords";
 import CrmLinkPicker from "./CrmLinkPicker";
@@ -28,6 +29,8 @@ const ERROR_MESSAGES = {
   INVALID_ENGAGEMENT_REFERENCE: ["البرنامج المحدد غير موجود لهذا العميل", "The selected program doesn't exist for this customer"],
   INVALID_PAYMENT_REFERENCE: ["الدفعة المحددة غير موجودة أو غير مؤكدة", "The selected payment doesn't exist or isn't confirmed"],
   REFUND_EXCEEDS_REFUNDABLE_AMOUNT: ["مبلغ الاسترداد أكبر من المتاح استرداده لهذه الدفعة", "Refund amount exceeds what's still refundable for this payment"],
+  // ACCOUNTING-DUP-01
+  DUPLICATE_INCOME_FOR_PAYMENT: ["تم تسجيل هذا الدفع بالفعل في المحاسبة", "This payment has already been recorded in Accounting"],
 };
 
 // Local id generator matching CustomerContext.jsx's own genId() — used only
@@ -131,9 +134,34 @@ export default function TransactionFormModal({ transaction, ar, tx, onClose }) {
     return errs;
   };
 
+  // ACCOUNTING-DUP-01 — "ONE confirmed payment -> EXACTLY ONE Income
+  // transaction". Deliberately scoped to type===INCOME with a real
+  // relatedPaymentId link — an Income transaction with no CRM link (other
+  // business income) is never touched by this check. Computed live off
+  // current form state (not only at submit time) so the warning shows the
+  // moment a duplicate link is picked via CrmLinkPicker, not only after a
+  // failed submit attempt. transactions already includes both automatically-
+  // created Income (from a confirmed CRM payment) and any other manually-
+  // created ones — existingIncomeForPayment doesn't distinguish the two,
+  // by design (see its own doc comment in utils/accounting.js).
+  const duplicateIncomeMatch = form.type === TRANSACTION_TYPES.INCOME && form.paymentId
+    ? existingIncomeForPayment(transactions, form.paymentId, { excludeTransactionId: isEdit ? transaction.id : undefined })
+    : null;
+  const duplicateIncomeEngagement = duplicateIncomeMatch && form.customerId && form.engagementId
+    ? engagementsForCustomer(form.customerId).find((e) => e.id === form.engagementId)
+    : null;
+  const duplicateIncomeRecord = duplicateIncomeEngagement && form.paymentId
+    ? effectivePaymentRecords(duplicateIncomeEngagement).find((r) => r.id === form.paymentId)
+    : null;
+  const duplicateIncomeCustomer = duplicateIncomeMatch && form.customerId ? customerById(form.customerId) : null;
+
   const handleSubmit = async () => {
     const draft = buildDraft();
-    const validationErrors = [...validateTransaction(draft), ...refundCrmErrors(draft)];
+    const validationErrors = [
+      ...validateTransaction(draft),
+      ...refundCrmErrors(draft),
+      ...(duplicateIncomeMatch ? ["DUPLICATE_INCOME_FOR_PAYMENT"] : []),
+    ];
     if (validationErrors.length > 0) { setErrors(validationErrors); return; }
 
     setSaving(true);
@@ -148,7 +176,16 @@ export default function TransactionFormModal({ transaction, ar, tx, onClose }) {
       }
       onClose();
     } catch (e) {
-      setErrors([e.message?.startsWith("INVALID_TRANSACTION") ? e.message.replace("INVALID_TRANSACTION: ", "").split(", ") : "UNKNOWN_ERROR"].flat());
+      // ACCOUNTING-DUP-01 — AccountingContext's own server-side re-check
+      // (the defense-in-depth guard against the race window the client-side
+      // duplicateIncomeMatch check above can't fully close) throws this
+      // exact bare message, not an "INVALID_TRANSACTION: ..." one — mapped
+      // to the same friendly error as the client-side check above.
+      if (e.message === "DUPLICATE_INCOME_FOR_PAYMENT") {
+        setErrors(["DUPLICATE_INCOME_FOR_PAYMENT"]);
+      } else {
+        setErrors([e.message?.startsWith("INVALID_TRANSACTION") ? e.message.replace("INVALID_TRANSACTION: ", "").split(", ") : "UNKNOWN_ERROR"].flat());
+      }
     } finally {
       setSaving(false);
     }
@@ -254,9 +291,37 @@ export default function TransactionFormModal({ transaction, ar, tx, onClose }) {
         />
       )}
 
-      {errors.length > 0 && (
+      {/* ACCOUNTING-DUP-01 — shown live, the moment a duplicate link is
+          picked, not only after a failed submit attempt. Gives the
+          Accounting user exactly what they need to understand the block:
+          who, how much, and when the existing entry was recorded — without
+          clearing anything they've already entered on the form. */}
+      {duplicateIncomeMatch && (
+        <div style={{ marginBottom: 14, padding: "10px 12px", borderRadius: 8, background: `${C.danger}14`, border: `1px solid ${C.danger}66` }}>
+          <div style={{ fontSize: 12.5, fontWeight: 800, color: C.danger, marginBottom: 4 }}>
+            ⚠ {tx("تم تسجيل هذا الدفع بالفعل في المحاسبة", "This payment has already been recorded in Accounting")}
+          </div>
+          <div style={{ fontSize: 11.5, color: C.text, lineHeight: 1.8 }}>
+            {duplicateIncomeCustomer?.fullName && (
+              <div>{tx("الطالب", "Student")}: <b>{duplicateIncomeCustomer.fullName}</b></div>
+            )}
+            {typeof duplicateIncomeRecord?.amount === "number" && (
+              <div>{tx("مبلغ الدفعة", "Payment amount")}: <b dir="ltr">{duplicateIncomeRecord.amount.toLocaleString()}</b></div>
+            )}
+            <div dir="ltr">{tx("تاريخ الحركة المحاسبية الموجودة", "Existing accounting entry date")}: <b>{duplicateIncomeMatch.date || "—"}</b></div>
+          </div>
+        </div>
+      )}
+
+      {/* The rich block above already covers DUPLICATE_INCOME_FOR_PAYMENT
+          whenever duplicateIncomeMatch is known client-side — not repeated
+          here. It's still shown here, alone, for the one case the rich
+          block can't cover: the server-side re-check (AccountingContext)
+          rejecting a submission the client's own stale data thought was
+          fine — see handleSubmit's catch. */}
+      {errors.filter((code) => !(code === "DUPLICATE_INCOME_FOR_PAYMENT" && duplicateIncomeMatch)).length > 0 && (
         <div style={{ marginBottom: 14, padding: "8px 12px", borderRadius: 8, background: `${C.danger}20`, border: `1px solid ${C.danger}66` }}>
-          {errors.map((code) => {
+          {errors.filter((code) => !(code === "DUPLICATE_INCOME_FOR_PAYMENT" && duplicateIncomeMatch)).map((code) => {
             const [arMsg, enMsg] = ERROR_MESSAGES[code] || [code, code];
             return <div key={code} style={{ fontSize: 12, color: C.danger, fontWeight: 700 }}>⚠ {ar ? arMsg : enMsg}</div>;
           })}
@@ -264,7 +329,7 @@ export default function TransactionFormModal({ transaction, ar, tx, onClose }) {
       )}
 
       <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-        <Btn v="primary" full disabled={saving} onClick={handleSubmit}>
+        <Btn v="primary" full disabled={saving || !!duplicateIncomeMatch} onClick={handleSubmit}>
           {saving ? tx("جارٍ الحفظ…", "Saving…") : isEdit ? tx("حفظ التعديلات", "Save Changes") : tx("إضافة الحركة", "Add Transaction")}
         </Btn>
         <Btn v="ghost" onClick={onClose}>{tx("إلغاء", "Cancel")}</Btn>

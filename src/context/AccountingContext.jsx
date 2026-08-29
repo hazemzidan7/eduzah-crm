@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from "react";
-import { collection, doc, addDoc, updateDoc, getDoc, setDoc, onSnapshot, arrayUnion } from "firebase/firestore";
+import { collection, doc, addDoc, updateDoc, getDoc, setDoc, onSnapshot, arrayUnion, query, where, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "./AuthContext";
 import {
@@ -10,6 +10,28 @@ import {
   buildEditHistoryEntry,
   diffForEditHistory,
 } from "../utils/accounting";
+
+// ACCOUNTING-DUP-01 — the actual enforcement boundary for "one confirmed
+// payment -> exactly one Income transaction", for the MANUAL creation path.
+// TransactionFormModal already blocks on the client using the live
+// `transactions` it has in memory (instant feedback, no round trip) — this
+// is the defense-in-depth re-check, run against a fresh server query
+// immediately before the write, so a duplicate created in the gap since the
+// page last synced still gets caught. A query on two equality clauses
+// (type, relatedPaymentId) needs no composite index in Firestore. This
+// narrows the race window (two submits within the same query round-trip can
+// still theoretically both pass — see AccountingContext's own module
+// comment / the audit report for why closing that fully would require a
+// bigger change than this task's scope) but does not eliminate it.
+async function findExistingIncomeTransaction(paymentId, { excludeTransactionId } = {}) {
+  const q = query(
+    collection(db, ACCOUNTING_TRANSACTIONS_COLLECTION),
+    where("type", "==", TRANSACTION_TYPES.INCOME),
+    where("relatedPaymentId", "==", paymentId),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.find((d) => d.id !== excludeTransactionId) || null;
+}
 
 const AccountingCtx = createContext(null);
 
@@ -47,6 +69,15 @@ export function AccountingProvider({ children }) {
   const addTransaction = async (draft) => {
     const errors = validateTransaction(draft);
     if (errors.length > 0) throw new Error(`INVALID_TRANSACTION: ${errors.join(", ")}`);
+    // ACCOUNTING-DUP-01 — only Income transactions linked to a specific CRM
+    // payment are subject to this check; Expense/Refund/Transfer (and an
+    // Income with no relatedPaymentId at all — e.g. other business income)
+    // are structurally excluded by the type/relatedPaymentId condition
+    // itself, not by a separate branch that could drift out of sync.
+    if (draft.type === TRANSACTION_TYPES.INCOME && draft.relatedPaymentId) {
+      const dup = await findExistingIncomeTransaction(draft.relatedPaymentId);
+      if (dup) throw new Error("DUPLICATE_INCOME_FOR_PAYMENT");
+    }
     const doc_ = buildTransaction(draft, { currentUser });
     const ref = await addDoc(collection(db, ACCOUNTING_TRANSACTIONS_COLLECTION), doc_);
     return ref.id;
@@ -87,6 +118,15 @@ export function AccountingProvider({ children }) {
     const merged = { ...current, ...updates };
     const errors = validateTransaction(merged);
     if (errors.length > 0) throw new Error(`INVALID_TRANSACTION: ${errors.join(", ")}`);
+    // ACCOUNTING-DUP-01 — an edit that changes (or keeps) an Income
+    // transaction's relatedPaymentId must not land on a payment some OTHER
+    // transaction already claims. excludeTransactionId=id means editing a
+    // transaction's own unrelated fields, or re-saving its own existing
+    // link unchanged, is never mistaken for a duplicate of itself.
+    if (merged.type === TRANSACTION_TYPES.INCOME && merged.relatedPaymentId) {
+      const dup = await findExistingIncomeTransaction(merged.relatedPaymentId, { excludeTransactionId: id });
+      if (dup) throw new Error("DUPLICATE_INCOME_FOR_PAYMENT");
+    }
 
     const diff = diffForEditHistory(current, updates);
     const now = new Date().toISOString();

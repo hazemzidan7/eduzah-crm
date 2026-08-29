@@ -6,6 +6,7 @@ import { useAuth } from "../../../../context/AuthContext";
 import { useCatalog } from "../../../../context/CatalogContext";
 import { useLeadStatus } from "../../../../context/LeadStatusContext";
 import { useCustomers } from "../../../../context/CustomerContext";
+import { useFollowUps } from "../../../../context/FollowUpContext";
 import { useCrmNav } from "../../../../context/CrmNavContext";
 import { IconPeople, IconSend, IconThinking, IconCalendarCheck, IconMoney, IconBell } from "../../../../components/Icons";
 import ProgramSalesSheet from "./ProgramSalesSheet";
@@ -37,6 +38,7 @@ export default function ProgramWorkspace() {
   const { nodeById, descendantsOf } = useCatalog();
   const { effectiveStatuses } = useLeadStatus();
   const { engagements, loading } = useCustomers();
+  const { followUps } = useFollowUps();
   const { programId, section } = useCrmNav();
   const [deletingTrack, setDeletingTrack] = useState(false);
 
@@ -65,7 +67,15 @@ export default function ProgramWorkspace() {
     return counts;
   }, [scopedEngagements]);
 
-  const remindersDue = scopedEngagements.filter((e) => e.nextFollowUpDate).length;
+  // FOLLOW-UP-UNIFY-02 — count of PENDING canonical follow-ups belonging to
+  // this Track's engagements, not engagements carrying the legacy
+  // nextFollowUpDate field. Same "pending" definition Management Dashboard's
+  // followUpStats and the Follow-ups page both already use, so this number
+  // can no longer disagree with either of them.
+  const remindersDue = useMemo(() => {
+    const ids = new Set(scopedEngagements.map((e) => e.id));
+    return followUps.filter((f) => f.status === "pending" && ids.has(f.engagementId)).length;
+  }, [followUps, scopedEngagements]);
   const enrolledCount = scopedEngagements.filter((e) => e.enrollmentStatus === "enrolled").length;
 
   if (!program) {

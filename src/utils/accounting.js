@@ -592,3 +592,58 @@ export function refundableAmountForPayment(paymentRecord, transactions, { exclud
   const already = alreadyRefundedForPayment(transactions, paymentRecord.id, { excludeTransactionId });
   return Math.max(0, paymentRecord.amount - already);
 }
+
+// ─── ACCOUNTING-DUP-01: ONE confirmed payment -> EXACTLY ONE Income ─────
+// transaction. CustomerContext.createAccountingIncomeFromPayment already
+// guarantees this for the AUTOMATIC path (doc id = paymentId, existence-
+// checked before writing — see that function's own comment). This section
+// is the equivalent guard for the MANUAL "Add Transaction" form, which
+// always writes with a random doc id and so can't rely on that same trick.
+// Same "scan the already-loaded transactions list" shape as
+// alreadyRefundedForPayment/refundableAmountForPayment just above —
+// deliberately not a new pattern.
+
+/**
+ * The existing Income transaction already linked to `paymentId`, if any —
+ * whether it was created automatically (doc id = paymentId) or manually
+ * (random doc id); both look identical here, matched purely by
+ * relatedPaymentId. Returns null when a manual Income transaction with this
+ * relatedPaymentId would be perfectly legitimate: no such payment link, or
+ * no existing Income transaction for it yet. `excludeTransactionId` lets an
+ * edit of an existing Income transaction exclude its own current value —
+ * same reasoning as alreadyRefundedForPayment's own exclude param.
+ */
+export function existingIncomeForPayment(transactions, paymentId, { excludeTransactionId } = {}) {
+  if (!paymentId) return null;
+  return (transactions || []).find((t) => (
+    t.type === TRANSACTION_TYPES.INCOME
+    && t.relatedPaymentId === paymentId
+    && t.id !== excludeTransactionId
+  )) || null;
+}
+
+/**
+ * Read-only historical audit: every relatedPaymentId with MORE THAN ONE
+ * Income transaction pointing at it. Never modifies anything — for
+ * reporting only, so an admin can decide by hand what (if anything) to do
+ * about a specific pair. Makes no judgment about which transaction in a
+ * group is "the real one" (the automatic one is not distinguishable from a
+ * manual one by any field other than usually being createdBy a system-style
+ * flow — that's a job for a human to review, not this function to guess).
+ */
+export function findDuplicateIncomeTransactions(transactions) {
+  const byPaymentId = new Map();
+  for (const t of (transactions || [])) {
+    if (t.type !== TRANSACTION_TYPES.INCOME || !t.relatedPaymentId) continue;
+    const list = byPaymentId.get(t.relatedPaymentId) || [];
+    list.push(t);
+    byPaymentId.set(t.relatedPaymentId, list);
+  }
+  return [...byPaymentId.entries()]
+    .filter(([, list]) => list.length > 1)
+    .map(([paymentId, list]) => ({
+      paymentId,
+      transactionIds: list.map((t) => t.id),
+      totalAmount: list.reduce((sum, t) => sum + (t.amount || 0), 0),
+    }));
+}

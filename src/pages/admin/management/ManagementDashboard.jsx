@@ -21,10 +21,11 @@ import { computeFollowUpDashboardStats } from "../../../utils/followUps";
 import { StatCard, BalanceCard } from "../accounting/AccountingBadges";
 import {
   MANAGEMENT_PERIODS, MANAGEMENT_PERIOD_OPTIONS,
-  computePaymentStatusCounts, computePaymentAlerts, computeOverdueFollowUps,
+  computePaymentStatusCounts, computePaymentAlerts,
   computeLeadFunnel, computeProgramPerformance, computeRecentActivity,
 } from "../../../utils/managementDashboard";
 import ProgramPerformanceTable from "./ProgramPerformanceTable";
+import SalesPerformanceView from "./SalesPerformanceView";
 
 function pillStyle(active) {
   return {
@@ -111,6 +112,12 @@ export default function ManagementDashboard() {
   const { nodeById } = useCatalog();
   const { setSection, goToCatalog } = useCrmNav();
 
+  // SALES-PERF-01 — a second view inside this same Admin-only Management
+  // section, same "view" tab pattern AccountingPage already uses for its
+  // own Overview/Reports split — not a new Sidebar item, not a new route.
+  // Inherits AdminShell's existing strandedOnManagement guard for free.
+  const [view, setView] = useState("overview");
+
   const [periodType, setPeriodType] = useState(MANAGEMENT_PERIODS.TODAY);
   const [customFrom, setCustomFrom] = useState(todayIso());
   const [customTo, setCustomTo] = useState(todayIso());
@@ -147,7 +154,6 @@ export default function ManagementDashboard() {
   const balances = useMemo(() => computeAccountBalances(transactions), [transactions]); // all-time, same as Accounting Dashboard
   const statusCounts = useMemo(() => computePaymentStatusCounts(engagements, { dateFrom: from, dateTo: to }), [engagements, from, to]);
   const alerts = useMemo(() => computePaymentAlerts(engagements), [engagements]);
-  const overdueCount = useMemo(() => computeOverdueFollowUps(engagements, todayIso()), [engagements]);
   const funnel = useMemo(() => computeLeadFunnel(engagements, statuses), [engagements, statuses]);
   const programRows = useMemo(() => computeProgramPerformance(engagements, periodTransactions), [engagements, periodTransactions]);
   const recentActivity = useMemo(() => computeRecentActivity(engagements, periodTransactions, { limit: 10 }), [engagements, periodTransactions]);
@@ -181,6 +187,23 @@ export default function ManagementDashboard() {
         </div>
       </div>
 
+      {/* ── SALES-PERF-01: Overview / Sales Performance — same tab pattern
+          AccountingPage already uses; Overview is the default, unchanged
+          view, Sales Performance is purely additive and never runs unless
+          explicitly selected. ── */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 18, borderBottom: `1px solid ${C.border}`, paddingBottom: 10 }}>
+        {[
+          { v: "overview", ar: "نظرة عامة", en: "Overview" },
+          { v: "sales_performance", ar: "أداء المبيعات", en: "Sales Performance" },
+        ].map((t) => (
+          <button key={t.v} onClick={() => setView(t.v)} style={pillStyle(view === t.v)}>{ar ? t.ar : t.en}</button>
+        ))}
+      </div>
+
+      {view === "sales_performance" ? (
+        <SalesPerformanceView />
+      ) : (
+      <>
       {/* ── Period filter ── */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "flex-end", marginBottom: 22 }}>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -281,8 +304,13 @@ export default function ManagementDashboard() {
             <AlertRow label={tx("دفعات قيد المراجعة", "Under-review payments")} count={alerts.underReview} severity="orange" onClick={goPayments} />
             <AlertRow label={tx("تعارضات دفع محتملة", "Possible payment conflicts")} count={alerts.conflicts} severity="danger" onClick={goPayments} />
             <AlertRow label={tx("دفعات بلا إثبات", "Payments missing proof")} count={alerts.missingProof} severity="orange" onClick={goPayments} />
-            <AlertRow label={tx("متابعات متأخرة", "Overdue follow-ups")} count={overdueCount} severity="orange" />
-            {alerts.pending + alerts.underReview + alerts.conflicts + alerts.missingProof + overdueCount === 0 && (
+            {/* FOLLOW-UP-UNIFY-01 — reads followUpStats.overdue (the canonical
+                `followUps` collection, computed below), not the legacy
+                engagement.nextFollowUpDate field — this card and the
+                Follow-ups section's own "Overdue" stat card can no longer
+                disagree, since they're now the exact same number. */}
+            <AlertRow label={tx("متابعات متأخرة", "Overdue follow-ups")} count={followUpStats.overdue} severity="orange" />
+            {alerts.pending + alerts.underReview + alerts.conflicts + alerts.missingProof + followUpStats.overdue === 0 && (
               <div style={{ fontSize: 12.5, color: C.muted, textAlign: "center", padding: "12px 0" }}>{tx("لا توجد تنبيهات حاليًا 🎉", "Nothing needs attention right now 🎉")}</div>
             )}
           </Card>
@@ -332,6 +360,8 @@ export default function ManagementDashboard() {
           </div>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }
