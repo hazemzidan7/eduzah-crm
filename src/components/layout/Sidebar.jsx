@@ -98,7 +98,7 @@ export default function Sidebar() {
 
   return (
     <aside style={{
-      width: collapsed ? 68 : 240, flexShrink: 0, minHeight: "100vh",
+      width: collapsed ? 64 : 222, flexShrink: 0, minHeight: "100vh",
       background: C.sidebarBg, borderInlineEnd: `1px solid ${C.border}`,
       display: "flex", flexDirection: "column", padding: "16px 10px",
       transition: "width .18s ease", overflow: "hidden",

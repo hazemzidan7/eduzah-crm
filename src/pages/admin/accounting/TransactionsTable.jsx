@@ -15,7 +15,11 @@ function categoryLabel(t, ar) {
   return optionLabel(categoryOptionsForType(t.type), t.category, ar);
 }
 
-const th = { padding: "10px 12px", textAlign: "start", fontSize: 11, fontWeight: 800, color: C.muted, whiteSpace: "nowrap", borderBottom: `1px solid ${C.border}` };
+const th = {
+  padding: "11px 12px", textAlign: "start", fontSize: 10.5, fontWeight: 800, color: C.muted,
+  whiteSpace: "nowrap", borderBottom: `1px solid ${C.border}`, textTransform: "uppercase", letterSpacing: 0.3,
+  position: "sticky", top: 0, background: "#F8FAFC", zIndex: 1,
+};
 const td = { padding: "10px 12px", fontSize: 12.5, verticalAlign: "middle" };
 
 /**
@@ -33,7 +37,7 @@ export default function TransactionsTable({ transactions, ar, tx, customerById, 
   }
 
   return (
-    <div className="edu-sheet-scroll" style={{ overflowX: "auto", borderRadius: 12, border: `1px solid ${C.border}` }}>
+    <div className="edu-sheet-scroll" style={{ overflowX: "auto", borderRadius: 12, border: `1px solid ${C.border}`, maxHeight: 640, overflowY: "auto" }}>
       <table style={{ width: "100%", minWidth: 860, borderCollapse: "collapse" }}>
         <thead>
           <tr style={{ background: "#F8FAFC" }}>
@@ -48,11 +52,11 @@ export default function TransactionsTable({ transactions, ar, tx, customerById, 
           </tr>
         </thead>
         <tbody>
-          {transactions.map((t, i) => {
+          {transactions.map((t) => {
             const customer = t.relatedCustomerId ? customerById?.(t.relatedCustomerId) : null;
             const studentOrDesc = customer?.fullName || t.note || "—";
             return (
-              <tr key={t.id} style={{ background: i % 2 === 0 ? "transparent" : "#FBFCFE" }}>
+              <tr key={t.id} className="edu-sheet-row">
                 <td style={{ ...td, whiteSpace: "nowrap" }} dir="ltr">{t.date || "—"}</td>
                 <td style={td}><TransactionTypeBadge type={t.type} ar={ar} /></td>
                 <td style={{ ...td, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={studentOrDesc}>

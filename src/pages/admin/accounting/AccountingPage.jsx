@@ -57,12 +57,13 @@ export default function AccountingPage() {
 
   const [view, setView] = useState("overview"); // ACCOUNTING-04: "overview" (default, unchanged) | "reports" | "history" (Admin-only, ACCOUNTING-DELETE-01)
   const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [page, setPage] = useState(1); // UX-01: client-side pagination, table only — never affects any total/balance calculation
   const [formOpen, setFormOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [historyTransaction, setHistoryTransaction] = useState(null);
   const [deletingTransaction, setDeletingTransaction] = useState(null);
 
-  const setFilter = (patch) => setFilters((f) => ({ ...f, ...patch }));
+  const setFilter = (patch) => { setFilters((f) => ({ ...f, ...patch })); setPage(1); };
   const hasActiveFilters = Object.keys(EMPTY_FILTERS).some((k) => filters[k] !== EMPTY_FILTERS[k]);
 
   const filtered = useMemo(() => filterTransactions(activeTransactions, filters, {
@@ -74,6 +75,17 @@ export default function AccountingPage() {
   const sorted = useMemo(
     () => [...filtered].sort((a, b) => (b.date || "").localeCompare(a.date || "") || (b.createdAt || "").localeCompare(a.createdAt || "")),
     [filtered],
+  );
+
+  // UX-01 — paginate the table only, so a ledger with thousands of rows
+  // stays comfortable to scan; every total/balance above still reads from
+  // the FULL activeTransactions list, never from this page slice.
+  const PAGE_SIZE = 50;
+  const pageCount = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount);
+  const paged = useMemo(
+    () => sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [sorted, safePage],
   );
 
   const openAdd = () => { setEditingTransaction(null); setFormOpen(true); };
@@ -131,8 +143,13 @@ export default function AccountingPage() {
         <>
           <AccountingDashboard transactions={activeTransactions} ar={ar} tx={tx} />
 
-          <div style={{ fontSize: 12, fontWeight: 800, color: C.muted, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 }}>
-            {tx("الحركات", "Transactions")}
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: 0.4 }}>
+              {tx("الحركات", "Transactions")}
+            </div>
+            <div style={{ fontSize: 11.5, color: C.muted, fontWeight: 700 }}>
+              {tx(`${sorted.length.toLocaleString()} حركة`, `${sorted.length.toLocaleString()} transaction${sorted.length === 1 ? "" : "s"}`)}
+            </div>
           </div>
 
           <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "flex-end", marginBottom: 14 }}>
@@ -167,7 +184,7 @@ export default function AccountingPage() {
               <Input type="date" value={filters.dateTo} onChange={(v) => setFilter({ dateTo: v })} placeholder={tx("إلى تاريخ", "To date")} />
             </div>
             {hasActiveFilters && (
-              <Btn v="ghost" sm onClick={() => setFilters(EMPTY_FILTERS)}>{tx("مسح الفلاتر", "Clear filters")}</Btn>
+              <Btn v="ghost" sm onClick={() => { setFilters(EMPTY_FILTERS); setPage(1); }}>{tx("مسح الفلاتر", "Clear filters")}</Btn>
             )}
           </div>
 
@@ -179,10 +196,24 @@ export default function AccountingPage() {
           </div>
 
           <TransactionsTable
-            transactions={sorted} ar={ar} tx={tx} customerById={customerById}
+            transactions={paged} ar={ar} tx={tx} customerById={customerById}
             onEdit={openEdit} onViewHistory={openHistory}
             onDelete={isAdmin ? openDelete : undefined}
           />
+
+          {pageCount > 1 && (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginTop: 14 }}>
+              <Btn v="ghost" sm disabled={safePage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+                {tx("السابق", "Previous")}
+              </Btn>
+              <div style={{ fontSize: 12, color: C.muted, fontWeight: 700 }}>
+                {tx(`صفحة ${safePage} من ${pageCount}`, `Page ${safePage} of ${pageCount}`)}
+              </div>
+              <Btn v="ghost" sm disabled={safePage >= pageCount} onClick={() => setPage((p) => Math.min(pageCount, p + 1))}>
+                {tx("التالي", "Next")}
+              </Btn>
+            </div>
+          )}
         </>
       )}
 

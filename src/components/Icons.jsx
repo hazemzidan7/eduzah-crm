@@ -94,3 +94,9 @@ export function IconX({ size = 18 }) {
 export function IconEdit({ size = 18 }) {
   return <svg {...base(size)}><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /></svg>;
 }
+export function IconAlertTriangle({ size = 18 }) {
+  return <svg {...base(size)}><path d="m10.29 3.86-8.18 14A2 2 0 0 0 3.82 21h16.36a2 2 0 0 0 1.71-3.14l-8.18-14a2 2 0 0 0-3.42 0Z" /><path d="M12 9v4" /><path d="M12 17h.01" /></svg>;
+}
+export function IconLayers({ size = 18 }) {
+  return <svg {...base(size)}><path d="m12 2 9 5-9 5-9-5 9-5Z" /><path d="m3 12 9 5 9-5" /><path d="m3 17 9 5 9-5" /></svg>;
+}

@@ -47,11 +47,19 @@ export const TRANSACTION_TYPE_OPTIONS = [
 // income transactions (cash/instapay/vodafone_cash mirror
 // utils/paymentRecords.js's PAYMENT_METHOD_OPTIONS; "bank" is Accounting-only
 // since no CRM payment is ever received directly into it).
+//
+// UNASSIGNED is not a real wallet — it exists so a transaction whose real
+// account genuinely cannot be determined from its source data can still be
+// recorded (and counted in totals) without guessing one of the four real
+// accounts above. It must never be treated as a 5th place money physically
+// sits, and nothing here ever assigns it automatically — only a caller that
+// has already confirmed "no evidence" may use it.
 export const ACCOUNTS = {
   CASH: "cash",
   INSTAPAY: "instapay",
   VODAFONE_CASH: "vodafone_cash",
   BANK: "bank",
+  UNASSIGNED: "unassigned",
 };
 
 export const ACCOUNT_OPTIONS = [
@@ -59,6 +67,7 @@ export const ACCOUNT_OPTIONS = [
   { v: ACCOUNTS.INSTAPAY, ar: "إنستاباي", en: "InstaPay" },
   { v: ACCOUNTS.VODAFONE_CASH, ar: "فودافون كاش", en: "Vodafone Cash" },
   { v: ACCOUNTS.BANK, ar: "البنك", en: "Bank" },
+  { v: ACCOUNTS.UNASSIGNED, ar: "غير محدد", en: "Unassigned" },
 ];
 
 export const INCOME_CATEGORIES = {
@@ -298,6 +307,7 @@ export function computeAccountBalances(transactions) {
     [ACCOUNTS.INSTAPAY]: 0,
     [ACCOUNTS.VODAFONE_CASH]: 0,
     [ACCOUNTS.BANK]: 0,
+    [ACCOUNTS.UNASSIGNED]: 0,
   };
   for (const t of transactions || []) {
     if (t.type === TRANSACTION_TYPES.INCOME && t.account) {
@@ -369,6 +379,7 @@ export function computeReportMetrics(transactions, { paymentTypeFor } = {}) {
     [ACCOUNTS.INSTAPAY]: 0,
     [ACCOUNTS.VODAFONE_CASH]: 0,
     [ACCOUNTS.BANK]: 0,
+    [ACCOUNTS.UNASSIGNED]: 0,
   };
   let deposits = 0, installments = 0, fullPayments = 0;
   for (const t of transactions || []) {

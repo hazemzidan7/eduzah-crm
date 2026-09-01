@@ -12,7 +12,7 @@ import {
   excludeDeletedTransactions,
 } from "../../../utils/accounting";
 import { effectivePaymentRecords } from "../../../utils/paymentRecords";
-import { StatCard } from "./AccountingBadges";
+import { StatCard, ACCOUNT_COLOR } from "./AccountingBadges";
 
 function pillStyle(active) {
   return {
@@ -57,8 +57,6 @@ function periodLabel(periodType, anchor, ar, tx) {
   }
   return anchor.toLocaleDateString(locale, { year: "numeric", month: "long" }); // MONTHLY
 }
-
-const ACCOUNT_ICON_COLOR = { cash: C.success, instapay: C.pmid, vodafone_cash: C.orange, bank: C.red };
 
 /**
  * ACCOUNTING-04 — period-based Reports, separate from the Dashboard's
@@ -151,7 +149,7 @@ export default function AccountingReports({ ar, tx }) {
           <StatCard
             key={a.v}
             Icon={IconWallet}
-            color={ACCOUNT_ICON_COLOR[a.v] || C.muted}
+            color={ACCOUNT_COLOR[a.v] || C.odark}
             label={ar ? a.ar : a.en}
             value={metrics.incomeByAccount[a.v] || 0}
             suffix={ar ? "ج.م" : "EGP"}
