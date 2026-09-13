@@ -9,6 +9,10 @@ import {
   getDocs,
   onSnapshot,
   writeBatch,
+  query,
+  where,
+  limit,
+  runTransaction,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "./AuthContext";
@@ -74,23 +78,62 @@ export function LeadStatusProvider({ children }) {
     return () => unsub();
   }, [currentUser?.id, currentUser?.role]);
 
-  // Bootstrap-only, guarded by settings/seedState.leadStatusesSeeded — same
-  // pattern as the catalog seeds. Once set, this never runs again, so
-  // archiving every status later can't cause a silent re-seed.
+  // Bootstrap-only, guarded by settings/seedState.leadStatusesSeeded.
+  //
+  // LEAD-STATUS-DEDUP-01: this used to be a plain check-then-act (read the
+  // flag, decide, run the loop, write the flag back at the very end) - not
+  // atomic, so two admin sessions/tabs initializing within the same short
+  // window could both read `leadStatusesSeeded !== true` before either had
+  // written it back, and both would run the full seed loop, creating a
+  // second copy of every status. This is confirmed to have happened once in
+  // production (all 13 seeded statuses duplicated, all sharing one
+  // timestamp - i.e. one single extra loop execution) and was cleaned up
+  // via a one-off archive script, not by this fix; this fix only prevents
+  // it from happening again.
+  //
+  // Two independent layers now, so either one alone would have prevented
+  // the incident:
+  //  1. The flag read-and-claim happens inside a single Firestore
+  //     transaction that also WRITES leadStatusesSeeded: true immediately,
+  //     before any status document is created. Firestore's optimistic
+  //     concurrency control guarantees at most one concurrent transaction
+  //     can win that read-modify-write on the same document - a second,
+  //     truly-simultaneous caller retries the transaction, re-reads the
+  //     now-true flag, and its transaction callback returns false without
+  //     creating anything.
+  //  2. Independently of the flag, every single status is now checked for
+  //     an existing document with the same `key` (via a `where("key","==",...)`
+  //     query, matching ANY existing document regardless of isActive - so
+  //     an archived status is never silently re-created either) immediately
+  //     before that one `addDoc` call, and skipped if found. This means
+  //     even if the flag were ever somehow reset or missing, re-running this
+  //     effect can only ever fill in genuinely missing statuses, never
+  //     duplicate an existing (active or archived) one.
   useEffect(() => {
     if (currentUser?.role !== "admin") return;
     (async () => {
-      let seeded = {};
-      try {
-        const s = await getDoc(doc(db, "settings", "seedState"));
-        if (s.exists()) seeded = s.data() || {};
-      } catch (_) {}
-      if (seeded.leadStatusesSeeded === true) return;
+      const seedStateRef = doc(db, "settings", "seedState");
+      const claimed = await runTransaction(db, async (tx) => {
+        const s = await tx.get(seedStateRef);
+        const seeded = s.exists() ? (s.data() || {}) : {};
+        if (seeded.leadStatusesSeeded === true) return false;
+        tx.set(seedStateRef, { ...seeded, leadStatusesSeeded: true, updatedAt: new Date().toISOString() }, { merge: true });
+        return true;
+      });
+      if (!claimed) return; // another session already seeded (or is seeding) this - nothing to do here
 
-      const snap = await getDocs(collection(db, "leadStatuses"));
-      if (snap.empty) {
-        const now = new Date().toISOString();
-        for (const [i, g] of GLOBAL_STATUS_SEED.entries()) {
+      // existsByKey: true if ANY leadStatuses document (active or archived)
+      // already has this key - the single idempotency check every create
+      // below goes through, so a status is only ever created once, ever.
+      const existsByKey = async (key) => {
+        const snap = await getDocs(query(collection(db, "leadStatuses"), where("key", "==", key), limit(1)));
+        return !snap.empty;
+      };
+
+      const now = new Date().toISOString();
+      for (const [i, g] of GLOBAL_STATUS_SEED.entries()) {
+        let parentRefId = null;
+        if (!(await existsByKey(g.key))) {
           const ref = await addDoc(collection(db, "leadStatuses"), {
             name_ar: g.name_ar, name_en: g.name_en, key: g.key,
             description: "", color: g.color || "", icon: "",
@@ -100,43 +143,45 @@ export function LeadStatusProvider({ children }) {
             isActive: true, archivedAt: null,
             createdAt: now, updatedAt: now,
           });
-          for (const [ci, c] of (g.children || []).entries()) {
-            await addDoc(collection(db, "leadStatuses"), {
-              name_ar: c.name_ar, name_en: c.name_en, key: c.key,
-              description: "", color: "", icon: "",
-              order: ci, parentId: ref.id, path: [ref.id],
-              scope: "global", businessUnitId: null,
-              isDefault: false, isTerminal: false,
-              isActive: true, archivedAt: null,
-              createdAt: now, updatedAt: now,
-            });
-          }
+          parentRefId = ref.id;
         }
-
-        // Business-Unit-specific statuses — look up real catalogNodes ids by name.
-        const catalogSnap = await getDocs(collection(db, "catalogNodes"));
-        const businessUnitsByName = {};
-        catalogSnap.docs.forEach((d) => {
-          const data = d.data();
-          if (data.type === "business_unit") businessUnitsByName[data.name_en] = d.id;
-        });
-        for (const [buName, buStatuses] of Object.entries(BUSINESS_UNIT_STATUS_SEED)) {
-          const businessUnitId = businessUnitsByName[buName];
-          if (!businessUnitId) continue; // that Business Unit isn't in the catalog yet - skip, not fatal
-          for (const [i, s] of buStatuses.entries()) {
-            await addDoc(collection(db, "leadStatuses"), {
-              name_ar: s.name_ar, name_en: s.name_en, key: s.key,
-              description: "", color: "", icon: "",
-              order: i, parentId: null, path: [],
-              scope: "business_unit", businessUnitId,
-              isDefault: false, isTerminal: false,
-              isActive: true, archivedAt: null,
-              createdAt: now, updatedAt: now,
-            });
-          }
+        for (const [ci, c] of (g.children || []).entries()) {
+          if (await existsByKey(c.key)) continue;
+          await addDoc(collection(db, "leadStatuses"), {
+            name_ar: c.name_ar, name_en: c.name_en, key: c.key,
+            description: "", color: "", icon: "",
+            order: ci, parentId: parentRefId, path: parentRefId ? [parentRefId] : [],
+            scope: "global", businessUnitId: null,
+            isDefault: false, isTerminal: false,
+            isActive: true, archivedAt: null,
+            createdAt: now, updatedAt: now,
+          });
         }
       }
-      await setDoc(doc(db, "settings", "seedState"), { ...seeded, leadStatusesSeeded: true, updatedAt: new Date().toISOString() }, { merge: true });
+
+      // Business-Unit-specific statuses — look up real catalogNodes ids by name.
+      const catalogSnap = await getDocs(collection(db, "catalogNodes"));
+      const businessUnitsByName = {};
+      catalogSnap.docs.forEach((d) => {
+        const data = d.data();
+        if (data.type === "business_unit") businessUnitsByName[data.name_en] = d.id;
+      });
+      for (const [buName, buStatuses] of Object.entries(BUSINESS_UNIT_STATUS_SEED)) {
+        const businessUnitId = businessUnitsByName[buName];
+        if (!businessUnitId) continue; // that Business Unit isn't in the catalog yet - skip, not fatal
+        for (const [i, s] of buStatuses.entries()) {
+          if (await existsByKey(s.key)) continue;
+          await addDoc(collection(db, "leadStatuses"), {
+            name_ar: s.name_ar, name_en: s.name_en, key: s.key,
+            description: "", color: "", icon: "",
+            order: i, parentId: null, path: [],
+            scope: "business_unit", businessUnitId,
+            isDefault: false, isTerminal: false,
+            isActive: true, archivedAt: null,
+            createdAt: now, updatedAt: now,
+          });
+        }
+      }
     })().catch((e) => console.warn("Lead status seed failed:", e));
   }, [currentUser?.id, currentUser?.role]);
 

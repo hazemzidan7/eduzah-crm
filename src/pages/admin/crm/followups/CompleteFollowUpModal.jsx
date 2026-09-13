@@ -14,7 +14,8 @@ import { buildDueAt } from "../../../../utils/followUps";
 export default function CompleteFollowUpModal({ followUp, studentName, programLabel, ar, tx, onClose }) {
   const { users } = useAuth();
   const { completeFollowUp } = useFollowUps();
-  const admins = users.filter((u) => u.role === "admin");
+  // "الموظف المسؤول" / Assigned Sales must list Sales staff only.
+  const salesUsers = users.filter((u) => u.role === "sales");
 
   const [result, setResult] = useState("");
   const [addNext, setAddNext] = useState(false);
@@ -27,7 +28,7 @@ export default function CompleteFollowUpModal({ followUp, studentName, programLa
 
   const assigneeOptions = [
     { v: "", l: tx("غير معيّن", "Unassigned") },
-    ...admins.map((a) => ({ v: a.id, l: a.name || a.email })),
+    ...salesUsers.map((a) => ({ v: a.id, l: a.name || a.email })),
   ];
 
   const submit = async () => {

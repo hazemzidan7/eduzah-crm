@@ -141,7 +141,10 @@ export default function EngagementDetailModal({ engagement, onClose }) {
   const customer = customerById(engagement.customerId);
   const businessUnit = nodeById(engagement.businessUnitId);
   const program = engagement.catalogNodeId ? nodeById(engagement.catalogNodeId) : null;
-  const admins = users.filter((u) => u.role === "admin");
+  // "الموظف المسؤول" / Assigned employee must list Sales staff only - this
+  // field assigns a Lead/Engagement to whoever works it, which is Sales'
+  // job, not Admin's or Accounting's.
+  const salesUsers = users.filter((u) => u.role === "sales");
   const studentProfile = engagement.studentProfile || {};
   const customFieldDefs = fieldDefsForBusinessUnit(engagement.businessUnitId);
   const payment = engagement.payment || {};
@@ -237,7 +240,7 @@ export default function EngagementDetailModal({ engagement, onClose }) {
   const statusOptions = effectiveStatuses(engagement.businessUnitId).map((s) => ({ v: s.id, l: ar ? s.name_ar : s.name_en }));
   const assigneeOptions = [
     { v: "", l: tx("غير معيّن", "Unassigned") },
-    ...admins.map((a) => ({ v: a.id, l: a.name || a.email })),
+    ...salesUsers.map((a) => ({ v: a.id, l: a.name || a.email })),
   ];
   const priorityOptions = PRIORITY_OPTIONS.map((p) => ({ v: p.v, l: ar ? p.ar : p.en }));
   const enrollmentOptions = ENROLLMENT_STATUS_OPTIONS.map((o) => ({ v: o.v, l: ar ? o.ar : o.en }));

@@ -123,10 +123,12 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
   // writes through — see saveNextFollowUp.
   const nearestPendingByEngagement = useMemo(() => nearestPendingFollowUpsByEngagement(followUps), [followUps]);
 
-  const admins = users.filter((u) => u.role === "admin");
+  // "الموظف المسؤول" / Assigned Rep must list Sales staff only, both for the
+  // assignment dropdown and the "filter by assignee" toolbar list.
+  const salesUsers = users.filter((u) => u.role === "sales");
   const assigneeOptions = [
     { v: "", l: tx("غير معيّن", "Unassigned") },
-    ...admins.map((a) => ({ v: a.id, l: a.name || a.email })),
+    ...salesUsers.map((a) => ({ v: a.id, l: a.name || a.email })),
   ];
   const statusOptions = effectiveStatuses(businessUnitId).map((s) => ({ v: s.id, l: ar ? s.name_ar : s.name_en }));
   const attendanceOptions = ATTENDANCE_TYPE_OPTIONS.map((o) => ({ v: o.v, l: ar ? o.ar : o.en }));
@@ -137,7 +139,7 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
     switch (key) {
       case "name": return (customerById(e.customerId)?.fullName || "").toLowerCase();
       case "phone": return customerById(e.customerId)?.phone || "";
-      case "assigned": { const a = admins.find((x) => x.id === e.ownerId); return (a?.name || a?.email || "").toLowerCase(); }
+      case "assigned": { const a = salesUsers.find((x) => x.id === e.ownerId); return (a?.name || a?.email || "").toLowerCase(); }
       case "status": { const s = statusById(e.statusId); return s ? (ar ? s.name_ar : s.name_en) : ""; }
       case "enrollment": return e.enrollmentStatus || "not_enrolled";
       case "nextFollowUp": return nearestPendingByEngagement.get(e.id)?.dueAt || "";
@@ -177,7 +179,7 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
     }
     return rows;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [engagements, statusFilter, assigneeFilter, search, sortKey, sortDir, customerById, statusById, admins, nearestPendingByEngagement]);
+  }, [engagements, statusFilter, assigneeFilter, search, sortKey, sortDir, customerById, statusById, salesUsers, nearestPendingByEngagement]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
@@ -302,7 +304,7 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
                 <div style={{ position: "absolute", top: "100%", insetInlineEnd: 0, marginTop: 6, zIndex: 1401, background: "#fff", border: `1px solid ${C.border}`, borderRadius: radius.md, minWidth: 200, padding: 8, boxShadow: shadow.lg }}>
                   <div style={{ fontSize: 10.5, fontWeight: 800, color: C.muted, textTransform: "uppercase", padding: "2px 8px 6px" }}>{tx("الموظف المسؤول", "Assigned Rep")}</div>
                   <button className="edu-row-menu-item" style={{ fontWeight: assigneeFilter === "" ? 800 : 600 }} onClick={() => { setAssigneeFilter(""); setFiltersOpen(false); }}>{tx("الكل", "All")}</button>
-                  {admins.map((a) => (
+                  {salesUsers.map((a) => (
                     <button key={a.id} className="edu-row-menu-item" style={{ fontWeight: assigneeFilter === a.id ? 800 : 600 }} onClick={() => { setAssigneeFilter(a.id); setFiltersOpen(false); }}>{a.name || a.email}</button>
                   ))}
                 </div>

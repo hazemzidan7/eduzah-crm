@@ -15,7 +15,8 @@ import { buildDueAt, splitDueAt } from "../../../../utils/followUps";
 export default function FollowUpFormModal({ engagement, followUp, studentName, studentPhone, programLabel, ar, tx, onClose }) {
   const { users, currentUser } = useAuth();
   const { addFollowUp, updateFollowUp } = useFollowUps();
-  const admins = users.filter((u) => u.role === "admin");
+  // "الموظف المسؤول" / Assigned Sales must list Sales staff only.
+  const salesUsers = users.filter((u) => u.role === "sales");
   const isEdit = !!followUp;
 
   const initialSplit = isEdit ? splitDueAt(followUp.dueAt) : { date: "", time: "17:00" };
@@ -28,7 +29,7 @@ export default function FollowUpFormModal({ engagement, followUp, studentName, s
 
   const assigneeOptions = [
     { v: "", l: tx("غير معيّن", "Unassigned") },
-    ...admins.map((a) => ({ v: a.id, l: a.name || a.email })),
+    ...salesUsers.map((a) => ({ v: a.id, l: a.name || a.email })),
   ];
 
   const submit = async () => {
