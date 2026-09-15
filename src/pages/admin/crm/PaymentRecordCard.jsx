@@ -24,8 +24,17 @@ export const PAYMENT_STATUS_LABEL = {
  * pending/under_review records in one place) so the two never drift apart;
  * `header` is the only thing the queue adds (student/program identity —
  * redundant once you're already inside one Engagement's own modal).
+ *
+ * SALES-CRM-01: `canReview` (default true — PaymentVerificationQueue is
+ * admin-only already, so it never needs to pass this) gates the Start
+ * Review/Confirm/Reject actions. EngagementDetailModal passes false for a
+ * Sales-role viewer: reviewing a submitted payment is Accounting's
+ * authority, not Sales' — Sales can see status/history here, never change
+ * it. Firestore rules independently reject the underlying write either way
+ * (see salesPaymentRecordsAppendOnlyPending in firestore.rules); this is
+ * just so the buttons don't invite a click that Firestore would reject.
  */
-export default function PaymentRecordCard({ record, engagement, conflicts, ar, tx, header, onStartReview, onConfirm, onReject }) {
+export default function PaymentRecordCard({ record, engagement, conflicts, ar, tx, header, canReview = true, onStartReview, onConfirm, onReject }) {
   const color = PAYMENT_STATUS_COLOR[record.status] || C.muted;
   const [statusAr, statusEn] = PAYMENT_STATUS_LABEL[record.status] || [record.status, record.status];
   const [rejecting, setRejecting] = useState(false);
@@ -94,12 +103,12 @@ export default function PaymentRecordCard({ record, engagement, conflicts, ar, t
         </div>
       )}
 
-      {record.status === "pending" && !record.legacy && (
+      {canReview && record.status === "pending" && !record.legacy && (
         <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
           <Btn sm v="purple" onClick={onStartReview}>{tx("بدء المراجعة", "Start Review")}</Btn>
         </div>
       )}
-      {record.status === "under_review" && !record.legacy && (
+      {canReview && record.status === "under_review" && !record.legacy && (
         <div style={{ marginTop: 8 }}>
           <div style={{ display: "flex", gap: 6 }}>
             <Btn sm v="primary" disabled={blocked} title={blocked ? tx("محظور بسبب تعارض مؤكد", "Blocked by a confirmed duplicate") : undefined} onClick={onConfirm}>{tx("تأكيد", "Confirm")}</Btn>

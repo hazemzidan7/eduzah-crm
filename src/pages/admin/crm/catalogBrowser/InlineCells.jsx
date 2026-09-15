@@ -78,8 +78,27 @@ export function InlineSelect({ value, onSave, options, minWidth = 84 }) {
 
 /** A colored-pill select — reads as a status badge at a glance, but is a
  * real dropdown for one-click changes. Same color language as Badge/
- * LeadStatusBadge (tinted background, tinted border, dark text). */
-export function InlineStatusSelect({ value, onSave, options, color }) {
+ * LeadStatusBadge (tinted background, tinted border, dark text).
+ * `disabled` renders the same pill as plain, non-interactive text — used
+ * for columns a given viewer can look at but not change (e.g. Enrollment
+ * for Sales, see ProgramSalesSheet — matches firestore.rules, which
+ * doesn't allow Sales to write enrollmentStatus). */
+export function InlineStatusSelect({ value, onSave, options, color, disabled }) {
+  if (disabled) {
+    const label = options.find((o) => o.v === (value || ""))?.l || "—";
+    return (
+      <span style={{
+        display: "inline-block", minWidth: 108, boxSizing: "border-box",
+        background: color ? `${color}40` : "#F1F5F9",
+        border: `1px solid ${color ? color + "b0" : C.border}`,
+        color: C.text, fontWeight: 800, fontSize: 11.5, letterSpacing: 0.2, textAlign: "center",
+        borderRadius: 999, padding: "5.5px 11px",
+        fontFamily: "'Cairo',sans-serif",
+      }}>
+        {label}
+      </span>
+    );
+  }
   return (
     <select
       className="edu-status-select"

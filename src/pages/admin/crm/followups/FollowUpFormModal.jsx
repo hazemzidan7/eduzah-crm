@@ -18,19 +18,31 @@ export default function FollowUpFormModal({ engagement, followUp, studentName, s
   // "الموظف المسؤول" / Assigned Sales must list Sales staff only.
   const salesUsers = users.filter((u) => u.role === "sales");
   const isEdit = !!followUp;
+  // SALES-CRM-01: a Sales user creating a follow-up (now reachable from
+  // EngagementDetailModal, not just admin) can only ever assign it to
+  // themselves — firestore.rules' isSalesStaff() create rule already
+  // enforces this ("assigning to someone else is an admin-only action");
+  // locking the picker here just means that shows up as a disabled field
+  // instead of a confusing failed save. Editing is unaffected — the update
+  // rule already keeps assignedTo unchanged for Sales.
+  const lockAssigneeToSelf = !isEdit && currentUser?.role === "sales";
 
   const initialSplit = isEdit ? splitDueAt(followUp.dueAt) : { date: "", time: "17:00" };
   const [date, setDate] = useState(initialSplit.date);
   const [time, setTime] = useState(initialSplit.time || "17:00");
   const [note, setNote] = useState(isEdit ? (followUp.note || "") : "");
-  const [assignedTo, setAssignedTo] = useState(isEdit ? (followUp.assignedTo || "") : (engagement?.ownerId || currentUser?.id || ""));
+  const [assignedTo, setAssignedTo] = useState(
+    isEdit ? (followUp.assignedTo || "") : (lockAssigneeToSelf ? (currentUser?.id || "") : (engagement?.ownerId || currentUser?.id || "")),
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const assigneeOptions = [
-    { v: "", l: tx("غير معيّن", "Unassigned") },
-    ...salesUsers.map((a) => ({ v: a.id, l: a.name || a.email })),
-  ];
+  const assigneeOptions = lockAssigneeToSelf
+    ? [{ v: currentUser?.id || "", l: currentUser?.name || currentUser?.email || "" }]
+    : [
+      { v: "", l: tx("غير معيّن", "Unassigned") },
+      ...salesUsers.map((a) => ({ v: a.id, l: a.name || a.email })),
+    ];
 
   const submit = async () => {
     const dueAt = buildDueAt(date, time);

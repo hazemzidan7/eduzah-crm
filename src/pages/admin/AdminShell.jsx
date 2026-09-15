@@ -25,16 +25,21 @@ function ComingSoon({ label }) {
 
 const PROGRAM_SECTIONS = new Set(["leads", "pipeline", "reminders", "importHistory", "import"]);
 
-// CRM-05 FINALIZATION — the only section a "sales" role user is ever allowed
-// to render. Everything else (Catalog/Sales Sheet/Reminders/Import History/
-// Payment Verification/Accounting/Management/Settings/Reports/Users) stays
-// admin-only. This is a client-side UX guard, not the real security boundary
-// (that's firestore.rules — sales has no read access to customers/
-// engagements/accountingTransactions regardless of what section renders) —
-// but Step 3 of this finalization explicitly asks for real enforcement here
-// too, not just a hidden Sidebar button, so a sales session is hard-redirected
-// rather than silently rendering an empty admin page.
-const SALES_ALLOWED_SECTIONS = new Set(["followups"]);
+// SALES-CRM-01 — the sections a "sales" role user is allowed to render, now
+// widened from Follow-ups-only to the full Lead → Booking → Payment-
+// submission workflow: browsing the Catalog to pick a Program ("catalog"),
+// that Program's Sales Sheet/Pipeline/Reminders ("leads"/"pipeline"/
+// "reminders"), plus the pre-existing global Follow-ups queue. Still
+// excluded: Import/Import History (bulk data-entry tooling, not part of the
+// required workflow), Payment Verification (that's Accounting's confirm/
+// reject authority — Sales only ever creates "pending" records, via the
+// Sales Sheet/Engagement modal, never this queue), Accounting, Management,
+// Settings, Reports, Users. This is a client-side UX guard, not the real
+// security boundary (that's firestore.rules — e.g. Sales still cannot write
+// accountingTransactions or confirm a PaymentRecord regardless of what
+// section renders) — but a sales session is still hard-redirected away from
+// anything not in this set, rather than silently rendering an empty page.
+const SALES_ALLOWED_SECTIONS = new Set(["followups", "catalog", "leads", "pipeline", "reminders"]);
 
 function AdminContent() {
   const { lang } = useLang();

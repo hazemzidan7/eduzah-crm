@@ -35,6 +35,15 @@ function genId() {
  * owner, tags, custom fields, and its own timeline all live there, not on
  * the person record. See the approved v2 architecture for the full reasoning.
  */
+// SALES-CRM-01: Admin gets everything; Sales is the one other role allowed
+// into Customers/Engagements (they need this to run Lead → Booking →
+// Payment-submission), scoped by firestore.rules — see that file's
+// /customers and /engagements match blocks for the real write boundary
+// (Sales cannot delete, cannot touch accounting fields, and can only append
+// a "pending" PaymentRecord, never confirm/reject one).
+export const canAccessCrm = (currentUser) =>
+  currentUser?.role === "admin" || currentUser?.role === "sales";
+
 export function CustomerProvider({ children }) {
   const { currentUser } = useAuth();
   const { nodeById: catalogNodeById } = useCatalog();
@@ -43,7 +52,7 @@ export function CustomerProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (currentUser?.role !== "admin") { setCustomers([]); setEngagements([]); setLoading(false); return; }
+    if (!canAccessCrm(currentUser)) { setCustomers([]); setEngagements([]); setLoading(false); return; }
     setLoading(true);
     const unsubCustomers = onSnapshot(
       collection(db, "customers"),

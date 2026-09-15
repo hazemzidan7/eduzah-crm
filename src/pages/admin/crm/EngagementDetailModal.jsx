@@ -128,6 +128,15 @@ export default function EngagementDetailModal({ engagement, onClose }) {
   const tx = (a, e) => (ar ? a : e);
   const { users, currentUser } = useAuth();
   const isAdmin = currentUser?.role === "admin";
+  // SALES-CRM-01: reviewing (Start Review/Confirm/Reject) a PaymentRecord is
+  // Accounting's authority, not Sales' — Sales only ever creates "pending"
+  // records (see addPaymentRecord below); this mirrors firestore.rules,
+  // which rejects any engagements update from Sales that changes an
+  // existing paymentRecords entry. Enrollment is admin-only to edit for the
+  // same reason as ProgramSalesSheet's inline cell (tied to Payment
+  // Confirmation, not part of the required Sales workflow).
+  const canReviewPayments = currentUser?.role === "admin" || currentUser?.role === "accounting";
+  const canEditEnrollment = currentUser?.role === "admin";
   const { nodeById } = useCatalog();
   const { effectiveStatuses } = useLeadStatus();
   const {
@@ -371,7 +380,11 @@ export default function EngagementDetailModal({ engagement, onClose }) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
         <Select label={tx("حالة التواصل", "Contact Status")} value={engagement.statusId || ""} onChange={(v) => changeEngagementStatus(engagement.id, v)} options={statusOptions} />
         <div>
-          <Select label={tx("التسجيل", "Enrollment")} value={engagement.enrollmentStatus || "not_enrolled"} onChange={handleEnrollmentChange} options={enrollmentOptions} />
+          {canEditEnrollment ? (
+            <Select label={tx("التسجيل", "Enrollment")} value={engagement.enrollmentStatus || "not_enrolled"} onChange={handleEnrollmentChange} options={enrollmentOptions} />
+          ) : (
+            <PaymentField ar={ar} label={tx("التسجيل", "Enrollment")} value={optionLabel(ENROLLMENT_STATUS_OPTIONS, engagement.enrollmentStatus || "not_enrolled", ar)} />
+          )}
           {/* Provenance-aware — a production case showed this claiming
               "auto-confirmed by payment" for an engagement a CRM user had
               manually enrolled with zero confirmed payment. Engagements
@@ -493,6 +506,7 @@ export default function EngagementDetailModal({ engagement, onClose }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
         {paymentRecords.map((r) => (
           <PaymentRecordCard key={r.id} record={r} engagement={engagement} conflicts={findPaymentConflicts(r, engagement, engagements)} ar={ar} tx={tx}
+            canReview={canReviewPayments}
             onStartReview={() => startPaymentReview(engagement.id, r.id)}
             onConfirm={() => handleConfirmRecord(r.id)}
             onReject={(reason) => rejectPaymentRecord(engagement.id, r.id, reason)}
@@ -500,7 +514,13 @@ export default function EngagementDetailModal({ engagement, onClose }) {
         ))}
       </div>
       {paymentError && <div style={{ fontSize: 12, color: C.danger, marginBottom: 12 }}>{paymentError}</div>}
-      {hasUnmigratedLegacyPayments(engagement) && (
+      {/* SALES-CRM-01: admin-only — this can rewrite paymentRecords with
+          several records in one write (one per legacy field), which
+          firestore.rules' salesPaymentRecordsAppendOnlyPending() (append
+          exactly one "pending" record) would reject for a Sales session
+          anyway; gating it here avoids offering a button that would just
+          fail. Not part of the required Sales workflow either way. */}
+      {isAdmin && hasUnmigratedLegacyPayments(engagement) && (
         <Btn sm v="ghost" onClick={() => migrateLegacyPayments(engagement.id)} style={{ marginBottom: 12 }}>
           {tx("ترحيل الدفعات القديمة إلى السجل", "Migrate legacy payments to records")}
         </Btn>

@@ -141,6 +141,15 @@ export function AuthProvider({ children }) {
           const q = query(collection(db, "users"), where("role", "in", ["student", "user"]));
           const snap = await getDocs(q);
           if (!cancelled) setUsers(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        } else if (currentUser.role === "sales") {
+          // SALES-CRM-01: only other Sales staff — needed for the "Assigned
+          // Rep" dropdown/filter (ProgramSalesSheet, EngagementDetailModal,
+          // FollowUpFormModal). Matches firestore.rules' /users read rule,
+          // which only lets a Sales session read role=='sales' docs besides
+          // its own.
+          const q = query(collection(db, "users"), where("role", "==", "sales"));
+          const snap = await getDocs(q);
+          if (!cancelled) setUsers(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
         } else {
           setUsers([]);
         }

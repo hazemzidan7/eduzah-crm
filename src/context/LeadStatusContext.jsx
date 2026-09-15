@@ -67,8 +67,12 @@ export function LeadStatusProvider({ children }) {
   const [statuses, setStatuses] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // SALES-CRM-01: Sales staff can also read Lead Statuses (to update
+  // Contact Status on their own leads) — see firestore.rules' /leadStatuses
+  // read rule. Status ADMINISTRATION (below: add/update/move/archive/
+  // duplicate, seeding) stays admin-only, unchanged.
   useEffect(() => {
-    if (currentUser?.role !== "admin") { setStatuses([]); setLoading(false); return; }
+    if (currentUser?.role !== "admin" && currentUser?.role !== "sales") { setStatuses([]); setLoading(false); return; }
     setLoading(true);
     const unsub = onSnapshot(
       collection(db, "leadStatuses"),

@@ -72,6 +72,12 @@ function SortTh({ children, colKey, style, activeKey, dir, onToggle }) {
  */
 export default function ProgramSalesSheet({ engagements, program, businessUnitId, ar, tx }) {
   const { users, currentUser } = useAuth();
+  // SALES-CRM-01: Enrollment is admin-only to edit here — it's tied to
+  // Payment Confirmation (Accounting's authority) and manually overriding it
+  // isn't part of the required Sales workflow; firestore.rules doesn't allow
+  // Sales to write enrollmentStatus, so this keeps the cell honest (visible,
+  // never a silently-failing dropdown).
+  const canEditEnrollment = currentUser?.role === "admin";
   const { effectiveStatuses, statusById } = useLeadStatus();
   const { customerById, updateCustomer, updateEngagement, changeEngagementStatus, changeEnrollmentStatus, setEngagementPricingPlan, engagements: allEngagements } = useCustomers();
   const { followUps, addFollowUp, updateFollowUp, cancelFollowUp } = useFollowUps();
@@ -407,6 +413,7 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
                       <td style={td}>
                         <InlineStatusSelect
                           value={e.enrollmentStatus || "not_enrolled"}
+                          disabled={!canEditEnrollment}
                           onSave={(v) => {
                             // Warns (never blocks) manually enrolling with no
                             // confirmed payment — legitimate for offline/cash

@@ -89,12 +89,20 @@ export default function Sidebar() {
   // everything else here (Catalog/Sheet/Payments/Settings) stays CRM/admin
   // only, per the approved permissions. No new RBAC system, just this check.
   const isAdmin = currentUser?.role === "admin";
+  const isSales = currentUser?.role === "sales";
   const canAccounting = isAdmin || currentUser?.role === "accounting";
-  // CRM-05 FINALIZATION: "sales" role gets exactly the Follow-ups section —
-  // every other item in this sidebar (Management/Customers/Sales Sheet/
-  // Reminders/Import History/Payment Verification/Accounting/Catalog/
-  // Reports/Users/Settings) stays isAdmin-only, unchanged.
-  const canFollowUps = isAdmin || currentUser?.role === "sales";
+  // CRM-05 FINALIZATION: "sales" role gets the Follow-ups section — every
+  // OTHER item in this sidebar stays isAdmin-only, EXCEPT the CRM workflow
+  // items now split out below (SALES-CRM-01).
+  const canFollowUps = isAdmin || isSales;
+  // SALES-CRM-01: "sales" role also gets the Program-scoped CRM workflow —
+  // Customers/Sales Sheet/Reminders (not Import History — bulk data entry
+  // stays admin-only) — and read-only Catalog browsing to pick a Program.
+  // Payment Verification/Accounting/Management/Reports/Users/Settings stay
+  // isAdmin (or isAdmin/Accounting)-only, unchanged.
+  const canCrmWorkflow = isAdmin || isSales;
+  const canBrowseCatalog = isAdmin || isSales;
+  const visiblePrimaryItems = isSales ? primaryItems.filter((it) => it.key !== "importHistory") : primaryItems;
 
   return (
     <aside style={{
@@ -126,7 +134,7 @@ export default function Sidebar() {
           />
         )}
 
-        {isAdmin && primaryItems.map((it) => (
+        {canCrmWorkflow && visiblePrimaryItems.map((it) => (
           <NavRow
             key={it.key}
             tone={it.tone}
@@ -177,7 +185,7 @@ export default function Sidebar() {
           />
         )}
 
-        {isAdmin && (
+        {canBrowseCatalog && (
           <>
             {!collapsed && <div style={{ height: 1, background: "#E2E8F0", margin: "10px 4px" }} />}
 
@@ -217,6 +225,8 @@ export default function Sidebar() {
                     </div>
                   );
                 })}
+                {/* SALES-CRM-01: "Batches" is a disabled/coming-soon row
+                    either way — harmless to show, not worth a separate gate. */}
                 <NavRow
                   disabled
                   indent={14}
@@ -226,7 +236,14 @@ export default function Sidebar() {
                 />
               </div>
             )}
+          </>
+        )}
 
+        {/* SALES-CRM-01: Reports/Users/Settings are admin-only management
+            surfaces, unrelated to the Sales workflow — deliberately kept out
+            of canBrowseCatalog/canCrmWorkflow above. */}
+        {isAdmin && (
+          <>
             {!collapsed && <div style={{ height: 1, background: "#E2E8F0", margin: "10px 4px" }} />}
 
             {bottomItems.map((it) => (

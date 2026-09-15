@@ -31,9 +31,12 @@ export function CatalogProvider({ children }) {
   const [nodeTypes, setNodeTypes] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Firestore rules restrict reads to admins — only subscribe when signed in as one.
+  // SALES-CRM-01: Sales staff can also read the Catalog (to pick a Program
+  // when working a lead) — see firestore.rules' /catalogNodes read rule.
+  // Catalog ADMINISTRATION (everything below this effect: add/update/move/
+  // archive/delete node, seeding) stays admin-only, unchanged.
   useEffect(() => {
-    if (currentUser?.role !== "admin") { setNodes([]); setNodeTypes([]); setLoading(false); return; }
+    if (currentUser?.role !== "admin" && currentUser?.role !== "sales") { setNodes([]); setNodeTypes([]); setLoading(false); return; }
     setLoading(true);
     const unsubNodes = onSnapshot(
       collection(db, "catalogNodes"),

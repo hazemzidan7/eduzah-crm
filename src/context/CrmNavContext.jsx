@@ -15,9 +15,11 @@ export function CrmNavProvider({ children }) {
   // ACCOUNTING-02: an "accounting" role user has no access to Catalog (CRM
   // data is admin-only, see firestore.rules) — land them on Accounting
   // directly instead of a section they'd just see empty/blocked.
-  // CRM-05 FINALIZATION: same reasoning for "sales" — their only section is
-  // Follow-ups (see AdminShell.jsx's stranding guard, which also protects
-  // this if `section` is ever set to anything else for them).
+  // SALES-CRM-01: "sales" still defaults to Follow-ups (their daily
+  // work-queue, unchanged landing behavior) even though they can now also
+  // reach Catalog/Sales Sheet/Pipeline/Reminders — see AdminShell.jsx's
+  // SALES_ALLOWED_SECTIONS/stranding guard, which protects every section
+  // `section` could be set to, not just this initial value.
   const [section, setSection] = useState(() => {
     if (currentUser?.role === "accounting") return "accounting";
     if (currentUser?.role === "sales") return "followups";

@@ -45,9 +45,43 @@ service cloud.firestore {
         && userDoc().role == 'sales';
     }
 
+    /* ── SALES-CRM-01: Sales staff's own Payment Records boundary. An
+       engagements `update` from Sales is only allowed to touch paymentRecords
+       in one exact shape — append exactly one brand-new record, status
+       "pending", no confirmation fields set — computed via list value-diffing
+       (no loops/slicing available in rules):
+         added   = new list minus everything already in the old list
+         missing = old list minus everything still in the new list
+       A genuine append has added.size()==1 and missing.size()==0. Mutating,
+       reordering-with-change, or deleting an EXISTING record always makes
+       `missing` non-empty (the original value is gone), so it's rejected —
+       this is what stops Sales from ever confirming/rejecting a payment by
+       writing directly to this array (the only place a record's status
+       lives), independent of whichever UI buttons happen to be hidden. Every
+       record carries a unique `id` (genId()), so two distinct records are
+       never value-equal to each other. ── */
+    function salesPaymentRecordsAppendOnlyPending(oldData, newData) {
+      let oldRecords = oldData.get('paymentRecords', []);
+      let newRecords = newData.get('paymentRecords', []);
+      let added = newRecords.removeAll(oldRecords);
+      let missing = oldRecords.removeAll(newRecords);
+      return newRecords.size() == oldRecords.size() + 1
+        && missing.size() == 0
+        && added.size() == 1
+        && added[0].status == 'pending'
+        && added[0].get('confirmedAt', null) == null
+        && added[0].get('confirmedBy', null) == null
+        && added[0].get('rejectionReason', null) == null;
+    }
+
     /* ── users ───────────────────────────────────────── */
     match /users/{userId} {
-      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      /* SALES-CRM-01: Sales staff may additionally read (list included) any
+         OTHER user doc whose role is 'sales' — needed only to populate the
+         "Assigned Rep" dropdown/filter (ProgramSalesSheet, EngagementDetailModal,
+         FollowUpFormModal already relied on this for admins). Sales still
+         cannot read admin/accounting/instructor/student profiles. */
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin() || (isSalesStaff() && resource.data.role == 'sales'));
       allow create: if isSignedIn()
         && request.auth.uid == userId
         && bootstrapAdminEnabled();
@@ -67,12 +101,66 @@ service cloud.firestore {
       allow delete: if isAdmin() || bootstrapAdminEnabled();
     }
 
-    /* ── CRM v2: Catalog / Statuses / Customer-Engagement model ── */
-    match /catalogNodes/{id}            { allow read, write: if isAdmin(); }
-    match /catalogNodeTypes/{id}        { allow read, write: if isAdmin(); }
-    match /leadStatuses/{id}            { allow read, write: if isAdmin(); }
-    match /customers/{id}               { allow read, write: if isAdmin(); }
-    match /engagements/{id}             { allow read, write: if isAdmin(); }
+    /* ── CRM v2: Catalog / Statuses / Customer-Engagement model ──
+       SALES-CRM-01: Sales staff get real, scoped access to the
+       Lead → Booking → Payment-submission workflow (business requirement),
+       NOT a global "sales can edit everything" grant:
+        - catalogNodes/catalogNodeTypes/leadStatuses: READ only (Sales must
+          browse the Catalog to pick a Program, and read Contact Status
+          labels) — catalog/status ADMINISTRATION (create/edit/archive/move)
+          stays isAdmin()-only, unchanged.
+        - customers: read/create/update (identity fields only — see below);
+          delete stays isAdmin()-only (matches the existing cascade-delete
+          scripts, untouched).
+        - engagements: read/create (only into a non-enrolled, unpaid,
+          non-archived state)/update (a fixed set of CRM-workflow fields,
+          with paymentRecords restricted to "append one pending record" —
+          see salesPaymentRecordsAppendOnlyPending()); delete stays
+          isAdmin()-only. Sales can never set enrollmentStatus, archive an
+          engagement, or move it to a different customer/Program — none of
+          that is part of the required workflow. ── */
+    match /catalogNodes/{id} {
+      allow read: if isAdmin() || isSalesStaff();
+      allow write: if isAdmin();
+    }
+    match /catalogNodeTypes/{id} {
+      allow read: if isAdmin() || isSalesStaff();
+      allow write: if isAdmin();
+    }
+    match /leadStatuses/{id} {
+      allow read: if isAdmin() || isSalesStaff();
+      allow write: if isAdmin();
+    }
+    match /customers/{id} {
+      allow read: if isAdmin() || isSalesStaff();
+      allow create: if isAdmin() || isSalesStaff();
+      allow update: if isAdmin()
+        || (isSalesStaff()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'fullName', 'phone', 'normalizedPhone', 'secondaryPhones',
+            'email', 'normalizedEmail', 'whatsapp', 'updatedAt'
+          ]));
+      allow delete: if isAdmin();
+    }
+    match /engagements/{id} {
+      allow read: if isAdmin() || isSalesStaff();
+      allow create: if isAdmin()
+        || (isSalesStaff()
+          && request.resource.data.get('enrollmentStatus', 'not_enrolled') == 'not_enrolled'
+          && request.resource.data.get('paymentRecords', []).size() == 0
+          && request.resource.data.get('archivedAt', null) == null);
+      allow update: if isAdmin()
+        || (isSalesStaff()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'statusId', 'ownerId', 'salesNotes', 'studentProfile', 'priority',
+            'payment', 'pricingSnapshot', 'timeline', 'updatedAt', 'paymentRecords'
+          ])
+          && (
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['paymentRecords'])
+            || salesPaymentRecordsAppendOnlyPending(resource.data, request.resource.data)
+          ));
+      allow delete: if isAdmin();
+    }
     /* ── CRM-05 FINALIZATION: Follow-ups — admin gets everything (see all,
        create/edit/complete/cancel/assign any). Sales staff are scoped to
        their OWN queue only (resource.data.assignedTo == their uid) — this is
@@ -102,7 +190,14 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     match /tags/{id}                    { allow read, write: if isAdmin(); }
-    match /customFieldDefinitions/{id}  { allow read, write: if isAdmin(); }
+    /* SALES-CRM-01: Sales needs read-only access to field DEFINITIONS (not
+       write) so EngagementDetailModal can show a customer's custom-field
+       values (e.g. university, parent phone) — defining/editing the fields
+       themselves stays isAdmin()-only, same split as catalogNodes above. */
+    match /customFieldDefinitions/{id}  {
+      allow read: if isAdmin() || isSalesStaff();
+      allow write: if isAdmin();
+    }
     match /dictionaries/{id}            { allow read, write: if isAdmin(); }
     match /importProfiles/{id}          { allow read, write: if isAdmin(); }
     match /importProfileVersions/{id}   { allow read, write: if isAdmin(); }

@@ -40,8 +40,12 @@ export function CustomFieldProvider({ children }) {
   const [fieldDefs, setFieldDefs] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // SALES-CRM-01: Sales staff can also read field DEFINITIONS (so
+  // EngagementDetailModal can show a customer's custom-field values) — see
+  // firestore.rules' /customFieldDefinitions read rule. Defining/editing
+  // fields (below: add/update/archive/restore, seeding) stays admin-only.
   useEffect(() => {
-    if (currentUser?.role !== "admin") { setFieldDefs([]); setLoading(false); return; }
+    if (currentUser?.role !== "admin" && currentUser?.role !== "sales") { setFieldDefs([]); setLoading(false); return; }
     setLoading(true);
     const unsub = onSnapshot(
       collection(db, "customFieldDefinitions"),
