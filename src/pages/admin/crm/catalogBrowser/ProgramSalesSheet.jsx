@@ -10,7 +10,7 @@ import { toE164Phone } from "../../../../utils/phoneE164";
 import { ATTENDANCE_TYPE_OPTIONS, PAYMENT_PLAN_OPTIONS, ENROLLMENT_STATUS_OPTIONS } from "../../../../constants/crmOptions";
 import { confirmedAmountPaid, effectivePaymentRecords, findPaymentConflicts } from "../../../../utils/paymentRecords";
 import { buildDueAt, splitDueAt, nearestPendingFollowUpsByEngagement } from "../../../../utils/followUps";
-import { effectiveCoursePrice } from "../../../../utils/pricingSnapshot";
+import { effectiveCoursePrice, MAX_COURSE_PRICE } from "../../../../utils/pricingSnapshot";
 import { InlineText, InlineNumber, InlineDate, InlineSelect, InlineStatusSelect, ComputedMoney } from "./InlineCells";
 import { IconSend, IconHistory, IconGrid, IconBell, IconSearch, IconFilter, IconEye, IconCalendar, IconMoreVertical, IconSort, IconWhatsapp, IconPhone, IconMoney } from "../../../../components/Icons";
 import EngagementDetailModal from "../EngagementDetailModal";
@@ -79,7 +79,7 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
   // never a silently-failing dropdown).
   const canEditEnrollment = currentUser?.role === "admin";
   const { effectiveStatuses, statusById } = useLeadStatus();
-  const { customerById, updateCustomer, updateEngagement, changeEngagementStatus, changeEnrollmentStatus, setEngagementPricingPlan, engagements: allEngagements } = useCustomers();
+  const { customerById, updateCustomer, updateEngagement, changeEngagementStatus, changeEnrollmentStatus, setEngagementPricingPlan, setEngagementCoursePrice, engagements: allEngagements } = useCustomers();
   const { followUps, addFollowUp, updateFollowUp, cancelFollowUp } = useFollowUps();
   const { setSection } = useCrmNav();
 
@@ -195,8 +195,6 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
 
   const patchStudentProfile = (engagement, key, val) =>
     updateEngagement(engagement.id, { studentProfile: { ...(engagement.studentProfile || {}), [key]: val } });
-  const patchPayment = (engagement, key, val) =>
-    updateEngagement(engagement.id, { payment: { ...(engagement.payment || {}), [key]: val } });
 
   // FOLLOW-UP-UNIFY-01/02 — every follow-up-touching action in this sheet
   // (the quick "+3 days" action AND the inline "Next Follow-up" column
@@ -436,9 +434,26 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
                         <InlineText value={e.salesNotes} onSave={(v) => updateEngagement(e.id, { salesNotes: v })} placeholder={tx("ملاحظة...", "Note...")} minWidth={130} size={16} />
                       </td>
                       <td style={tdGroupStart}>
-                        {e.pricingSnapshot
-                          ? <ComputedMoney value={coursePrice || 0} />
-                          : <InlineNumber value={payment.coursePrice} onSave={(v) => patchPayment(e, "coursePrice", v)} />}
+                        {/* SALES-PRICE-01: the actual, individually-agreed
+                            Course Price for THIS engagement — editable by
+                            whoever can reach this sheet (Sales included).
+                            Works for both a pricingSnapshot engagement
+                            (writes pricingSnapshot.originalPrice/
+                            fullPaymentPrice) and a legacy one (writes
+                            payment.coursePrice) — setEngagementCoursePrice
+                            picks the right one; the cell doesn't need to
+                            know which. Never touches paymentRecords/
+                            accountingTransactions. */}
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                          <InlineNumber
+                            value={coursePrice}
+                            onSave={(v) => setEngagementCoursePrice(e.id, v)}
+                            placeholder={tx("غير محدد", "Not set")}
+                            min={0}
+                            max={MAX_COURSE_PRICE}
+                          />
+                          <span style={{ fontSize: 9.5, color: C.muted, fontWeight: 700 }}>{tx("جنيه", "EGP")}</span>
+                        </div>
                       </td>
                       <td style={td}>
                         <InlineSelect value={payment.paymentPlan} onSave={(v) => setEngagementPricingPlan(e.id, v)} options={[{ v: "", l: "—" }, ...paymentPlanOptions]} minWidth={80} />

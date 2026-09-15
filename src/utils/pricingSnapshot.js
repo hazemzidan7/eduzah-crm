@@ -9,12 +9,28 @@
  * fields sales sets *after* creation (see applyPaymentPlan /
  * CustomerContext.setEngagementInstallmentCount) — everything else here is
  * permanently fixed from the moment of creation.
+ *
+ * SALES-PRICE-01: `originalPrice` (and its derived `fullPaymentPrice`) is
+ * the ONE exception — the actual, individually-agreed Course Price for
+ * THIS student, editable any time via CustomerContext.setEngagementCoursePrice.
+ * It starts as a copy of the catalog price at creation (so nothing needs to
+ * be typed for the common case) but from then on belongs to the Engagement,
+ * not the Catalog: two engagements against the same Program are free to end
+ * up with different prices, and editing one never touches catalogNodes or
+ * any other engagement. `depositAmount` still starts from the flat
+ * Business-Unit rule (applicableDeposit) and is not re-derived from
+ * `originalPrice` — a custom price does not silently change what's due at
+ * booking.
  */
 
 export const PRICING_CURRENCY = "EGP";
 export const FULL_PAYMENT_DISCOUNT = 300;
 export const TECHNOLOGY_DEPOSIT = 1000;
 export const DEFAULT_DEPOSIT = 500;
+// SALES-PRICE-01: sanity ceiling for a per-engagement agreed Course Price —
+// not a business rule, just a guard against a typo (e.g. an extra zero)
+// getting saved as a real price. Comfortably above any real catalog price.
+export const MAX_COURSE_PRICE = 1000000;
 
 export function computeFullPaymentPrice(originalPrice) {
   return typeof originalPrice === "number" ? originalPrice - FULL_PAYMENT_DISCOUNT : null;

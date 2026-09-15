@@ -74,6 +74,33 @@ service cloud.firestore {
         && added[0].get('rejectionReason', null) == null;
     }
 
+    /* ── SALES-PRICE-01: Sales' own Course Price boundary. `payment` and
+       `pricingSnapshot` are already top-level keys Sales may touch (see the
+       /engagements update rule below) — but as plain map fields, allowing
+       the KEY doesn't by itself restrict which fields INSIDE it change.
+       Both maps also hold legacy/derived fields that must stay
+       Admin/Accounting-only (`payment.confirmed`/`confirmedAt` are the
+       pre-PaymentRecords "is this paid" flag — see utils/paymentRecords.js'
+       legacyRecordsFrom, which still reads them as authoritative for an
+       engagement with no real paymentRecords yet). These two functions
+       nested-diff each map (same value-diffing idea as
+       salesPaymentRecordsAppendOnlyPending, via Map.diff().affectedKeys())
+       so Sales can only ever change the actual Course Price fields —
+       everything else inside either map is rejected even though the map's
+       top-level key is allowed. ── */
+    function salesPaymentFieldsAllowed(oldData, newData) {
+      let oldPayment = oldData.get('payment', {});
+      let newPayment = newData.get('payment', {});
+      return newPayment.diff(oldPayment).affectedKeys().hasOnly(['coursePrice', 'paymentPlan']);
+    }
+    function salesPricingSnapshotFieldsAllowed(oldData, newData) {
+      let oldSnap = oldData.get('pricingSnapshot', {});
+      let newSnap = newData.get('pricingSnapshot', {});
+      return newSnap.diff(oldSnap).affectedKeys().hasOnly([
+        'originalPrice', 'fullPaymentPrice', 'paymentPlan', 'depositAmount', 'installmentCount'
+      ]);
+    }
+
     /* ── users ───────────────────────────────────────── */
     match /users/{userId} {
       /* SALES-CRM-01: Sales staff may additionally read (list included) any
@@ -115,10 +142,17 @@ service cloud.firestore {
         - engagements: read/create (only into a non-enrolled, unpaid,
           non-archived state)/update (a fixed set of CRM-workflow fields,
           with paymentRecords restricted to "append one pending record" —
-          see salesPaymentRecordsAppendOnlyPending()); delete stays
-          isAdmin()-only. Sales can never set enrollmentStatus, archive an
-          engagement, or move it to a different customer/Program — none of
-          that is part of the required workflow. ── */
+          see salesPaymentRecordsAppendOnlyPending() — and payment/
+          pricingSnapshot restricted to their Course Price sub-fields only —
+          see salesPaymentFieldsAllowed()/salesPricingSnapshotFieldsAllowed(),
+          SALES-PRICE-01); delete stays isAdmin()-only. Sales can never set
+          enrollmentStatus, archive an engagement, move it to a different
+          customer/Program, or touch the legacy payment.confirmed/
+          confirmedAt/reservationDeposit/installment* fields (still read as
+          authoritative "is this paid" for an engagement with no real
+          paymentRecords yet — see utils/paymentRecords.legacyRecordsFrom) —
+          none of that is part of the required workflow, and the last one
+          would otherwise be a way to fake a confirmed payment. ── */
     match /catalogNodes/{id} {
       allow read: if isAdmin() || isSalesStaff();
       allow write: if isAdmin();
@@ -158,6 +192,14 @@ service cloud.firestore {
           && (
             !request.resource.data.diff(resource.data).affectedKeys().hasAny(['paymentRecords'])
             || salesPaymentRecordsAppendOnlyPending(resource.data, request.resource.data)
+          )
+          && (
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['payment'])
+            || salesPaymentFieldsAllowed(resource.data, request.resource.data)
+          )
+          && (
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['pricingSnapshot'])
+            || salesPricingSnapshotFieldsAllowed(resource.data, request.resource.data)
           ));
       allow delete: if isAdmin();
     }

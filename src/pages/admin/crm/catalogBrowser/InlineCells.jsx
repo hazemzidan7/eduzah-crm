@@ -34,18 +34,28 @@ export function InlineText({ value, onSave, placeholder, minWidth = 80, size = 1
 
 // Always numeric — forced LTR regardless of page direction so digits never
 // pick up RTL grouping/ordering quirks.
-export function InlineNumber({ value, onSave, minWidth = 64 }) {
+// `min`/`max` (optional) clamp the committed value — real enforcement, not
+// just the native <input> arrows/validity styling, since a typed value
+// bypasses those. `placeholder` shows for an unset (null/empty) value — e.g.
+// "غير محدد" for a Course Price never entered (see ProgramSalesSheet).
+export function InlineNumber({ value, onSave, minWidth = 64, placeholder, min, max }) {
   const [draft, setDraft] = useState(value ?? "");
   const [focused, setFocused] = useState(false);
   useEffect(() => { if (!focused) setDraft(value ?? ""); }, [value, focused]);
   const commit = () => {
     setFocused(false);
-    const num = draft === "" ? null : Number(draft);
-    if ((num ?? null) !== (value ?? null)) onSave(Number.isFinite(num) ? num : null);
+    let num = draft === "" ? null : Number(draft);
+    if (num != null && Number.isFinite(num)) {
+      if (min != null) num = Math.max(num, min);
+      if (max != null) num = Math.min(num, max);
+    } else {
+      num = null;
+    }
+    if ((num ?? null) !== (value ?? null)) onSave(num);
   };
   return (
     <input
-      type="number" value={draft} size={6} dir="ltr"
+      type="number" value={draft} size={6} dir="ltr" placeholder={placeholder} min={min} max={max}
       onChange={(e) => setDraft(e.target.value)}
       onFocus={() => setFocused(true)}
       onBlur={commit}

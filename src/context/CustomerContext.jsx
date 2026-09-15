@@ -16,7 +16,7 @@ import { useCatalog } from "./CatalogContext";
 import { normalizePhone, normalizeEmail } from "../utils/leadDedupe";
 import { effectivePaymentRecords, findPaymentConflicts, hasBlockingConflict } from "../utils/paymentRecords";
 import { ACCOUNTING_EVENTS_COLLECTION, buildConfirmedPaymentEvent } from "../utils/accountingEvents";
-import { buildPricingSnapshot, applyPaymentPlan } from "../utils/pricingSnapshot";
+import { buildPricingSnapshot, applyPaymentPlan, computeFullPaymentPrice, MAX_COURSE_PRICE } from "../utils/pricingSnapshot";
 import { ACCOUNTING_TRANSACTIONS_COLLECTION, buildTransaction, buildIncomeDraftFromConfirmedPayment } from "../utils/accounting";
 import { buildCustomerDeletionSet, chunkDeletionOps } from "../utils/deleteCustomer";
 import { buildTrackDeletionPlan, chunkTrackDeletionOps } from "../utils/deleteTrack";
@@ -370,6 +370,38 @@ export function CustomerProvider({ children }) {
     });
   };
 
+  // SALES-PRICE-01: the actual, per-student agreed Course Price — see the
+  // module comment in utils/pricingSnapshot.js. `newPrice` is either a
+  // finite number >= 0 (clamped to MAX_COURSE_PRICE) or null/undefined to
+  // clear it back to "not set" (rendered as "غير محدد" in the Sheet).
+  // Deliberately touches ONLY pricingSnapshot.{originalPrice,fullPaymentPrice}
+  // (or the legacy payment.coursePrice, for an engagement with no snapshot
+  // yet) — never paymentRecords, never accountingTransactions, never
+  // enrollmentStatus. Matches firestore.rules' salesPricingSnapshotFieldsAllowed
+  // / salesPaymentFieldsAllowed, which is the real enforcement boundary.
+  const setEngagementCoursePrice = async (engagementId, newPrice) => {
+    const engagement = engagementById(engagementId);
+    if (!engagement) return;
+    let price = null;
+    if (newPrice !== null && newPrice !== undefined && newPrice !== "") {
+      const n = Number(newPrice);
+      if (!Number.isFinite(n)) throw new Error("INVALID_COURSE_PRICE");
+      price = Math.min(Math.max(n, 0), MAX_COURSE_PRICE);
+    }
+    const now = new Date().toISOString();
+    if (engagement.pricingSnapshot) {
+      await updateDoc(doc(db, "engagements", engagementId), {
+        pricingSnapshot: { ...engagement.pricingSnapshot, originalPrice: price, fullPaymentPrice: computeFullPaymentPrice(price) },
+        updatedAt: now,
+      });
+    } else {
+      await updateDoc(doc(db, "engagements", engagementId), {
+        payment: { ...(engagement.payment || {}), coursePrice: price },
+        updatedAt: now,
+      });
+    }
+  };
+
   // ── CRM-02/CRM-03: Payment Records — the only source of truth for Amount
   // Paid. Flow: pending -> under_review -> confirmed/rejected; never edited
   // in place once created (status changes go through setPaymentRecordStatus).
@@ -566,7 +598,7 @@ export function CustomerProvider({ children }) {
       findEngagement, engagementById, engagementsForCustomer, engagementsForBusinessUnit,
       addEngagement, mergeStudentProfile, resolveOrCreateEngagement, updateEngagement,
       changeEngagementStatus, changeEnrollmentStatus, logEngagementActivity, archiveEngagement, restoreEngagement,
-      setEngagementPricingPlan, setEngagementInstallmentCount,
+      setEngagementPricingPlan, setEngagementInstallmentCount, setEngagementCoursePrice,
       addPaymentRecord, setPaymentRecordStatus, startPaymentReview, confirmPaymentRecord, rejectPaymentRecord, migrateLegacyPayments,
     }}>
       {children}
