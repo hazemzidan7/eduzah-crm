@@ -47,9 +47,16 @@ export default function AddPaymentModal({ engagement, onClose }) {
   // pricingSnapshot / effectiveCoursePrice — no new pricing formula. Only
   // applied while the amount field hasn't been touched by Sales yet, so a
   // manually-entered amount is never silently overwritten.
+  // SALES-PRICE-02: "full" prefers `coursePrice` (effectiveCoursePrice —
+  // the one authoritative, manually-agreed price) over the snapshot's own
+  // `fullPaymentPrice`, which is only ever a same-value mirror kept for
+  // this default and can't diverge going forward — but an engagement whose
+  // price was last set before that mirroring existed could still have a
+  // stale fullPaymentPrice sitting on it, and this must never suggest a
+  // wrong amount.
   const defaultAmountFor = (type) => {
     if (type === "deposit") return snapshot?.depositAmount ?? null;
-    if (type === "full") return snapshot?.fullPaymentPrice ?? coursePrice ?? null;
+    if (type === "full") return coursePrice ?? snapshot?.fullPaymentPrice ?? null;
     return remaining > 0 ? remaining : null; // installment
   };
 

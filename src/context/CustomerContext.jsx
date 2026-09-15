@@ -16,7 +16,7 @@ import { useCatalog } from "./CatalogContext";
 import { normalizePhone, normalizeEmail } from "../utils/leadDedupe";
 import { effectivePaymentRecords, findPaymentConflicts, hasBlockingConflict } from "../utils/paymentRecords";
 import { ACCOUNTING_EVENTS_COLLECTION, buildConfirmedPaymentEvent } from "../utils/accountingEvents";
-import { buildPricingSnapshot, applyPaymentPlan, computeFullPaymentPrice, MAX_COURSE_PRICE } from "../utils/pricingSnapshot";
+import { buildPricingSnapshot, applyPaymentPlan, MAX_COURSE_PRICE } from "../utils/pricingSnapshot";
 import { ACCOUNTING_TRANSACTIONS_COLLECTION, buildTransaction, buildIncomeDraftFromConfirmedPayment } from "../utils/accounting";
 import { buildCustomerDeletionSet, chunkDeletionOps } from "../utils/deleteCustomer";
 import { buildTrackDeletionPlan, chunkTrackDeletionOps } from "../utils/deleteTrack";
@@ -370,15 +370,22 @@ export function CustomerProvider({ children }) {
     });
   };
 
-  // SALES-PRICE-01: the actual, per-student agreed Course Price — see the
-  // module comment in utils/pricingSnapshot.js. `newPrice` is either a
+  // SALES-PRICE-01/02: the actual, per-student agreed Course Price — see
+  // the module comment in utils/pricingSnapshot.js. `newPrice` is either a
   // finite number >= 0 (clamped to MAX_COURSE_PRICE) or null/undefined to
   // clear it back to "not set" (rendered as "غير محدد" in the Sheet).
-  // Deliberately touches ONLY pricingSnapshot.{originalPrice,fullPaymentPrice}
-  // (or the legacy payment.coursePrice, for an engagement with no snapshot
-  // yet) — never paymentRecords, never accountingTransactions, never
-  // enrollmentStatus. Matches firestore.rules' salesPricingSnapshotFieldsAllowed
-  // / salesPaymentFieldsAllowed, which is the real enforcement boundary.
+  // `fullPaymentPrice` is mirrored to the SAME price (no automatic
+  // discount) — a manually-agreed final price isn't a catalog list price a
+  // "pay in full" promotion applies to, and effectiveCoursePrice() no
+  // longer reads it anyway (it's kept only as AddPaymentModal's "full
+  // payment" record default). Deliberately touches ONLY
+  // pricingSnapshot.{originalPrice,fullPaymentPrice} (or the legacy
+  // payment.coursePrice, for an engagement with no snapshot yet) — never
+  // paymentRecords, never accountingTransactions, never enrollmentStatus,
+  // never paymentPlan/installmentCount/depositAmount (switching Cash <->
+  // Installments must never touch this function or vice versa). Matches
+  // firestore.rules' salesPricingSnapshotFieldsAllowed/
+  // salesPaymentFieldsAllowed, which is the real enforcement boundary.
   const setEngagementCoursePrice = async (engagementId, newPrice) => {
     const engagement = engagementById(engagementId);
     if (!engagement) return;
@@ -391,7 +398,7 @@ export function CustomerProvider({ children }) {
     const now = new Date().toISOString();
     if (engagement.pricingSnapshot) {
       await updateDoc(doc(db, "engagements", engagementId), {
-        pricingSnapshot: { ...engagement.pricingSnapshot, originalPrice: price, fullPaymentPrice: computeFullPaymentPrice(price) },
+        pricingSnapshot: { ...engagement.pricingSnapshot, originalPrice: price, fullPaymentPrice: price },
         updatedAt: now,
       });
     } else {
