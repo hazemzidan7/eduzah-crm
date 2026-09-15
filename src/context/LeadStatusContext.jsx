@@ -77,7 +77,7 @@ export function LeadStatusProvider({ children }) {
     const unsub = onSnapshot(
       collection(db, "leadStatuses"),
       (snap) => { setStatuses(snap.docs.map((d) => ({ id: d.id, ...d.data() }))); setLoading(false); },
-      () => setLoading(false),
+      (err) => { console.error("[LeadStatusContext] leadStatuses listener failed — check that firestore.rules is deployed to match this build.", err); setLoading(false); },
     );
     return () => unsub();
   }, [currentUser?.id, currentUser?.role]);

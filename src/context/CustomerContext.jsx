@@ -57,12 +57,12 @@ export function CustomerProvider({ children }) {
     const unsubCustomers = onSnapshot(
       collection(db, "customers"),
       (snap) => { setCustomers(snap.docs.map((d) => ({ id: d.id, ...d.data() }))); setLoading(false); },
-      () => setLoading(false),
+      (err) => { console.error("[CustomerContext] customers listener failed — check that firestore.rules is deployed to match this build.", err); setLoading(false); },
     );
     const unsubEngagements = onSnapshot(
       collection(db, "engagements"),
       (snap) => setEngagements(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-      () => {},
+      (err) => console.error("[CustomerContext] engagements listener failed — check that firestore.rules is deployed to match this build.", err),
     );
     return () => { unsubCustomers(); unsubEngagements(); };
   }, [currentUser?.id, currentUser?.role]);

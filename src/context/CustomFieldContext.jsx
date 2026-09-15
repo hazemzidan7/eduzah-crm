@@ -50,7 +50,7 @@ export function CustomFieldProvider({ children }) {
     const unsub = onSnapshot(
       collection(db, "customFieldDefinitions"),
       (snap) => { setFieldDefs(snap.docs.map((d) => ({ id: d.id, ...d.data() }))); setLoading(false); },
-      () => setLoading(false),
+      (err) => { console.error("[CustomFieldContext] customFieldDefinitions listener failed — check that firestore.rules is deployed to match this build.", err); setLoading(false); },
     );
     return () => unsub();
   }, [currentUser?.id, currentUser?.role]);

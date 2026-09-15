@@ -41,12 +41,16 @@ export function CatalogProvider({ children }) {
     const unsubNodes = onSnapshot(
       collection(db, "catalogNodes"),
       (snap) => { setNodes(snap.docs.map((d) => ({ id: d.id, ...d.data() }))); setLoading(false); },
-      () => setLoading(false),
+      // SALES-CRM-01: was a silent no-op before — a rejected read (e.g. live
+      // Firestore rules not yet redeployed to match this app build) used to
+      // look identical to "catalog is genuinely empty" (CatalogBrowserGrid's
+      // own empty state), with no signal anywhere to tell the two apart.
+      (err) => { console.error("[CatalogContext] catalogNodes listener failed — Sales/Admin will see an empty Catalog. Check that firestore.rules is deployed to match this build.", err); setLoading(false); },
     );
     const unsubTypes = onSnapshot(
       collection(db, "catalogNodeTypes"),
       (snap) => setNodeTypes(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-      () => {},
+      (err) => console.error("[CatalogContext] catalogNodeTypes listener failed.", err),
     );
     return () => { unsubNodes(); unsubTypes(); };
   }, [currentUser?.id, currentUser?.role]);
