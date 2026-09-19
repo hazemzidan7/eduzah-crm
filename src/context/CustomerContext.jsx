@@ -9,6 +9,10 @@ import {
   onSnapshot,
   arrayUnion,
   writeBatch,
+  runTransaction,
+  getDocs,
+  query,
+  where,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "./AuthContext";
@@ -235,7 +239,11 @@ export function CustomerProvider({ children }) {
   const engagementsForCustomer = (customerId) => engagements.filter((e) => e.customerId === customerId);
   const engagementsForBusinessUnit = (businessUnitId) => engagements.filter((e) => e.businessUnitId === businessUnitId);
 
-  const addEngagement = async (customerId, form) => {
+  // The ONE place an Engagement document's shape is defined. addEngagement
+  // (Add Student, imports) and the "عملاء جدد" registration both go through it,
+  // so a registration is exactly a normal enrollment — same defaults, same
+  // pricing snapshot, no payment records, no accounting.
+  const buildEngagementDoc = (customerId, form) => {
     const now = new Date().toISOString();
     // CRM-PRICING-01: a frozen snapshot of the Program's current catalog
     // pricing, taken once at creation — never re-derived later, even if the
@@ -307,8 +315,39 @@ export function CustomerProvider({ children }) {
       createdAt: now,
       updatedAt: now,
     };
-    const ref = await addDoc(collection(db, "engagements"), ne);
+    return ne;
+  };
+
+  const addEngagement = async (customerId, form) => {
+    const ref = await addDoc(collection(db, "engagements"), buildEngagementDoc(customerId, form));
     return ref.id;
+  };
+
+  // NEW-CUSTOMER-WORKFLOW-01 — the safe-against-double-submit create used when a
+  // customer in "عملاء جدد" is registered. The engagement id is deterministic
+  // (customer + Program), and the write happens in a transaction that first
+  // reads that id: whoever gets there first creates it, every later attempt
+  // (double click, retry, second tab) sees it and creates nothing. Resolves
+  // true only for the call that actually created the document.
+  const createEngagementIfAbsent = (id, data) => runTransaction(db, async (tx) => {
+    const ref = doc(db, "engagements", id);
+    const snap = await tx.get(ref);
+    if (snap.exists()) return false;
+    tx.set(ref, data);
+    return true;
+  });
+
+  // A live read (not the possibly-stale onSnapshot state) of one customer's engagements, for the pre-registration duplicate check.
+  const listCustomerEngagements = async (customerId) => {
+    const snap = await getDocs(query(collection(db, "engagements"), where("customerId", "==", customerId)));
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  };
+
+  // Raw customer-document patch used by the "عملاء جدد" workflow (the patches
+  // are built and validated in utils/newCustomerWorkflow.js; the fields they
+  // touch are exactly firestore.rules' Sales allow-list for /customers).
+  const patchCustomer = async (customerId, patch) => {
+    await updateDoc(doc(db, "customers", customerId), patch);
   };
 
   // Non-destructive: only fills studentProfile fields that are currently
@@ -645,7 +684,7 @@ export function CustomerProvider({ children }) {
       findCustomerByPhone, findCustomerByEmail, customerById,
       addCustomer, commitLeadImportChunk, resolveOrCreateCustomer, updateCustomer, setCustomerInterestedPrograms, archiveCustomer, restoreCustomer, deleteCustomerCascade, deleteTrackCascade,
       findEngagement, engagementById, engagementsForCustomer, engagementsForBusinessUnit,
-      addEngagement, mergeStudentProfile, resolveOrCreateEngagement, updateEngagement,
+      addEngagement, buildEngagementDoc, createEngagementIfAbsent, listCustomerEngagements, patchCustomer, mergeStudentProfile, resolveOrCreateEngagement, updateEngagement,
       changeEngagementStatus, changeEnrollmentStatus, logEngagementActivity, archiveEngagement, restoreEngagement,
       setEngagementPricingPlan, setEngagementInstallmentCount, setEngagementCoursePrice,
       addPaymentRecord, setPaymentRecordStatus, startPaymentReview, confirmPaymentRecord, rejectPaymentRecord, migrateLegacyPayments,

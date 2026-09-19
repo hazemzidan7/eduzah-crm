@@ -175,7 +175,13 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'fullName', 'phone', 'normalizedPhone', 'secondaryPhones',
             'email', 'normalizedEmail', 'whatsapp', 'updatedAt',
-            'interestedProgramIds'
+            'interestedProgramIds',
+            /* NEW-CUSTOMER-WORKFLOW-01 ("عملاء جدد"): lead-workflow fields only — the
+               contact status (a leadStatuses id), the Program the customer says they
+               will register in, sales notes, and the assigned employee. Still no
+               archivedAt / authUid / createdAt, and still no delete. */
+            'contactStatusId', 'contactStatusUpdatedAt', 'contactStatusUpdatedBy',
+            'plannedProgramId', 'notes', 'assignedToId', 'assignedToName'
           ]));
       allow delete: if isAdmin();
     }

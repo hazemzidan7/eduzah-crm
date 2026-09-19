@@ -8,11 +8,12 @@ import { buildDueAt, splitDueAt } from "../../../../utils/followUps";
 /**
  * CRM-05 — Create (from an Engagement's own detail view) or Edit (from the
  * Follow-ups list) one follow-up. customerId/engagementId are always fixed
- * by context and never re-picked here: create mode requires `engagement`,
- * edit mode requires `followUp`. Student/program are shown read-only either
+ * by context and never re-picked here: create mode requires `engagement` (or,
+ * for a customer with no Engagement yet — "عملاء جدد" — `customer`), edit mode
+ * requires `followUp`. Student/program are shown read-only either
  * way — the form only asks for Date / Time / Note / Assigned Sales, per spec.
  */
-export default function FollowUpFormModal({ engagement, followUp, studentName, studentPhone, programLabel, ar, tx, onClose }) {
+export default function FollowUpFormModal({ engagement, customer, followUp, studentName, studentPhone, programLabel, ar, tx, onClose }) {
   const { users, currentUser } = useAuth();
   const { addFollowUp, updateFollowUp } = useFollowUps();
   // "الموظف المسؤول" / Assigned Sales must list Sales staff only.
@@ -32,7 +33,7 @@ export default function FollowUpFormModal({ engagement, followUp, studentName, s
   const [time, setTime] = useState(initialSplit.time || "17:00");
   const [note, setNote] = useState(isEdit ? (followUp.note || "") : "");
   const [assignedTo, setAssignedTo] = useState(
-    isEdit ? (followUp.assignedTo || "") : (lockAssigneeToSelf ? (currentUser?.id || "") : (engagement?.ownerId || currentUser?.id || "")),
+    isEdit ? (followUp.assignedTo || "") : (lockAssigneeToSelf ? (currentUser?.id || "") : (engagement?.ownerId || customer?.assignedToId || currentUser?.id || "")),
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -58,8 +59,10 @@ export default function FollowUpFormModal({ engagement, followUp, studentName, s
         // customer/engagement in hand; snapshot it onto the doc so a
         // Sales-role viewer (no customers/engagements read access) can still
         // see who this is for. See utils/followUps.buildFollowUp.
+        // NEW-CUSTOMER-WORKFLOW-01: from "عملاء جدد" there is no Engagement yet — pass `customer`
+        // instead and the follow-up is created against the customer alone (engagementId: null).
         await addFollowUp({
-          customerId: engagement.customerId, engagementId: engagement.id, dueAt, note, assignedTo: assignedTo || null,
+          customerId: engagement ? engagement.customerId : customer.id, engagementId: engagement ? engagement.id : null, dueAt, note, assignedTo: assignedTo || null,
           customerName: studentName || null, customerPhone: studentPhone || null, programLabel: programLabel || null,
         });
       }

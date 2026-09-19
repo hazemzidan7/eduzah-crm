@@ -81,7 +81,10 @@ export function splitDueAt(iso) {
 export function validateFollowUpDraft(draft) {
   const errors = [];
   if (!draft?.customerId) errors.push("MISSING_CUSTOMER");
-  if (!draft?.engagementId) errors.push("MISSING_ENGAGEMENT");
+  // NEW-CUSTOMER-WORKFLOW-01: engagementId is OPTIONAL. A customer in "عملاء جدد"
+  // has no Engagement yet, and their follow-ups are the same `followUps` docs
+  // (engagementId: null) — there is no second reminder system. Every
+  // Engagement-based caller still passes its engagementId, unchanged.
   if (!draft?.dueAt) errors.push("MISSING_DUE_AT");
   return errors;
 }
@@ -95,7 +98,7 @@ export function buildFollowUp(draft, { currentUser } = {}) {
   const now = new Date().toISOString();
   return {
     customerId: draft.customerId,
-    engagementId: draft.engagementId,
+    engagementId: draft.engagementId || null,
     assignedTo: draft.assignedTo || null,
     dueAt: draft.dueAt,
     status: FOLLOW_UP_STATUSES.PENDING,
@@ -149,7 +152,7 @@ export function buildCompletionPatch({ result, currentUser }) {
 export function buildNextFollowUpDraft(prev, { dueAt, note, assignedTo }) {
   return {
     customerId: prev.customerId,
-    engagementId: prev.engagementId,
+    engagementId: prev.engagementId || null,
     dueAt,
     note: note || "",
     assignedTo: assignedTo || prev.assignedTo || null,

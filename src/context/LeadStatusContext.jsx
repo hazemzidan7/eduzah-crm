@@ -16,6 +16,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "./AuthContext";
+import { NEW_CUSTOMER_REQUIRED_STATUSES } from "../utils/newCustomerWorkflow";
 
 const LeadStatusCtx = createContext(null);
 
@@ -187,6 +188,49 @@ export function LeadStatusProvider({ children }) {
         }
       }
     })().catch((e) => console.warn("Lead status seed failed:", e));
+  }, [currentUser?.id, currentUser?.role]);
+
+  // NEW-CUSTOMER-WORKFLOW-01: the "عملاء جدد" Sales workflow reuses the existing
+  // statuses (لم يتم التواصل / لا يرد / بيفكر / غير مهتم / تم الحجز) and needs exactly
+  // TWO the seed never had — "مهتم" (interested) and "هيحجز" (will_book).
+  // Ensured here, admin-only (status administration stays admin-only), with the
+  // same two-layer guard as the seed above: the claim happens inside a
+  // transaction on settings/seedState, and each status is also skipped if ANY
+  // document (active or archived) already has its `key` — so this can only ever
+  // fill in what is genuinely missing, never duplicate. If creation fails the
+  // claim is released so the next admin session retries.
+  useEffect(() => {
+    if (currentUser?.role !== "admin") return;
+    (async () => {
+      const seedStateRef = doc(db, "settings", "seedState");
+      const claimed = await runTransaction(db, async (tx) => {
+        const s = await tx.get(seedStateRef);
+        const seeded = s.exists() ? (s.data() || {}) : {};
+        if (seeded.newCustomerStatusesEnsured === true) return false;
+        tx.set(seedStateRef, { ...seeded, newCustomerStatusesEnsured: true, updatedAt: new Date().toISOString() }, { merge: true });
+        return true;
+      });
+      if (!claimed) return;
+      try {
+        const now = new Date().toISOString();
+        for (const st of NEW_CUSTOMER_REQUIRED_STATUSES) {
+          const snap = await getDocs(query(collection(db, "leadStatuses"), where("key", "==", st.key), limit(1)));
+          if (!snap.empty) continue;
+          await addDoc(collection(db, "leadStatuses"), {
+            name_ar: st.name_ar, name_en: st.name_en, key: st.key,
+            description: "", color: st.color, icon: "",
+            order: st.order, parentId: null, path: [],
+            scope: "global", businessUnitId: null,
+            isDefault: false, isTerminal: false,
+            isActive: true, archivedAt: null,
+            createdAt: now, updatedAt: now,
+          });
+        }
+      } catch (e) {
+        await setDoc(seedStateRef, { newCustomerStatusesEnsured: false }, { merge: true }).catch(() => {});
+        throw e;
+      }
+    })().catch((e) => console.warn("New-customer lead status ensure failed:", e));
   }, [currentUser?.id, currentUser?.role]);
 
   // ── SELECTORS ────────────────────────────────────────
