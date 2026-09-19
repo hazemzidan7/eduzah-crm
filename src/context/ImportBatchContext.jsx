@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect } from "react";
 import { collection, doc, addDoc, updateDoc, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "./AuthContext";
+import { buildImportBatchDoc, omitUndefined } from "../utils/importBatchDoc";
 
 const ImportBatchCtx = createContext(null);
 
@@ -27,30 +28,12 @@ export function ImportBatchProvider({ children }) {
   // Created up-front (status "committing") so every engagement created during
   // the commit loop can reference a real batchId, then finalized via updateBatch.
   const createBatch = async (form) => {
-    const now = new Date().toISOString();
-    const ref = await addDoc(collection(db, "importBatches"), {
-      fileName: form.fileName,
-      importProfileId: form.importProfileId,
-      importProfileVersion: form.importProfileVersion,
-      // Which Program this run targeted — lets Import History scope itself
-      // to "just this Program's imports" from inside the Program workspace.
-      programId: form.programId || null,
-      // LEAD-IMPORT-01: bulk customer/lead imports from "عملاء جدد" are tagged
-      // so they're distinguishable from Program imports (which carry no kind).
-      ...(form.kind ? { kind: form.kind } : {}),
-      importedBy: currentUser?.id || null,
-      importedByName: currentUser?.name || null,
-      status: "committing",
-      createdCount: 0, updatedCount: 0, skippedCount: 0, errorCount: 0,
-      createdCustomerIds: [], createdEngagementIds: [],
-      rolledBackAt: null,
-      createdAt: now, updatedAt: now,
-    });
+    const ref = await addDoc(collection(db, "importBatches"), buildImportBatchDoc(form, { currentUser }));
     return ref.id;
   };
 
   const updateBatch = async (id, updates) => {
-    await updateDoc(doc(db, "importBatches", id), { ...updates, updatedAt: new Date().toISOString() });
+    await updateDoc(doc(db, "importBatches", id), { ...omitUndefined(updates), updatedAt: new Date().toISOString() });
   };
 
   const markRolledBack = async (id) => {

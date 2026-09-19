@@ -20,9 +20,12 @@ function reasonText(r, tx) {
     case "NO_PHONE": return tx("رقم التليفون مطلوب", "phone number is required");
     case "INVALID_PHONE": {
       const why = {
-        too_short: tx("الرقم أقصر من اللازم", "number is too short"),
-        too_long: tx("الرقم أطول من اللازم", "number is too long"),
-        not_egyptian_mobile: tx("مش رقم موبايل مصري (010/011/012/015)", "not an Egyptian mobile number (010/011/012/015)"),
+        too_short: tx("الرقم أقصر من اللازم (أقل من 8 أرقام)", "number is too short (fewer than 8 digits)"),
+        too_long: tx("الرقم أطول من الحد الدولي (أكثر من 15 رقم)", "number is longer than any international number (over 15 digits)"),
+        ambiguous_country: tx("مش واضح رقم أي دولة — اكتبه مع رمز الدولة (مثل +971) أو صحّحه", "the country can't be told — write it with its country code (e.g. +971) or correct it"),
+        bad_country_code: tx("رمز الدولة غير صحيح (لا يبدأ بصفر)", "invalid country code (it can't start with 0)"),
+        contains_letters: tx("الخانة فيها حروف — مش رقم تليفون", "the cell contains letters — not a phone number"),
+        invalid_characters: tx("الخانة فيها رموز غير مسموحة", "the cell contains characters that are not allowed in a phone number"),
         no_digits: tx("مفيش أرقام", "no digits"),
       }[p.why] || "";
       return `${tx("رقم التليفون غير صالح", "phone number is invalid")}${why ? ` — ${why}` : ""}`;
@@ -305,7 +308,7 @@ export default function LeadExcelImportPanel({ onClose }) {
                             <tr key={r.rowNumber}>
                               <td style={td}>{r.rowNumber}</td>
                               <td style={td} dir="auto">{r.name || <span style={{ color: C.muted }}>{tx("بدون اسم", "no name")}</span>}</td>
-                              <td style={td} dir="ltr">{r.phoneNormalized}</td>
+                              <td style={td} dir="ltr">{r.phoneDisplay}</td>
                               <td style={td}>{outcomeLabel[r.outcome] || "—"}</td>
                             </tr>
                           ))}

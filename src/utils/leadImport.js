@@ -4,7 +4,7 @@
  * already-parsed rows into a PLAN (what would be created/updated and why
  * each row was accepted or rejected). Nothing is written until the UI shows
  * that plan and the user explicitly confirms; the write itself lives in
- * hooks/useLeadImportCommit.js.
+ * utils/leadImportCommit.js (wired to Firestore by hooks/useLeadImportCommit.js).
  *
  * SCOPE — customers and their INTERESTS only. A plan never contains an
  * engagement, enrollment, payment, accounting transaction, catalog change,
@@ -13,7 +13,7 @@
  * only ever ADDED — an existing customer's interests are never overwritten
  * or removed.
  *
- * THE ONE REQUIRED FIELD IS THE PHONE NUMBER. A missing name is fine (the
+ * THE ONE REQUIRED FIELD IS THE PHONE NUMBER — any country's (see normalizeImportPhone). A missing name is fine (the
  * customer schema's own empty `fullName`, never an invented placeholder);
  * a name with no phone is rejected.
  */
@@ -30,58 +30,110 @@ const uniq = (arr) => [...new Set(arr)];
 // ───────────────────────── phone numbers ─────────────────────────
 
 const PERSIAN_DIGITS = /[۰-۹]/g;
-const EG_MOBILE = /^01[0125]\d{8}$/;
+/** Zero-width / bidi marks and NBSP that spreadsheets and chat apps sneak into copied numbers. */
+const INVISIBLE = /[\s\u00a0\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g;
+/** What a phone cell may contain besides digits: a leading +, and the usual separators. Anything else is not a phone number. */
+const PHONE_CHARS = /^[\d+\-().]+$/;
+const EG_LOCAL_MOBILE = /^01[0125]\d{8}$/; // 01012345678
+const EG_NATIONAL_MOBILE = /^1[0125]\d{8}$/; // 1012345678 (after +20, or with Excel's dropped leading zero)
+
+/** E.164 allows at most 15 digits including the country code; fewer than 8 can't be a real subscriber number. */
+export const PHONE_MIN_DIGITS = 8;
+export const PHONE_MAX_DIGITS = 15;
+
+const bad = (why, digits = "") => ({ normalized: digits, display: "", valid: false, why, kind: null });
 
 /**
- * Cleans ONE phone number for validation/matching. Handles Arabic-Indic and
- * Persian digits, spaces/dashes/brackets, "+20…", "0020…", "20…", and a
- * missing leading zero (Excel drops it from numeric cells), by building on
- * the CRM's own normalizePhone (via cleanPhone) — the only additions are the
- * "00" international prefix and Persian digits. It never mutates the
- * caller's original text: validation reads it, the customer's stored `phone`
- * is still the raw value as entered (the CRM's existing convention).
+ * Validates and canonicalizes ONE phone number. The CRM serves customers from
+ * many countries, so this is NOT an Egypt-only check:
+ *
+ *  - Egyptian local mobiles (010/011/012/015 + 8 digits, or the same with
+ *    Excel's dropped leading zero, or with +20 / 0020 / 20) are canonicalized
+ *    to the CRM's existing local form "01xxxxxxxxx" — so "+201012345678" and
+ *    "01012345678" are the SAME customer, exactly as everywhere else in the CRM.
+ *  - Any other number with an explicit international marker ("+…" or "00…")
+ *    is accepted as long as it is a plausible E.164 number: a country code
+ *    (never starting with 0) and 8–15 digits in total. It is kept as typed
+ *    ("+971523276550") — never truncated, never re-countried.
+ *  - Digits with NO marker: 12–15 digits can only be a full international
+ *    number (no local format is that long), so it is accepted as "+…". A
+ *    shorter, non-Egyptian-looking number (8–11 digits) could belong to any
+ *    country — it is NOT guessed at; it is reported "ambiguous_country" for
+ *    manual review ("write it with its +country code").
+ *  - Letters/symbols, too few digits, too many digits, or a leading 0 on an
+ *    international number are rejected with a specific reason.
+ *
+ * `normalized` is the MATCHING KEY: exactly what the rest of the CRM computes
+ * for the same number (leadDedupe.normalizePhone, i.e. the customer's stored
+ * `normalizedPhone`), so an import finds customers that already exist.
+ * `display` is what gets stored as the customer's `phone`. The caller's
+ * original cell text is never modified.
  */
 export function normalizeImportPhone(raw) {
   let s = String(raw ?? "");
   s = s.replace(PERSIAN_DIGITS, (d) => String(d.charCodeAt(0) - 0x06f0));
   s = convertArabicDigits(s);
-  let digits = s.replace(/\D/g, "");
-  digits = digits.replace(/^00/, ""); // "0020…" -> "20…" (then normalizePhone drops the 20)
-  const normalized = cleanPhone(digits);
-  const valid = EG_MOBILE.test(normalized);
-  let why = null;
-  if (!valid) {
-    if (!normalized) why = "no_digits";
-    else if (normalized.length < 11) why = "too_short";
-    else if (normalized.length > 11) why = "too_long";
-    else why = "not_egyptian_mobile";
+  const t = s.replace(INVISIBLE, "");
+  if (!t) return bad("no_digits");
+  if (!PHONE_CHARS.test(t)) return bad(/\p{L}/u.test(t) ? "contains_letters" : "invalid_characters");
+  const plusCount = (t.match(/\+/g) || []).length;
+  if (plusCount > 1 || (plusCount === 1 && !t.startsWith("+"))) return bad("invalid_characters");
+  const digits = t.replace(/\D/g, "");
+  if (!digits) return bad("no_digits");
+
+  const done = (display, kind, unmarked = false) => ({ normalized: cleanPhone(display), display, valid: true, why: null, kind, unmarked });
+
+  const international = t.startsWith("+") || digits.startsWith("00");
+  if (international) {
+    const d = t.startsWith("+") ? digits : digits.slice(2);
+    if (d.startsWith("0")) return bad("bad_country_code", d);
+    if (d.length < PHONE_MIN_DIGITS) return bad("too_short", d);
+    if (d.length > PHONE_MAX_DIGITS) return bad("too_long", d);
+    if (d.startsWith("20")) {
+      const rest = d.slice(2);
+      if (EG_NATIONAL_MOBILE.test(rest)) return done(`0${rest}`, "egypt");
+      if (EG_LOCAL_MOBILE.test(rest)) return done(rest, "egypt"); // "+20 01012345678": stray trunk zero
+    }
+    return done(`+${d}`, "international");
   }
-  return { normalized, valid, why };
+
+  if (digits.length < PHONE_MIN_DIGITS) return bad("too_short", digits);
+  if (EG_LOCAL_MOBILE.test(digits)) return done(digits, "egypt");
+  if (EG_NATIONAL_MOBILE.test(digits)) return done(`0${digits}`, "egypt");
+  if (digits.length === 12 && digits.startsWith("20") && EG_NATIONAL_MOBILE.test(digits.slice(2))) return done(`0${digits.slice(2)}`, "egypt");
+  if (digits.length > PHONE_MAX_DIGITS) return bad("too_long", digits);
+  if (digits.startsWith("0")) return bad(digits.length > 11 ? "bad_country_code" : "ambiguous_country", digits);
+  if (digits.length >= 12) return done(`+${digits}`, "international", true);
+  return bad("ambiguous_country", digits);
 }
 
 /**
- * Reads ONE phone cell. Egyptian mobiles only (01[0125]xxxxxxxx after
- * cleaning) — anything else (landline, foreign number, truncated digits) is
- * reported invalid for manual review rather than guessed at or stored.
- * A cell holding two numbers ("0108… - 0101…", "0108…/0101…") yields the
- * first valid one as the primary and the rest as secondary numbers; the
- * WHOLE cell is tried first so a single number written "010-1234-5678"
- * isn't torn apart by the dash.
+ * Reads ONE phone cell. A cell holding two numbers ("0108… - 0101…",
+ * "0108…/+971…") yields the first valid one as the primary and the rest as
+ * secondary numbers; the WHOLE cell is tried first so a single number written
+ * "010-1234-5678" or "+971 52 327 6550" isn't torn apart by its separators.
+ * Result for a valid cell: { status:"ok", primaryRaw, display, normalized (matching key),
+ * kind, unmarked, secondaryRaw[], secondaryDisplay[], secondaryNormalized[] }.
  */
 export function extractPhones(rawCell) {
   const raw = rawCell == null ? "" : String(rawCell).trim();
   if (!raw) return { status: "empty", raw: "" };
 
-  const whole = normalizeImportPhone(raw);
-  if (whole.valid) return { status: "ok", primaryRaw: raw, normalized: whole.normalized, secondaryRaw: [], secondaryNormalized: [] };
+  const ok = (primaryRaw, n, others) => ({
+    status: "ok", primaryRaw, display: n.display, normalized: n.normalized, kind: n.kind, unmarked: !!n.unmarked,
+    secondaryRaw: others.map((x) => x.raw), secondaryDisplay: others.map((x) => x.n.display), secondaryNormalized: others.map((x) => x.n.normalized),
+  });
 
-  const parts = raw.split(/[\/\\,;،؛|\n\r]+|\s+[-–—]\s+|\s{2,}/).map((p) => p.trim()).filter(Boolean);
+  const whole = normalizeImportPhone(raw);
+  if (whole.valid) return ok(raw, whole, []);
+
+  const parts = raw.split(/[/\\,;،؛|\n\r]+|\s+[-–—]\s+|\s{2,}/).map((p) => p.trim()).filter(Boolean);
   if (parts.length > 1) {
     const valid = parts.map((p) => ({ raw: p, n: normalizeImportPhone(p) })).filter((x) => x.n.valid);
     if (valid.length > 0) {
       const primary = valid[0];
       const others = valid.slice(1).filter((x, i, a) => x.n.normalized !== primary.n.normalized && a.findIndex((y) => y.n.normalized === x.n.normalized) === i);
-      return { status: "ok", primaryRaw: primary.raw, normalized: primary.n.normalized, secondaryRaw: others.map((x) => x.raw), secondaryNormalized: others.map((x) => x.n.normalized) };
+      return ok(primary.raw, primary.n, others);
     }
   }
   return { status: "invalid", raw, normalized: whole.normalized, why: whole.why };
@@ -358,7 +410,7 @@ export async function planLeadImport({
     const name = mapping?.name ? cleanWhitespace(row[mapping.name]) : "";
     const phoneCell = mapping?.phone ? row[mapping.phone] : "";
     const phone = extractPhones(phoneCell);
-    const result = { rowNumber, name, phoneRaw: phone.status === "empty" ? "" : String(phoneCell).trim(), phoneNormalized: phone.status === "ok" ? phone.normalized : "", status: "accepted", outcome: null, reasons: [], warnings: [] };
+    const result = { rowNumber, name, phoneRaw: phone.status === "empty" ? "" : String(phoneCell).trim(), phoneNormalized: phone.status === "ok" ? phone.normalized : "", phoneDisplay: phone.status === "ok" ? phone.display : "", phoneKind: phone.status === "ok" ? phone.kind : null, status: "accepted", outcome: null, reasons: [], warnings: [] };
 
     if (phone.status === "empty") {
       missingPhoneRows += 1;
@@ -397,7 +449,7 @@ export async function planLeadImport({
     const key = phone.normalized;
     let group = groups.get(key);
     if (!group) {
-      group = { key, phoneRaw: phone.primaryRaw, secondaryRaw: [], secondaryNormalized: [], name: "", nameRow: null, interestIds: [], rows: [], firstRow: rowNumber };
+      group = { key, phoneRaw: phone.primaryRaw, phoneDisplay: phone.display, secondaryRaw: [], secondaryDisplay: [], secondaryNormalized: [], name: "", nameRow: null, interestIds: [], rows: [], firstRow: rowNumber };
       groups.set(key, group);
     } else {
       duplicateRows += 1;
@@ -414,7 +466,7 @@ export async function planLeadImport({
     for (const id of rowProgramIds) if (!group.interestIds.includes(id)) group.interestIds.push(id);
     phone.secondaryRaw.forEach((raw, k) => {
       const n = phone.secondaryNormalized[k];
-      if (n !== key && !group.secondaryNormalized.includes(n)) { group.secondaryRaw.push(raw); group.secondaryNormalized.push(n); }
+      if (n !== key && !group.secondaryNormalized.includes(n)) { group.secondaryRaw.push(raw); group.secondaryDisplay.push(phone.secondaryDisplay[k]); group.secondaryNormalized.push(n); }
     });
     result.groupKey = key;
     rowResults.push(result);
@@ -459,12 +511,13 @@ export async function planLeadImport({
     }
     customersToCreate.push({
       key: group.key,
-      // Stored in the cleaned 01xxxxxxxxx form (what the Import Wizard's own cleaning stores, and what tel:/wa.me
-      // links expect); `originalPhone` is the cell exactly as typed, kept for the preview/audit only.
-      phone: group.key,
+      // Stored as the canonical display form — Egyptian numbers as 01xxxxxxxxx (what the Import Wizard's own cleaning
+      // stores), any other number as +<country code><number>; both work with tel:/wa.me links. `originalPhone` is the
+      // cell exactly as typed, kept for the preview/audit only. `normalizedPhone` is the matching key.
+      phone: group.phoneDisplay,
       originalPhone: group.phoneRaw,
       normalizedPhone: group.key,
-      secondaryPhones: group.secondaryNormalized,
+      secondaryPhones: group.secondaryDisplay,
       fullName: group.name, // "" when the file had none — the schema's empty value, never an invented name
       interestedProgramIds: wanted,
       sourceRows: group.rows,
