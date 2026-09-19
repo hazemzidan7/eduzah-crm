@@ -18,6 +18,7 @@ import { effectivePaymentRecords, findPaymentConflicts, hasBlockingConflict } fr
 import { ACCOUNTING_EVENTS_COLLECTION, buildConfirmedPaymentEvent } from "../utils/accountingEvents";
 import { buildPricingSnapshot, applyPaymentPlan, MAX_COURSE_PRICE } from "../utils/pricingSnapshot";
 import { normalizeInterestedProgramIds, validateInterestedProgramIds } from "../utils/interestedPrograms";
+import { buildCustomerDoc } from "../utils/customerDoc";
 import { ACCOUNTING_TRANSACTIONS_COLLECTION, buildTransaction, buildIncomeDraftFromConfirmedPayment } from "../utils/accounting";
 import { buildCustomerDeletionSet, chunkDeletionOps } from "../utils/deleteCustomer";
 import { buildTrackDeletionPlan, chunkTrackDeletionOps } from "../utils/deleteTrack";
@@ -91,22 +92,34 @@ export function CustomerProvider({ children }) {
       const { invalid } = validateInterestedProgramIds(interestedProgramIds, { nodeById: catalogNodeById });
       if (invalid.length > 0) throw new Error(`INVALID_INTERESTED_PROGRAMS: ${invalid.join(", ")}`);
     }
-    const nc = {
-      fullName: form.fullName || "",
-      phone: form.phone || "",
-      normalizedPhone: normalizePhone(form.phone),
-      secondaryPhones: form.secondaryPhones || [],
-      email: form.email || "",
-      normalizedEmail: form.email ? normalizeEmail(form.email) : null,
-      whatsapp: form.whatsapp || "",
-      interestedProgramIds,
-      authUid: null,
-      archivedAt: null,
-      createdAt: now,
-      updatedAt: now,
-    };
+    const nc = buildCustomerDoc(form, { now, interestedProgramIds });
     const ref = await addDoc(collection(db, "customers"), nc);
     return ref.id;
+  };
+
+  // LEAD-IMPORT-01: applies ONE chunk of a bulk lead import as a single atomic
+  // Firestore batch (the whole chunk commits or none of it does). Ops are
+  // customer-document writes ONLY: {type:"create", data} or {type:"update",
+  // id, patch}. Nothing here can create an engagement, payment record, or
+  // accounting transaction — those collections aren't reachable from this
+  // function. `patch` keys are limited by firestore.rules' /customers
+  // allow-list for Sales (fullName, interestedProgramIds, updatedAt).
+  // Returns the new customer ids, in op order. Orchestrated (chunking,
+  // progress, batch tracking) by hooks/useLeadImportCommit.js.
+  const commitLeadImportChunk = async (ops) => {
+    const batch = writeBatch(db);
+    const createdIds = [];
+    for (const op of ops) {
+      if (op.type === "create") {
+        const ref = doc(collection(db, "customers"));
+        batch.set(ref, op.data);
+        createdIds.push(ref.id);
+      } else if (op.type === "update") {
+        batch.update(doc(db, "customers", op.id), op.patch);
+      }
+    }
+    await batch.commit();
+    return createdIds;
   };
 
   // Find-or-create by phone (primary) then email (fallback) — never creates
@@ -630,7 +643,7 @@ export function CustomerProvider({ children }) {
     <CustomerCtx.Provider value={{
       customers, engagements, loading,
       findCustomerByPhone, findCustomerByEmail, customerById,
-      addCustomer, resolveOrCreateCustomer, updateCustomer, setCustomerInterestedPrograms, archiveCustomer, restoreCustomer, deleteCustomerCascade, deleteTrackCascade,
+      addCustomer, commitLeadImportChunk, resolveOrCreateCustomer, updateCustomer, setCustomerInterestedPrograms, archiveCustomer, restoreCustomer, deleteCustomerCascade, deleteTrackCascade,
       findEngagement, engagementById, engagementsForCustomer, engagementsForBusinessUnit,
       addEngagement, mergeStudentProfile, resolveOrCreateEngagement, updateEngagement,
       changeEngagementStatus, changeEnrollmentStatus, logEngagementActivity, archiveEngagement, restoreEngagement,

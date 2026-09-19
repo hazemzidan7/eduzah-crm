@@ -35,6 +35,9 @@ export function ImportBatchProvider({ children }) {
       // Which Program this run targeted — lets Import History scope itself
       // to "just this Program's imports" from inside the Program workspace.
       programId: form.programId || null,
+      // LEAD-IMPORT-01: bulk customer/lead imports from "عملاء جدد" are tagged
+      // so they're distinguishable from Program imports (which carry no kind).
+      ...(form.kind ? { kind: form.kind } : {}),
       importedBy: currentUser?.id || null,
       importedByName: currentUser?.name || null,
       status: "committing",

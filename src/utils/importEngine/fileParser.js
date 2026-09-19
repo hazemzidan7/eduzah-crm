@@ -4,7 +4,7 @@ import { isRowEmpty } from "./dataCleaning";
 const BOM_CHAR_CODE = 65279; // U+FEFF, byte-order mark some Excel/CSV exports prepend to the first cell
 
 /** Trim a header string and strip a leading BOM, if present. */
-function cleanHeaderText(h) {
+export function cleanHeaderText(h) {
   let s = String(h ?? "");
   if (s.charCodeAt(0) === BOM_CHAR_CODE) s = s.slice(1);
   return s.trim();
@@ -47,7 +47,7 @@ function rowHeaderQuality(row) {
  * caller should fall back to positional column names instead of consuming
  * a real record as if it were labels.
  */
-function detectHeader(rawRows) {
+export function detectHeader(rawRows) {
   const scanLimit = Math.min(5, rawRows.length);
   let bestIdx = null;
   let bestScore = -1;
@@ -58,7 +58,7 @@ function detectHeader(rawRows) {
   return bestIdx;
 }
 
-async function readFileAsWorkbook(file) {
+export async function readFileAsWorkbook(file) {
   const isCsv = /\.csv$/i.test(file.name);
   if (isCsv) {
     const text = await file.text();
@@ -97,5 +97,55 @@ export async function parseWorkbookFile(file) {
     return { name, headerRowIndex, headers: headers.filter(Boolean), rows };
   });
 
+  return { fileName: file.name, sheets };
+}
+
+/**
+ * LEAD-IMPORT-01 — same detection/cleaning as parseWorkbookFile above (it
+ * reuses detectHeader/cleanHeaderText/readFileAsWorkbook — nothing duplicated),
+ * but keeps each data row's REAL spreadsheet row number, which
+ * parseWorkbookFile can't: it drops blank rows before indexing, so its
+ * positions no longer line up with what a person sees in Excel. Needed so a
+ * preview can say "Row 12 — phone is empty" and mean Excel row 12.
+ *
+ * Returns { fileName, sheets: [{ name, hasHeader, headers, rows, rowNumbers }] }
+ * where rowNumbers[i] is the 1-based sheet row of rows[i]. A sheet with no
+ * header row (e.g. just a column of phone numbers) gets positional
+ * "Column N" headers and its first row is treated as data, exactly like
+ * parseWorkbookFile. Existing parseWorkbookFile behavior is unchanged.
+ */
+export async function parseWorkbookFileWithRowNumbers(file) {
+  const wb = await readFileAsWorkbook(file);
+  const sheets = wb.SheetNames.map((name) => {
+    const sheet = wb.Sheets[name];
+    const ref = sheet && sheet["!ref"];
+    // sheet_to_json(header:1) is relative to the sheet's own first row (usually row 1).
+    const firstSheetRow = ref ? XLSX.utils.decode_range(ref).s.r : 0;
+    const all = ref ? XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", blankrows: true }) : [];
+
+    // Non-blank rows only, remembering where each one really sits.
+    const kept = [];
+    all.forEach((cells, i) => {
+      const row = cells || [];
+      if (row.some((c) => String(c ?? "").trim() !== "")) kept.push({ cells: row, sheetRow: firstSheetRow + i + 1 });
+    });
+    if (kept.length === 0) return { name, hasHeader: false, headers: [], rows: [], rowNumbers: [] };
+
+    const headerIdx = detectHeader(kept.map((k) => k.cells));
+    const hasHeader = headerIdx !== null;
+    const width = Math.max(...kept.map((k) => k.cells.length));
+    const headers = hasHeader
+      ? (kept[headerIdx].cells || []).map(cleanHeaderText)
+      : Array.from({ length: width }, (_, i) => `Column ${i + 1}`);
+
+    const rows = [];
+    const rowNumbers = [];
+    for (let r = hasHeader ? headerIdx + 1 : 0; r < kept.length; r++) {
+      const obj = {};
+      headers.forEach((h, i) => { if (h) obj[h] = kept[r].cells[i] ?? ""; });
+      if (!isRowEmpty(obj)) { rows.push(obj); rowNumbers.push(kept[r].sheetRow); }
+    }
+    return { name, hasHeader, headers: headers.filter(Boolean), rows, rowNumbers };
+  });
   return { fileName: file.name, sheets };
 }

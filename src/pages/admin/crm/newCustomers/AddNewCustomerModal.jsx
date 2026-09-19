@@ -28,7 +28,7 @@ export default function AddNewCustomerModal({ onClose }) {
 
   const submit = async () => {
     setError("");
-    if (!fullName.trim()) { setError(tx("أدخل الاسم الكامل", "Enter a full name")); return; }
+    // The phone number is the ONLY required field — the name is optional (a customer is identified by phone).
     if (!phone.trim()) { setError(tx("أدخل رقم الهاتف", "Enter a phone number")); return; }
     // Same global person-level dedup the rest of the CRM uses — never a second customer for the same phone/email.
     const existing = findCustomerByPhone(phone) || (email.trim() ? findCustomerByEmail(email) : null);
@@ -54,7 +54,7 @@ export default function AddNewCustomerModal({ onClose }) {
 
   return (
     <Modal title={tx("إضافة عميل جديد", "Add New Customer")} onClose={onClose}>
-      <Input label={tx("الاسم الكامل", "Full Name")} value={fullName} onChange={setFullName} />
+      <Input label={tx("الاسم الكامل (اختياري)", "Full Name (optional)")} value={fullName} onChange={setFullName} />
       <Input label={tx("رقم الهاتف", "Phone Number")} value={phone} onChange={setPhone} dir="ltr" />
       <Input label={tx("البريد الإلكتروني (اختياري)", "Email (optional)")} value={email} onChange={setEmail} dir="ltr" />
       <InterestedProgramsPicker value={interestedProgramIds} onChange={setInterestedProgramIds} />

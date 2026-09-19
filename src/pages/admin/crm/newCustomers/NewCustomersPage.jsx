@@ -8,6 +8,7 @@ import { toE164Phone } from "../../../../utils/phoneE164";
 import { customerInterestedProgramIds } from "../../../../utils/interestedPrograms";
 import { InterestedProgramChips, InterestedProgramsModal, INTEREST_ONLY_NOTE_AR, INTEREST_ONLY_NOTE_EN } from "../../../../components/crm/InterestedPrograms";
 import AddNewCustomerModal from "./AddNewCustomerModal";
+import LeadExcelImportPanel from "./LeadExcelImportPanel";
 
 const th = { textAlign: "start", fontSize: 10.5, letterSpacing: 0.4, textTransform: "uppercase", color: "#475569", fontWeight: 800, padding: "11px 14px", borderBottom: `1px solid ${C.border}`, background: "#F8FAFC", whiteSpace: "nowrap" };
 const td = { padding: "10px 14px", fontSize: 12.5, borderBottom: "1px solid #E2E8F0", verticalAlign: "middle" };
@@ -28,6 +29,7 @@ export default function NewCustomersPage() {
 
   const [search, setSearch] = useState("");
   const [adding, setAdding] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [editingCustomerId, setEditingCustomerId] = useState(null);
 
   const rows = useMemo(() => {
@@ -64,9 +66,12 @@ export default function NewCustomersPage() {
               style={{ background: "#fff", border: `1.5px solid ${C.border}`, borderRadius: 10, paddingBlock: 9, paddingInlineStart: 34, paddingInlineEnd: 14, fontFamily: "'Cairo',sans-serif", fontSize: 12.5, outline: "none", minWidth: 220 }}
             />
           </div>
+          <Btn v="ghost" onClick={() => setImporting((v) => !v)}>{tx("رفع ملف Excel", "Upload Excel file")}</Btn>
           <Btn v="primary" onClick={() => setAdding(true)}>+ {tx("إضافة عميل جديد", "Add New Customer")}</Btn>
         </div>
       </div>
+
+      {importing && <LeadExcelImportPanel onClose={() => setImporting(false)} />}
 
       {loading ? (
         <Card style={{ padding: 32, textAlign: "center" }}><div style={{ color: C.muted }}>{tx("جاري التحميل…", "Loading…")}</div></Card>

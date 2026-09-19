@@ -246,7 +246,29 @@ service cloud.firestore {
     match /dictionaries/{id}            { allow read, write: if isAdmin(); }
     match /importProfiles/{id}          { allow read, write: if isAdmin(); }
     match /importProfileVersions/{id}   { allow read, write: if isAdmin(); }
-    match /importBatches/{id}           { allow read, write: if isAdmin(); }
+    /* LEAD-IMPORT-01: bulk "عملاء جدد" imports. Sales may only TRACK their own
+       customer-lead import (create the batch, then finalize its counters) —
+       the batch carries no engagement/payment/accounting data, and Sales still
+       cannot read, rewrite, or delete any batch. Program imports (no kind)
+       stay admin-only. */
+    match /importBatches/{id} {
+      allow read: if isAdmin();
+      allow create: if isAdmin()
+        || (isSalesStaff()
+          && request.resource.data.get('kind', '') == 'customer_leads'
+          && request.resource.data.get('importedBy', '') == request.auth.uid
+          && request.resource.data.get('status', '') == 'committing'
+          && request.resource.data.get('createdEngagementIds', []).size() == 0);
+      allow update: if isAdmin()
+        || (isSalesStaff()
+          && resource.data.get('kind', '') == 'customer_leads'
+          && resource.data.get('importedBy', '') == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'createdCount', 'updatedCount', 'skippedCount', 'errorCount',
+            'createdCustomerIds', 'updatedCustomerIds', 'interestsAddedCount', 'updatedAt'
+          ]));
+      allow delete: if isAdmin();
+    }
 
     /* ── CRM-04: Accounting outbox — independent of the future Accounting
        module; same admin-only access as every other CRM collection. ── */

@@ -20,7 +20,9 @@ export default function ImportHistoryList({ programId }) {
 
   // Contextual to the current Program — opening a different Program shows
   // only that Program's import runs, never a global list.
-  const batches = programId ? allBatches.filter((b) => b.programId === programId) : allBatches;
+  // Lead imports ("عملاء جدد", kind "customer_leads") never carry a Program and can't be rolled back by
+  // archiving alone (they also add interests to existing customers) — they're not listed here.
+  const batches = (programId ? allBatches.filter((b) => b.programId === programId) : allBatches).filter((b) => b.kind !== "customer_leads");
 
   const fmt = (iso) => iso ? new Date(iso).toLocaleDateString(ar ? "ar-EG" : "en-US", { day: "numeric", month: "short", year: "numeric" }) : "—";
 
