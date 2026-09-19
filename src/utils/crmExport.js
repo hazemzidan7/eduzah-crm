@@ -26,6 +26,7 @@ function mapCustomer(c) {
     secondaryPhones: c.secondaryPhones || [],
     email: c.email || "",
     whatsapp: c.whatsapp || "",
+    interestedProgramIds: c.interestedProgramIds || [],
     createdAt: c.createdAt || null,
     updatedAt: c.updatedAt || null,
     archivedAt: c.archivedAt || null,

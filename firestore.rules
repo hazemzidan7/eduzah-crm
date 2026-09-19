@@ -136,7 +136,9 @@ service cloud.firestore {
           browse the Catalog to pick a Program, and read Contact Status
           labels) — catalog/status ADMINISTRATION (create/edit/archive/move)
           stays isAdmin()-only, unchanged.
-        - customers: read/create/update (identity fields only — see below);
+        - customers: read/create/update (identity fields plus the customer-
+          level "Interested Programs" lead list, interestedProgramIds —
+          INTEREST-01; never a registration, never touches engagements);
           delete stays isAdmin()-only (matches the existing cascade-delete
           scripts, untouched).
         - engagements: read/create (only into a non-enrolled, unpaid,
@@ -172,7 +174,8 @@ service cloud.firestore {
         || (isSalesStaff()
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'fullName', 'phone', 'normalizedPhone', 'secondaryPhones',
-            'email', 'normalizedEmail', 'whatsapp', 'updatedAt'
+            'email', 'normalizedEmail', 'whatsapp', 'updatedAt',
+            'interestedProgramIds'
           ]));
       allow delete: if isAdmin();
     }

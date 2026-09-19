@@ -11,6 +11,7 @@ import ProgramWorkspace from "./crm/catalogBrowser/ProgramWorkspace";
 import CrmSettingsTab from "./crm/CrmSettingsTab";
 import PaymentVerificationQueue from "./crm/PaymentVerificationQueue";
 import FollowUpsPage from "./crm/followups/FollowUpsPage";
+import NewCustomersPage from "./crm/newCustomers/NewCustomersPage";
 import AccountingPage from "./accounting/AccountingPage";
 import ManagementDashboard from "./management/ManagementDashboard";
 
@@ -39,7 +40,9 @@ const PROGRAM_SECTIONS = new Set(["leads", "pipeline", "reminders", "importHisto
 // accountingTransactions or confirm a PaymentRecord regardless of what
 // section renders) — but a sales session is still hard-redirected away from
 // anything not in this set, rather than silently rendering an empty page.
-const SALES_ALLOWED_SECTIONS = new Set(["followups", "catalog", "leads", "pipeline", "reminders"]);
+// INTEREST-01: "newCustomers" (عملاء جدد) — customers with no registration yet;
+// same Customers-level access Sales already has (firestore.rules /customers).
+const SALES_ALLOWED_SECTIONS = new Set(["followups", "catalog", "leads", "pipeline", "reminders", "newCustomers"]);
 
 function AdminContent() {
   const { lang } = useLang();
@@ -56,17 +59,22 @@ function AdminContent() {
   // that role even though the CRM figures around them would show empty.
   const strandedOnManagement = section === "management" && currentUser?.role !== "admin";
   const strandedOffSales = currentUser?.role === "sales" && !SALES_ALLOWED_SECTIONS.has(section);
+  // Customers data is admin/sales only (see CustomerContext.canAccessCrm) — an
+  // accounting session must never land on this page, same reasoning as Management above.
+  const strandedOnNewCustomers = section === "newCustomers" && currentUser?.role !== "admin" && currentUser?.role !== "sales";
 
   // Defensive guard only — the sidebar disables these items without a
   // Program selected, so this shouldn't normally trigger. Runs as an effect
   // (not during render) since it updates a different component's state.
   useEffect(() => {
     if (strandedOffSales) { setSection("followups"); return; }
-    if (strandedOnProgramSection || strandedOnManagement) goToCatalog();
-  }, [strandedOnProgramSection, strandedOnManagement, strandedOffSales, goToCatalog, setSection]);
+    if (strandedOnProgramSection || strandedOnManagement || strandedOnNewCustomers) goToCatalog();
+  }, [strandedOnProgramSection, strandedOnManagement, strandedOnNewCustomers, strandedOffSales, goToCatalog, setSection]);
 
   if (strandedOnManagement || strandedOffSales) return null;
+  if (strandedOnNewCustomers) return null;
   if (section === "management") return <ManagementDashboard />;
+  if (section === "newCustomers") return <NewCustomersPage />;
   if (section === "accounting") return <AccountingPage />;
   if (section === "payments") return <PaymentVerificationQueue />;
   if (section === "followups") return <FollowUpsPage />;

@@ -134,6 +134,17 @@ export default function Sidebar() {
           />
         )}
 
+        {/* INTEREST-01 — global (not Program-gated): customers with no
+            registration yet, plus their "Interested Programs". */}
+        {canCrmWorkflow && (
+          <NavRow
+            active={section === "newCustomers"}
+            onClick={() => setSection("newCustomers")}
+            icon={<IconPeople size={18} />}
+            label={collapsed ? "" : tx("عملاء جدد", "New Customers")}
+          />
+        )}
+
         {canCrmWorkflow && visiblePrimaryItems.map((it) => (
           <NavRow
             key={it.key}

@@ -17,6 +17,7 @@ import { normalizePhone, normalizeEmail } from "../utils/leadDedupe";
 import { effectivePaymentRecords, findPaymentConflicts, hasBlockingConflict } from "../utils/paymentRecords";
 import { ACCOUNTING_EVENTS_COLLECTION, buildConfirmedPaymentEvent } from "../utils/accountingEvents";
 import { buildPricingSnapshot, applyPaymentPlan, MAX_COURSE_PRICE } from "../utils/pricingSnapshot";
+import { normalizeInterestedProgramIds, validateInterestedProgramIds } from "../utils/interestedPrograms";
 import { ACCOUNTING_TRANSACTIONS_COLLECTION, buildTransaction, buildIncomeDraftFromConfirmedPayment } from "../utils/accounting";
 import { buildCustomerDeletionSet, chunkDeletionOps } from "../utils/deleteCustomer";
 import { buildTrackDeletionPlan, chunkTrackDeletionOps } from "../utils/deleteTrack";
@@ -82,6 +83,14 @@ export function CustomerProvider({ children }) {
 
   const addCustomer = async (form) => {
     const now = new Date().toISOString();
+    // INTEREST-01: optional lead-interest list (catalog Program ids) — see
+    // utils/interestedPrograms.js. Every existing caller (imports, Add
+    // Student) passes none and gets []. Never creates an engagement.
+    const interestedProgramIds = normalizeInterestedProgramIds(form.interestedProgramIds);
+    if (interestedProgramIds.length > 0) {
+      const { invalid } = validateInterestedProgramIds(interestedProgramIds, { nodeById: catalogNodeById });
+      if (invalid.length > 0) throw new Error(`INVALID_INTERESTED_PROGRAMS: ${invalid.join(", ")}`);
+    }
     const nc = {
       fullName: form.fullName || "",
       phone: form.phone || "",
@@ -90,6 +99,7 @@ export function CustomerProvider({ children }) {
       email: form.email || "",
       normalizedEmail: form.email ? normalizeEmail(form.email) : null,
       whatsapp: form.whatsapp || "",
+      interestedProgramIds,
       authUid: null,
       archivedAt: null,
       createdAt: now,
@@ -112,6 +122,25 @@ export function CustomerProvider({ children }) {
     if (updates.phone !== undefined) patch.normalizedPhone = normalizePhone(updates.phone);
     if (updates.email !== undefined) patch.normalizedEmail = updates.email ? normalizeEmail(updates.email) : null;
     await updateDoc(doc(db, "customers", id), patch);
+  };
+
+  // INTEREST-01: replaces a customer's "Interested Programs" list. Writes the
+  // CUSTOMER document only (interestedProgramIds + updatedAt) — never reads
+  // or writes engagements, paymentRecords, or accounting, so adding/removing
+  // an interest can never create, delete, or alter a registration. Ids
+  // already on the customer are preserved unless explicitly removed; newly
+  // added ids must be active catalog Programs (see validateInterestedProgramIds).
+  // Matches firestore.rules' /customers update allow-list for Sales.
+  const setCustomerInterestedPrograms = async (customerId, programIds) => {
+    const customer = customerById(customerId);
+    if (!customer) throw new Error("CUSTOMER_NOT_FOUND");
+    const next = normalizeInterestedProgramIds(programIds);
+    const { invalid } = validateInterestedProgramIds(next, {
+      existingIds: customer.interestedProgramIds,
+      nodeById: catalogNodeById,
+    });
+    if (invalid.length > 0) throw new Error(`INVALID_INTERESTED_PROGRAMS: ${invalid.join(", ")}`);
+    await updateDoc(doc(db, "customers", customerId), { interestedProgramIds: next, updatedAt: new Date().toISOString() });
   };
 
   const archiveCustomer = async (id) => {
@@ -601,7 +630,7 @@ export function CustomerProvider({ children }) {
     <CustomerCtx.Provider value={{
       customers, engagements, loading,
       findCustomerByPhone, findCustomerByEmail, customerById,
-      addCustomer, resolveOrCreateCustomer, updateCustomer, archiveCustomer, restoreCustomer, deleteCustomerCascade, deleteTrackCascade,
+      addCustomer, resolveOrCreateCustomer, updateCustomer, setCustomerInterestedPrograms, archiveCustomer, restoreCustomer, deleteCustomerCascade, deleteTrackCascade,
       findEngagement, engagementById, engagementsForCustomer, engagementsForBusinessUnit,
       addEngagement, mergeStudentProfile, resolveOrCreateEngagement, updateEngagement,
       changeEngagementStatus, changeEnrollmentStatus, logEngagementActivity, archiveEngagement, restoreEngagement,

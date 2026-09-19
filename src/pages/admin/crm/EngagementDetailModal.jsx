@@ -9,6 +9,8 @@ import { useCustomers } from "../../../context/CustomerContext";
 import { useCustomFields } from "../../../context/CustomFieldContext";
 import { useFollowUps } from "../../../context/FollowUpContext";
 import LeadStatusBadge from "../../../components/crm/LeadStatusBadge";
+import { InterestedProgramChips, InterestedProgramsModal, INTEREST_ONLY_NOTE_AR, INTEREST_ONLY_NOTE_EN } from "../../../components/crm/InterestedPrograms";
+import { customerInterestedProgramIds } from "../../../utils/interestedPrograms";
 import { getDueBucket, sortFollowUps } from "../../../utils/followUps";
 import FollowUpFormModal from "./followups/FollowUpFormModal";
 import CompleteFollowUpModal from "./followups/CompleteFollowUpModal";
@@ -213,6 +215,10 @@ export default function EngagementDetailModal({ engagement, onClose }) {
   // of this customer and everything linked to them (see DeleteStudentModal).
   const [deletingStudent, setDeletingStudent] = useState(false);
 
+  // INTEREST-01 — customer-level "Interested Programs" (lead interest only,
+  // never a registration; editing it never touches this or any engagement).
+  const [editingInterests, setEditingInterests] = useState(false);
+
   const [activityType, setActivityType] = useState("note");
   const [activityText, setActivityText] = useState("");
   const [salesNotesDraft, setSalesNotesDraft] = useState(engagement.salesNotes || "");
@@ -320,6 +326,19 @@ export default function EngagementDetailModal({ engagement, onClose }) {
             <div style={{ fontSize: 10.5, color: C.muted, fontWeight: 700, textTransform: "uppercase" }}>{tx("البريد الإلكتروني", "Email")}</div>
             <div dir="ltr" style={{ fontSize: 13, textAlign: ar ? "end" : "start" }}>{customer?.email || "—"}</div>
           </div>
+        </div>
+      )}
+
+      {/* INTEREST-01 — separate from this engagement (the registration
+          above): the customer's recorded interest in other catalog Programs. */}
+      {!editingProfile && customer && (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 6 }}>
+            <div style={{ fontSize: 10.5, color: C.muted, fontWeight: 700, textTransform: "uppercase" }}>{tx("الكورسات المهتم بيها", "Interested Programs")}</div>
+            <Btn sm v="ghost" onClick={() => setEditingInterests(true)}>{tx("تعديل", "Edit")}</Btn>
+          </div>
+          <InterestedProgramChips ids={customerInterestedProgramIds(customer)} tx={tx} />
+          <div style={{ fontSize: 10.5, color: C.muted, marginTop: 4 }}>{ar ? INTEREST_ONLY_NOTE_AR : INTEREST_ONLY_NOTE_EN}</div>
         </div>
       )}
 
@@ -611,6 +630,9 @@ export default function EngagementDetailModal({ engagement, onClose }) {
         ar={ar} tx={tx}
         onClose={() => setCompletingFollowUp(null)}
       />
+    )}
+    {editingInterests && customer && (
+      <InterestedProgramsModal customer={customer} onClose={() => setEditingInterests(false)} />
     )}
     {deletingStudent && customer && (
       <DeleteStudentModal
