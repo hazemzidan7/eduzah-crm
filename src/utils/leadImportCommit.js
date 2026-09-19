@@ -42,7 +42,7 @@ export async function runLeadImportCommit({
       type: "create",
       label: c.phone,
       interests: valid.length,
-      data: buildCustomerDoc({ fullName: c.fullName, phone: c.phone, secondaryPhones: c.secondaryPhones }, { now, interestedProgramIds: valid }),
+      data: buildCustomerDoc({ fullName: c.fullName, phone: c.phone, secondaryPhones: c.secondaryPhones, notes: c.notes }, { now, interestedProgramIds: valid }),
     });
   }
   for (const u of plan.customersToUpdate) {
@@ -56,6 +56,7 @@ export async function runLeadImportCommit({
       if (interests > 0) patch.interestedProgramIds = valid;
     }
     if (u.patch.fullName) patch.fullName = u.patch.fullName;
+    if (u.patch.notes) patch.notes = u.patch.notes; // the old note + the appended import note (built by the planner)
     if (Object.keys(patch).length === 1) continue; // nothing left to write
     ops.push({ type: "update", id: u.customerId, label: u.phone || u.customerId, interests, patch });
   }

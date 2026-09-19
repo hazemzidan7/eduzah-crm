@@ -356,6 +356,41 @@ export function matchProgramToken(token, index, overrides = {}) {
 /** The override key the preview uses for an unmatched token (see matchProgramToken's `overrides`). */
 export const programTokenKey = (token) => keysFor(token).compact;
 
+// ───────────────────────── shared import note ─────────────────────────
+
+/** DD/MM/YYYY in local time, e.g. 19/09/2026. */
+export function formatImportNoteDate(date = new Date()) {
+  const d = date instanceof Date ? date : new Date(date);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
+
+/**
+ * The ONE note the user typed for this whole import ("ملاحظة عامة"), as the
+ * block written into each customer's existing `notes` field:
+ *   [ملاحظة استيراد - 19/09/2026]
+ *   <note>
+ * Empty / whitespace-only -> "" (the import then behaves exactly as without a note).
+ */
+export function buildImportNoteBlock(note, date = new Date()) {
+  const text = String(note ?? "").replace(/\r\n/g, "\n").trim();
+  return text ? `[ملاحظة استيراد - ${formatImportNoteDate(date)}]\n${text}` : "";
+}
+
+/**
+ * The customer's notes after applying the import note. NEW customers get just the
+ * block; EXISTING customers keep their old notes untouched and the block is
+ * appended after a blank line. Returns the same string when the exact block is
+ * already there (so a repeat of the same import — or the same customer listed
+ * twice — never stacks the same note again).
+ */
+export function appendImportNote(existingNotes, block) {
+  const have = String(existingNotes ?? "");
+  if (!block) return have;
+  if (have.includes(block)) return have;
+  return have.trim() ? `${have.replace(/\s+$/, "")}\n\n${block}` : block;
+}
+
 // ───────────────────────── the plan ─────────────────────────
 
 function buildCustomerIndex(customers) {
@@ -388,9 +423,12 @@ const sameName = (a, b) => normalizeForFuzzyMatch(a) === normalizeForFuzzyMatch(
  */
 export async function planLeadImport({
   rows, rowNumbers = [], mapping, existingCustomers = [], programs = [],
-  tokenOverrides = {}, batchProgramIds = [], yieldEvery = 400, onProgress,
+  tokenOverrides = {}, batchProgramIds = [], sharedNote = "", importDate = new Date(), yieldEvery = 400, onProgress,
 }) {
   const index = buildProgramIndex(programs);
+  // ONE shared note for the whole import (optional). Applied to every ACCEPTED customer — created or updated —
+  // through the customer's existing `notes` field; it never touches an engagement, payment, or accounting record.
+  const noteBlock = buildImportNoteBlock(sharedNote, importDate);
   // Programs the user picked ONCE for the whole import ("الكورسات المهتم بيها"): applied as interests to every
   // customer this file imports or updates. Only ACTIVE catalog Programs count — anything else is silently dropped.
   const batchIds = uniq(normalizeInterestedProgramIds(batchProgramIds)).filter((id) => index.byId.has(id));
@@ -475,7 +513,7 @@ export async function planLeadImport({
   // ── resolve each unique phone against the customers that already exist ──
   const customersToCreate = [];
   const customersToUpdate = [];
-  let unchangedExisting = 0, missingNameCustomers = 0, newInterests = 0;
+  let unchangedExisting = 0, missingNameCustomers = 0, newInterests = 0, notesApplied = 0;
   const skippedGroups = new Map(); // key -> reason
   const rowsByGroup = new Map();
   for (const r of rowResults) if (r.groupKey) { if (!rowsByGroup.has(r.groupKey)) rowsByGroup.set(r.groupKey, []); rowsByGroup.get(r.groupKey).push(r); }
@@ -498,6 +536,9 @@ export async function planLeadImport({
       const patch = {};
       if (added.length > 0) patch.interestedProgramIds = [...have, ...added]; // existing interests kept, new ones appended
       if (fillName) patch.fullName = group.name; // never overwrites a name that's already there
+      // The old note is kept; the import note is appended (skipped if this exact block is already there).
+      const nextNotes = appendImportNote(c.notes, noteBlock);
+      if (noteBlock && nextNotes !== (c.notes ?? "")) { patch.notes = nextNotes; notesApplied += 1; }
       if (Object.keys(patch).length > 0) {
         customersToUpdate.push({ customerId: c.id, phone: c.phone, patch, addedInterestIds: added, filledName: fillName, sourceRows: group.rows });
         newInterests += added.length;
@@ -520,8 +561,11 @@ export async function planLeadImport({
       secondaryPhones: group.secondaryDisplay,
       fullName: group.name, // "" when the file had none — the schema's empty value, never an invented name
       interestedProgramIds: wanted,
+      // Only present when a shared note was entered, so an import without one produces exactly the documents it always did.
+      ...(noteBlock ? { notes: noteBlock } : {}),
       sourceRows: group.rows,
     });
+    if (noteBlock) notesApplied += 1;
     newInterests += wanted.length;
     if (!group.name) missingNameCustomers += 1;
     setOutcome("create");
@@ -546,6 +590,7 @@ export async function planLeadImport({
       validPhoneRows: rows.length - missingPhoneRows - invalidPhoneRows,
       uniquePhones: groups.size,
       batchProgramCount: batchIds.length,
+      notesApplied,
       missingPhoneRows,
       invalidPhoneRows,
       duplicateRows,

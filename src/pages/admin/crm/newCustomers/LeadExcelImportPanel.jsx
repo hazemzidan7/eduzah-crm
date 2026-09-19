@@ -73,6 +73,10 @@ export default function LeadExcelImportPanel({ onClose }) {
   const [tokenOverrides, setTokenOverrides] = useState({});
   // Programs chosen ONCE for the whole import (not read from the file) — applied as interests to every customer the file brings in.
   const [batchProgramIds, setBatchProgramIds] = useState([]);
+  // ONE shared note for the whole import ("ملاحظة عامة", optional): written into every accepted customer's existing notes.
+  // `appliedNote` trails what is typed by a moment so the preview counts don't re-plan the whole file on every keystroke.
+  const [sharedNote, setSharedNote] = useState("");
+  const [appliedNote, setAppliedNote] = useState("");
   const [plan, setPlan] = useState(null);
   const [planning, setPlanning] = useState(false);
   const [parseError, setParseError] = useState("");
@@ -106,7 +110,7 @@ export default function LeadExcelImportPanel({ onClose }) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    setParseError(""); setResult(null); setParsed(null); setPlan(null); setNotice(""); setBatchProgramIds([]);
+    setParseError(""); setResult(null); setParsed(null); setPlan(null); setNotice(""); setBatchProgramIds([]); setSharedNote(""); setAppliedNote("");
     if (!/\.(xlsx|xls|csv)$/i.test(file.name)) { setParseError(tx("نوع الملف غير مدعوم — استخدم .xlsx أو .xls أو .csv", "Unsupported file type — use .xlsx, .xls or .csv")); return; }
     try {
       const data = await parseWorkbookFileWithRowNumbers(file);
@@ -121,17 +125,22 @@ export default function LeadExcelImportPanel({ onClose }) {
     }
   };
 
+  useEffect(() => {
+    const t = setTimeout(() => setAppliedNote(sharedNote), 350);
+    return () => clearTimeout(t);
+  }, [sharedNote]);
+
   // Preview = a pure computation over the parsed file. Re-runs when the sheet, the column choices or a manual program choice change.
   useEffect(() => {
     if (!sheet || !mapping.phone) { setPlan(null); return undefined; }
     const run = ++planRun.current;
     setPlanning(true);
-    buildPlanRef.current({ rows: sheet.rows, rowNumbers: sheet.rowNumbers, mapping, tokenOverrides, batchProgramIds })
+    buildPlanRef.current({ rows: sheet.rows, rowNumbers: sheet.rowNumbers, mapping, tokenOverrides, batchProgramIds, sharedNote: appliedNote })
       .then((p) => { if (run === planRun.current) setPlan(p); })
       .catch((err) => { if (run === planRun.current) setParseError(err?.message || String(err)); })
       .finally(() => { if (run === planRun.current) setPlanning(false); });
     return () => { planRun.current += 1; };
-  }, [sheet, mapping, tokenOverrides, batchProgramIds]);
+  }, [sheet, mapping, tokenOverrides, batchProgramIds, appliedNote]);
 
   const setField = (field, value) => setMapping((m) => ({ ...m, [field]: value || null }));
   const toggleProgramColumn = (h) => setMapping((m) => ({ ...m, programs: m.programs.includes(h) ? m.programs.filter((x) => x !== h) : [...m.programs, h] }));
@@ -154,8 +163,13 @@ export default function LeadExcelImportPanel({ onClose }) {
   const doImport = async () => {
     if (!plan || importing) return;
     setNotice("");
+    if (sharedNote.trim() !== appliedNote.trim()) {
+      setAppliedNote(sharedNote);
+      setNotice(tx("تم تحديث الملخص بالملاحظة العامة. راجعه ثم اضغط «استيراد العملاء» مرة أخرى. (لم يُكتب شيء)", "The summary was refreshed with the shared note. Review it and press “Import customers” again. (Nothing was written)"));
+      return;
+    }
     // Re-plan against the customers as they are RIGHT NOW: the preview may be minutes old and someone may have added a customer meanwhile.
-    const fresh = await buildPlanRef.current({ rows: sheet.rows, rowNumbers: sheet.rowNumbers, mapping, tokenOverrides, batchProgramIds });
+    const fresh = await buildPlanRef.current({ rows: sheet.rows, rowNumbers: sheet.rowNumbers, mapping, tokenOverrides, batchProgramIds, sharedNote });
     const key = (p) => `${p.stats.newCustomers}/${p.stats.updatedCustomers}/${p.stats.newInterests}`;
     if (key(fresh) !== key(plan)) {
       setPlan(fresh);
@@ -165,9 +179,10 @@ export default function LeadExcelImportPanel({ onClose }) {
     const f = fresh.stats;
     const chosen = batchProgramIds.map((id) => programOptions.find((p) => p.id === id)?.name_en).filter(Boolean);
     const chosenLine = chosen.length > 0 ? tx(`الكورسات المختارة كاهتمامات: ${chosen.join("، ")}\n\n`, `Selected interests: ${chosen.join(", ")}\n\n`) : "";
+    const noteLine = f.notesApplied > 0 ? tx(`سيتم إضافة الملاحظة العامة إلى ملاحظات ${f.notesApplied} عميل.\n\n`, `The shared note will be added to the notes of ${f.notesApplied} customers.\n\n`) : "";
     const sentence = tx(
-      `سيتم إضافة ${f.newCustomers} عميل جديد، وتحديث ${f.updatedCustomers} عميل موجود، وإضافة ${f.newInterests} اهتمام.\n\n${chosenLine}لن يتم إنشاء أي تسجيلات أو مدفوعات أو معاملات محاسبية.\n\nهل تريد المتابعة؟`,
-      `${f.newCustomers} new customers will be added, ${f.updatedCustomers} existing customers updated, and ${f.newInterests} interests added.\n\n${chosenLine}No registrations, payments or accounting transactions will be created.\n\nContinue?`,
+      `سيتم إضافة ${f.newCustomers} عميل جديد، وتحديث ${f.updatedCustomers} عميل موجود، وإضافة ${f.newInterests} اهتمام.\n\n${chosenLine}${noteLine}لن يتم إنشاء أي تسجيلات أو مدفوعات أو معاملات محاسبية.\n\nهل تريد المتابعة؟`,
+      `${f.newCustomers} new customers will be added, ${f.updatedCustomers} existing customers updated, and ${f.newInterests} interests added.\n\n${chosenLine}${noteLine}No registrations, payments or accounting transactions will be created.\n\nContinue?`,
     );
     if (!window.confirm(sentence)) return;
     setImporting(true);
@@ -182,7 +197,7 @@ export default function LeadExcelImportPanel({ onClose }) {
     }
   };
 
-  const reset = () => { setParsed(null); setPlan(null); setResult(null); setParseError(""); setNotice(""); setTokenOverrides({}); setBatchProgramIds([]); };
+  const reset = () => { setParsed(null); setPlan(null); setResult(null); setParseError(""); setNotice(""); setTokenOverrides({}); setBatchProgramIds([]); setSharedNote(""); setAppliedNote(""); };
 
   return (
     <Card style={{ padding: 18, marginBottom: 16, border: `1.5px solid ${C.red}33` }}>
@@ -383,6 +398,21 @@ export default function LeadExcelImportPanel({ onClose }) {
               )}
 
               <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
+                <div style={{ marginBottom: 12 }}>
+                  <label htmlFor="lead-import-shared-note" style={{ display: "block", fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 2 }}>
+                    {tx("ملاحظة عامة", "General note")} <span style={{ fontWeight: 600 }}>({tx("اختياري", "optional")})</span>
+                  </label>
+                  <div style={{ fontSize: 11, color: C.muted, marginBottom: 6 }}>
+                    {tx("ملاحظة واحدة تتضاف على ملاحظات كل عميل في الملف (الجدد والموجودين) — الملاحظات القديمة بتفضل زي ما هي. ملاحظة فقط، بدون تسجيل أو دفع.", "One note added to the notes of every customer in this file (new and existing) — existing notes are kept. A note only: no registration or payment.")}
+                  </div>
+                  <textarea
+                    id="lead-import-shared-note" data-testid="lead-import-shared-note"
+                    value={sharedNote} onChange={(e) => setSharedNote(e.target.value)} disabled={importing}
+                    rows={3} maxLength={1000} dir="auto"
+                    placeholder={tx("مثال: عملاء حملة سبتمبر — تم التواصل عبر واتساب", "e.g. September campaign leads — contacted via WhatsApp")}
+                    style={{ width: "100%", boxSizing: "border-box", background: "#fff", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "9px 12px", fontFamily: "'Cairo',sans-serif", fontSize: 12.5, outline: "none", resize: "vertical" }}
+                  />
+                </div>
                 <div style={{ fontWeight: 800, fontSize: 13.5, marginBottom: 8 }} data-testid="lead-import-confirm-sentence">{confirmSentence}</div>
                 {importing ? (
                   <div style={{ maxWidth: 420 }}>

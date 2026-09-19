@@ -21,7 +21,7 @@ function check(name, cond) {
 function eq(name, actual, expected) {
   check(`${name} (expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)})`, JSON.stringify(actual) === JSON.stringify(expected));
 }
-const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
+const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), "utf8").replace(/\r\n/g, "\n"); // repo files are CRLF on Windows
 
 // ── Catalog fixture (only `program` nodes that are active can ever be matched) ──
 const PROGRAMS = [
@@ -497,7 +497,7 @@ console.log("V2 — UI wiring (source-level)");
   check('picker shows "الكورسات المهتم بيها" + "اختياري" (optional) and the interests-only note', picker.includes('tx("الكورسات المهتم بيها", "Interested Programs")') && picker.includes('tx("اختياري", "optional")') && picker.includes("INTEREST_ONLY_NOTE_AR"));
   check('"عدد الأرقام: X" is shown from the plan', panel.includes("عدد الأرقام: ${s.validPhoneRows}"));
   check("the picker and the count are shown BEFORE the preview grid + import button", panel.indexOf("<InterestedProgramsPicker") < panel.indexOf('tx("استيراد العملاء"') && panel.indexOf("عدد الأرقام") < panel.indexOf('tx("استيراد العملاء"'));
-  check("batch programs feed BOTH the preview plan and the fresh confirm-time re-plan", (panel.match(/batchProgramIds \}\)/g) || []).length >= 2 && panel.includes("[sheet, mapping, tokenOverrides, batchProgramIds]"));
+  check("batch programs feed BOTH the preview plan and the fresh confirm-time re-plan", (panel.match(/batchProgramIds[^}]*\}\)/g) || []).length >= 2 && panel.includes("[sheet, mapping, tokenOverrides, batchProgramIds, appliedNote]"));
   check("choosing programs never writes: setBatchProgramIds only sets state", !/setBatchProgramIds\([^)]*commit/.test(panel));
   check("selection is reset when a new file is chosen (interests can't leak onto another list)", panel.slice(panel.indexOf("const onFile"), panel.indexOf("// Preview =")).includes("setBatchProgramIds([])"));
   const hook = read("src/utils/leadImportCommit.js");
@@ -507,6 +507,7 @@ console.log("V2 — UI wiring (source-level)");
 // ══════════════ FIX: importBatch payload + international phones ══════════════
 import { buildImportBatchDoc, omitUndefined } from "../src/utils/importBatchDoc.js";
 import { runLeadImportCommit } from "../src/utils/leadImportCommit.js";
+import { buildImportNoteBlock, appendImportNote, formatImportNoteDate } from "../src/utils/leadImport.js";
 import { normalizePhone } from "../src/utils/leadDedupe.js";
 
 /** Same rule Firestore's addDoc/updateDoc/batch.set enforce: no `undefined` anywhere in a payload. */
@@ -749,6 +750,125 @@ console.log("FIX — scope & safety of this change");
   check("updateBatch strips undefined too", importCtx.includes("...omitUndefined(updates)"));
   const rules = read("firestore.rules");
   check("firestore.rules is not needed for this fix (no importProfileId rule anywhere)", !/importProfileId/.test(rules));
+}
+
+// ══════════════ SHARED NOTE ("ملاحظة عامة") ══════════════
+console.log("SHARED NOTE — one optional note for the whole import, written into each accepted customer's existing notes");
+{
+  const D = new Date(2026, 8, 19, 12, 0, 0); // 19 Sep 2026, local
+  const BLOCK = "[ملاحظة استيراد - 19/09/2026]\nحملة سبتمبر";
+  const planN = (rows, o = {}) => planLeadImport({ rows, rowNumbers: rows.map((_, i) => i + 2), mapping: { phone: "Phone", name: "Name", programs: [] }, existingCustomers: o.existing || [], programs: PROGRAMS, batchProgramIds: o.batch || [], sharedNote: o.note, importDate: D, yieldEvery: 0 });
+  const R = [{ Name: "Test Person A", Phone: "01200000001" }, { Name: "", Phone: "01100000003" }, { Name: "Intl", Phone: "+971 50 123 4567" }];
+  const mk = (o = {}) => ({ id: "c1", fullName: "", phone: "01200000001", normalizedPhone: "01200000001", secondaryPhones: [], interestedProgramIds: [], archivedAt: null, ...o });
+
+  eq("the block format is exactly the requested one", buildImportNoteBlock("حملة سبتمبر", D), BLOCK);
+  eq("date is DD/MM/YYYY", formatImportNoteDate(D), "19/09/2026");
+  eq("the note is trimmed and CRLF-normalised, inner newlines kept", buildImportNoteBlock("  سطر 1\r\nسطر 2  ", D), "[ملاحظة استيراد - 19/09/2026]\nسطر 1\nسطر 2");
+
+  // 1. NEW customers receive the shared note
+  const p1 = await planN(R, { note: "حملة سبتمبر" });
+  eq("1. every NEW customer carries the shared note in the existing `notes` field", p1.customersToCreate.map((c) => c.notes), [BLOCK, BLOCK, BLOCK]);
+  eq("1. counted in the preview stats", [p1.stats.notesApplied, p1.stats.newCustomers], [3, 3]);
+  eq("1. phone-only and international rows get it too (same rules as before)", p1.customersToCreate.map((c) => [c.phone, c.fullName]), [["01200000001", "Test Person A"], ["01100000003", ""], ["+971501234567", "Intl"]]);
+  const fsN = { batches: [], chunks: [] };
+  const res1 = await runLeadImportCommit({
+    plan: p1, fileName: "n.xlsx", customers: [], nodeById, now: "2026-09-19T10:00:00.000Z",
+    createBatch: async (f) => { fsN.batches.push(buildImportBatchDoc(f, { currentUser: { id: "u1", name: "S" } })); return "b1"; },
+    updateBatch: async () => {},
+    commitLeadImportChunk: async (ops) => { fsN.chunks.push(ops); return ops.filter((o) => o.type === "create").map((_, i) => `n${i}`); },
+  });
+  eq("1. the created customer DOCUMENTS hold the note in `notes` (no parallel field)", fsN.chunks.flat().map((o) => o.data.notes), [BLOCK, BLOCK, BLOCK]);
+  eq("1. no other note-like field was invented", [...new Set(fsN.chunks.flat().flatMap((o) => Object.keys(o.data)))].filter((k) => /note|comment|remark/i.test(k)), ["notes"]);
+  eq("1. commit succeeded, nothing undefined written", [res1.aborted, res1.createdCustomers, findUndefined(fsN)], [false, 3, []]);
+
+  // 2. EXISTING customers: old note preserved, import note appended
+  const old = mk({ id: "e1", phone: "01200000001", normalizedPhone: "01200000001", fullName: "Test Person A", notes: "ملاحظة قديمة من المبيعات" });
+  const none = mk({ id: "e2", phone: "01100000003", normalizedPhone: "01100000003", fullName: "", notes: "" });
+  const legacy = mk({ id: "e3", phone: "+971501234567", normalizedPhone: normalizePhone("+971501234567"), fullName: "Intl" }); // legacy doc: no notes field at all
+  const p2 = await planN(R, { existing: [old, none, legacy], note: "حملة سبتمبر" });
+  const patchOf = (id) => p2.customersToUpdate.find((u) => u.customerId === id).patch;
+  eq("2. the OLD note is preserved and the import note appended after a blank line", patchOf("e1").notes, `ملاحظة قديمة من المبيعات\n\n${BLOCK}`);
+  eq("2. an empty / missing old note just gets the block (no stray blank lines)", [patchOf("e2").notes, patchOf("e3").notes], [BLOCK, BLOCK]);
+  eq("2. the existing note is never blindly overwritten (old text is a prefix of the new one)", patchOf("e1").notes.startsWith("ملاحظة قديمة من المبيعات"), true);
+  eq("2. existing customers are UPDATED (not created), no duplicates", [p2.stats.newCustomers, p2.stats.updatedCustomers, p2.stats.notesApplied], [0, 3, 3]);
+  eq("2. an existing name is not touched by the note", "fullName" in patchOf("e1"), false);
+  const fs2 = { chunks: [] };
+  await runLeadImportCommit({ plan: p2, fileName: "n.xlsx", customers: [old, none, legacy], nodeById, now: "2026-09-19T10:00:00.000Z", createBatch: async () => "b2", updateBatch: async () => {}, commitLeadImportChunk: async (ops) => { fs2.chunks.push(ops); return []; } });
+  eq("2. the committed update writes notes + updatedAt only (nothing else on the customer)", fs2.chunks.flat().find((o) => o.id === "e1").patch, { updatedAt: "2026-09-19T10:00:00.000Z", notes: `ملاحظة قديمة من المبيعات\n\n${BLOCK}` });
+  eq("2. notes is inside the Sales customers.update allow-list in firestore.rules", (() => { const rulesTxt = read("firestore.rules").replace(/\/\*[\s\S]*?\*\//g, ""); const blk = rulesTxt.slice(rulesTxt.indexOf("match /customers/{id}"), rulesTxt.indexOf("match /engagements/{id}")); return [...blk.slice(blk.indexOf("hasOnly([")).matchAll(/'([^']+)'/g)].map((m) => m[1]).includes("notes"); })(), true);
+  eq("2. combines with interests (existing kept, selected added) in the same patch", (await planN(R, { existing: [mk({ id: "e1", phone: "01200000001", normalizedPhone: "01200000001", fullName: "Test Person A", notes: "old", interestedProgramIds: ["AI1"] })], note: "حملة سبتمبر", batch: ["FRONT"] })).customersToUpdate[0].patch, { interestedProgramIds: ["AI1", "FRONT"], notes: `old\n\n${BLOCK}` });
+
+  // 3. EMPTY shared note changes nothing
+  for (const empty of [undefined, "", "   ", "\n\t \n"]) {
+    const pe = await planN(R, { existing: [old], note: empty });
+    const base = await planN(R, { existing: [old] });
+    eq(`3. shared note ${JSON.stringify(empty)} -> the plan is identical to an import without one`, JSON.stringify(pe) === JSON.stringify(base), true);
+  }
+  const noNote = await planN(R, { existing: [old] });
+  eq("3. without a note an unchanged existing customer stays unchanged (no update written)", [noNote.stats.unchangedExistingCustomers, noNote.customersToUpdate.length, noNote.stats.notesApplied, noNote.customersToCreate.some((c) => "notes" in c)], [1, 0, 0, false]);
+  const docNoNote = buildCustomerDoc({ fullName: "A", phone: "01200000001", secondaryPhones: [] }, { now: "x" });
+  eq("3. a created doc has NO notes key at all when there is no note (exactly the document it always was)", ["notes" in docNoNote, Object.keys(docNoNote).sort()], [false, ["archivedAt", "authUid", "createdAt", "email", "fullName", "interestedProgramIds", "normalizedEmail", "normalizedPhone", "phone", "secondaryPhones", "updatedAt", "whatsapp"]]);
+  const fs3 = { chunks: [] };
+  await runLeadImportCommit({ plan: await planN(R, { note: "" }), fileName: "n.xlsx", customers: [], nodeById, createBatch: async () => "b3", updateBatch: async () => {}, commitLeadImportChunk: async (ops) => { fs3.chunks.push(ops); return ops.map((_, i) => `x${i}`); } });
+  eq("3. and none of the committed docs gets one", fs3.chunks.flat().some((o) => "notes" in o.data), false);
+
+  // 4. duplicates
+  const dup = await planN([
+    { Name: "Test Person A", Phone: "01200000001" },
+    { Name: "Test Person A", Phone: "+20 120 000 0001" },
+    { Name: "", Phone: "0020 120 000 0001" },
+  ], { note: "حملة سبتمبر" });
+  eq("4. the same customer listed 3 times -> ONE customer with the note ONCE", [dup.customersToCreate.length, (dup.customersToCreate[0].notes.match(/حملة سبتمبر/g) || []).length, dup.stats.notesApplied], [1, 1, 1]);
+  const dupEx = await planN([{ Name: "x", Phone: "01200000001" }, { Name: "x", Phone: "01200000001" }], { existing: [old], note: "حملة سبتمبر" });
+  eq("4. an existing customer listed twice gets the note appended once", [dupEx.customersToUpdate.length, (dupEx.customersToUpdate[0].patch.notes.match(/حملة سبتمبر/g) || []).length], [1, 1]);
+  const already = mk({ id: "e1", phone: "01200000001", normalizedPhone: "01200000001", fullName: "x", notes: `قديمة\n\n${BLOCK}` });
+  const rerun = await planN([{ Name: "x", Phone: "01200000001" }], { existing: [already], note: "حملة سبتمبر" });
+  eq("4. REPEAT SAFETY: importing the same file+note again doesn't stack the same note", [rerun.customersToUpdate.length, rerun.stats.unchangedExistingCustomers, rerun.stats.notesApplied], [0, 1, 0]);
+  eq("4. a DIFFERENT note the same day is appended (both kept)", (await planN([{ Name: "x", Phone: "01200000001" }], { existing: [already], note: "ملاحظة تانية" })).customersToUpdate[0].patch.notes, `قديمة\n\n${BLOCK}\n\n[ملاحظة استيراد - 19/09/2026]\nملاحظة تانية`);
+  eq("4. appendImportNote is idempotent", appendImportNote(appendImportNote("old", BLOCK), BLOCK), `old\n\n${BLOCK}`);
+
+  // ONE shared note, not per row
+  const perRow = await planLeadImport({ rows: [{ Name: "A", Phone: "01200000001", "ملاحظات": "ملاحظة صف 1" }, { Name: "B", Phone: "01100000003", "ملاحظات": "ملاحظة صف 2" }], rowNumbers: [2, 3], mapping: { phone: "Phone", name: "Name", programs: [] }, existingCustomers: [], programs: PROGRAMS, sharedNote: "حملة سبتمبر", importDate: D, yieldEvery: 0 });
+  eq("it is ONE shared note: a per-row 'ملاحظات' column is still not stored, only the shared note is", perRow.customersToCreate.map((c) => c.notes), [BLOCK, BLOCK]);
+
+  // only ACCEPTED rows
+  const mixed = await planN([{ Name: "ok", Phone: "01200000001" }, { Name: "x", Phone: "hello" }, { Name: "y", Phone: "" }], { note: "حملة سبتمبر" });
+  eq("only ACCEPTED rows get the note (rejected rows create/patch nothing)", [mixed.customersToCreate.length, mixed.stats.notesApplied, mixed.stats.notImportedRows], [1, 1, 2]);
+  const arch = await planN([{ Name: "x", Phone: "01200000001" }], { existing: [mk({ id: "z", phone: "01200000001", normalizedPhone: "01200000001", archivedAt: "2026-01-01", notes: "n" })], note: "حملة سبتمبر" });
+  eq("a skipped (archived) customer is not written to, note included", [arch.customersToUpdate.length, arch.customersToCreate.length], [0, 0]);
+
+  // 5. no engagement / payment / accounting
+  const fs5 = { chunks: [], batches: [] };
+  const pl5 = await planN(R, { existing: [old], note: "حملة سبتمبر", batch: ["FRONT", "DATA"] });
+  const r5 = await runLeadImportCommit({ plan: pl5, fileName: "n.xlsx", customers: [old], nodeById, now: "2026-09-19T10:00:00.000Z", createBatch: async (f) => { const d = firestoreStrict("addDoc", buildImportBatchDoc(f, { currentUser: { id: "u1" } })); fs5.batches.push(d); return "b5"; }, updateBatch: async () => {}, commitLeadImportChunk: async (ops) => { firestoreStrict("batch.commit", ops); fs5.chunks.push(ops); return ops.filter((o) => o.type === "create").map((_, i) => `n${i}`); } });
+  const ops5 = fs5.chunks.flat();
+  eq("5. every write is a customers create/update — no engagement, payment, accounting or registration op exists", [...new Set(ops5.map((o) => o.type))].sort(), ["create", "update"]);
+  const keys5 = ops5.flatMap((o) => Object.keys(o.type === "create" ? o.data : o.patch));
+  eq("5. no engagement/payment/accounting/registration/status field was written", keys5.filter((k) => ["engagement", "engagementId", "paymentRecords", "payment", "pricingSnapshot", "amount", "statusId", "ownerId", "enrollmentStatus", "accountingTransactions", "contactStatusId"].includes(k)), []);
+  eq("5. import committed cleanly with the note", [r5.aborted, r5.errors, r5.createdCustomers, r5.updatedCustomers], [false, [], 2, 1]);
+  const importSrc = read("src/utils/leadImport.js");
+  const noteFns = importSrc.slice(importSrc.indexOf("shared import note"), importSrc.indexOf("───── the plan"));
+  check("5. the note helpers reference no engagement/payment/accounting/Firestore code at all", noteFns.length > 200 && !/engagement|payment|accounting|addDoc|setDoc|updateDoc/i.test(noteFns));
+
+  // 9. visible when Sales opens / edits the customer
+  const editModal = read("src/pages/admin/crm/newCustomers/EditNewCustomerModal.jsx");
+  const pageSrc = read("src/pages/admin/crm/newCustomers/NewCustomersPage.jsx");
+  check("9. it is a normal customer note: the edit form loads customer.notes and the list shows it under the name", editModal.includes('useState(customer.notes || "")') && pageSrc.includes("{c.notes &&"));
+  const wf = await import("../src/utils/newCustomerWorkflow.js");
+  const importedNotes = p2.customersToUpdate.find((u) => u.customerId === "e1").patch.notes;
+  eq("9. editing an imported customer's notes works through the existing customer-edit logic", wf.buildCustomerEditPatch({ customer: { ...old, notes: importedNotes }, edits: { notes: `${importedNotes}\nتم الاتصال` }, nodeById, now: "n" }).patch.notes, `${importedNotes}\nتم الاتصال`);
+
+  // UI (source-level)
+  const panel = read("src/pages/admin/crm/newCustomers/LeadExcelImportPanel.jsx");
+  check('UI: a textarea labelled "ملاحظة عامة" (optional) exists', panel.includes('id="lead-import-shared-note"') && panel.includes("<textarea") && panel.includes('tx("ملاحظة عامة", "General note")') && panel.includes('tx("اختياري", "optional")'));
+  check("UI: it sits in the confirmation step, above the confirmation sentence and the import button", panel.indexOf('id="lead-import-shared-note"') < panel.indexOf('data-testid="lead-import-confirm-sentence"') && panel.indexOf('id="lead-import-shared-note"') < panel.indexOf('tx("استيراد العملاء"'));
+  check("UI: typing the note never writes — only setSharedNote (state); the commit is still reached only from doImport", /onChange=\{\(e\) => setSharedNote\(e\.target\.value\)\}/.test(panel) && (panel.match(/commitLeadImport\(/g) || []).length === 1 && panel.indexOf("commitLeadImport(") > panel.indexOf("const doImport"));
+  check("UI: the note feeds the preview plan AND the fresh confirm-time re-plan", panel.includes("sharedNote: appliedNote })") && /buildPlanRef\.current\(\{[^}]*batchProgramIds, sharedNote \}\)/.test(panel));
+  check("UI: an un-applied (just typed) note refreshes the summary instead of importing on stale counts", panel.includes("if (sharedNote.trim() !== appliedNote.trim())"));
+  check("UI: the note is cleared when a new file is chosen (can't leak onto another list)", panel.slice(panel.indexOf("const onFile"), panel.indexOf("useEffect(() => {\n    const t = setTimeout")).includes('setSharedNote("")'));
+  check("UI: the confirmation dialog mentions how many customers get the note", panel.includes("f.notesApplied > 0"));
+  check("UI: the note field is disabled while importing and length-capped", panel.includes("disabled={importing}") && panel.includes("maxLength={1000}"));
+  check("UI: the existing confirmation sentence is unchanged", panel.includes("سيتم إضافة ${s.newCustomers} عميل جديد، وتحديث ${s.updatedCustomers} عميل موجود، وإضافة ${s.newInterests} اهتمام."));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -20,6 +20,9 @@ export function buildCustomerDoc(form, { now = new Date().toISOString(), interes
     normalizedEmail: form.email ? normalizeEmail(form.email) : null,
     whatsapp: form.whatsapp || "",
     interestedProgramIds,
+    // The customer-level notes field (edited in "عملاء جدد"). Written only when there is one, so every existing
+    // caller keeps producing exactly the document it did before.
+    ...(form.notes ? { notes: form.notes } : {}),
     authUid: null,
     archivedAt: null,
     createdAt: now,
