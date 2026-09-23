@@ -6,6 +6,8 @@ import {
   ACCOUNTING_TRANSACTIONS_COLLECTION,
   ACCOUNTING_TRANSACTION_AUDIT_COLLECTION,
   TRANSACTION_TYPES,
+  ACCOUNTS,
+  planUnassignedReassignment,
   validateTransaction,
   buildTransaction,
   buildEditHistoryEntry,
@@ -210,10 +212,27 @@ export function AccountingProvider({ children }) {
     await batch.commit();
   };
 
+  // Moves the "Unassigned" money onto a real account (default: Company Cash),
+  // one normal updateTransaction per transaction — so each is validated and
+  // gets its own editHistory entry. Sequential, and driven from a FRESH plan
+  // over what is still unassigned, so a retry/double-click only ever touches
+  // what hasn't moved yet. Nothing is deleted or re-amounted.
+  const reassignUnassignedTransactions = async (targetAccount = ACCOUNTS.CASH, { onProgress } = {}) => {
+    const plan = planUnassignedReassignment(transactions, targetAccount);
+    const failed = [];
+    let moved = 0;
+    for (const [i, e] of plan.edits.entries()) {
+      onProgress?.(i, plan.edits.length);
+      try { await updateTransaction(e.id, e.updates); moved += 1; } catch (err) { failed.push({ id: e.id, reason: err?.message || String(err) }); }
+    }
+    onProgress?.(plan.edits.length, plan.edits.length);
+    return { moved, failed, skipped: plan.skipped, planned: plan.count };
+  };
+
   return (
     <AccountingCtx.Provider value={{
       transactions, loading, transactionById,
-      addTransaction, addTransfer, addRefundTransaction, updateTransaction,
+      addTransaction, addTransfer, addRefundTransaction, updateTransaction, reassignUnassignedTransactions,
       deleteTransaction, restoreTransaction,
     }}>
       {children}

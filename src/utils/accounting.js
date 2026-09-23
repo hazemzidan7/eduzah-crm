@@ -740,3 +740,48 @@ export function buildRestoreAuditEntry(transaction, { currentUser }) {
     createdAt: now,
   };
 }
+
+// ─── Assigning the "Unassigned" money to a real account ──────────────────
+/**
+ * The edits that move every ACTIVE (not soft-deleted) transaction sitting in
+ * the "Unassigned" bucket onto `targetAccount` (default: "خزينة الشركة" / cash).
+ * Pure — nothing is written here; AccountingContext.reassignUnassignedTransactions
+ * applies each edit through the normal updateTransaction (validated, and each
+ * change appends an editHistory entry: who, when, old -> new).
+ *
+ *  - Income / expense / refund: `account` unassigned -> target.
+ *  - Transfer: only the unassigned SIDE moves. A transfer whose other side is
+ *    already the target would become a same-account transfer (invalid), so it is
+ *    reported in `skipped` and left exactly as it is.
+ *  - Amounts, dates, categories, links, deleted transactions: never touched.
+ *
+ * `effect` is what each account's balance will change by (derived with the same
+ * computeAccountBalances the dashboard uses), so the confirmation can show the
+ * exact figure before anything is written. Re-running after a successful run
+ * finds nothing left to move — safe to repeat.
+ */
+export function planUnassignedReassignment(transactions, targetAccount = ACCOUNTS.CASH) {
+  const edits = [];
+  const skipped = [];
+  for (const t of transactions || []) {
+    if (!t || t.isDeleted) continue;
+    if (t.type === TRANSACTION_TYPES.TRANSFER) {
+      const updates = {};
+      if (t.fromAccount === ACCOUNTS.UNASSIGNED) updates.fromAccount = targetAccount;
+      if (t.toAccount === ACCOUNTS.UNASSIGNED) updates.toAccount = targetAccount;
+      if (Object.keys(updates).length === 0) continue;
+      const from = updates.fromAccount ?? t.fromAccount;
+      const to = updates.toAccount ?? t.toAccount;
+      if (from === to) { skipped.push({ id: t.id, reason: "SAME_ACCOUNT_TRANSFER" }); continue; }
+      edits.push({ id: t.id, type: t.type, amount: t.amount, updates });
+    } else if (t.account === ACCOUNTS.UNASSIGNED) {
+      edits.push({ id: t.id, type: t.type, amount: t.amount, updates: { account: targetAccount } });
+    }
+  }
+  const before = computeAccountBalances(transactions);
+  const editById = new Map(edits.map((e) => [e.id, e.updates]));
+  const after = computeAccountBalances((transactions || []).map((t) => (editById.has(t.id) ? { ...t, ...editById.get(t.id) } : t)));
+  const effect = {};
+  for (const k of Object.values(ACCOUNTS)) effect[k] = (after[k] || 0) - (before[k] || 0);
+  return { edits, skipped, count: edits.length, effect, targetAccount };
+}

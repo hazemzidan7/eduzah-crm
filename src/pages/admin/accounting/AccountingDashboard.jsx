@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { Btn } from "../../../components/UI";
 import { C } from "../../../theme";
 import { IconWallet, IconTrendUp, IconTrendDown, IconUndo, IconSwap, IconPeople } from "../../../components/Icons";
 import {
@@ -5,6 +7,7 @@ import {
   filterTransactions, currentMonthRange,
 } from "../../../utils/accounting";
 import { BalanceCard, UnassignedCard, KpiCard, ACCOUNT_COLOR } from "./AccountingBadges";
+import AssignUnassignedModal from "./AssignUnassignedModal";
 
 const KNOWN_ACCOUNTS = ACCOUNT_OPTIONS.filter((a) => a.v !== ACCOUNTS.UNASSIGNED);
 
@@ -23,6 +26,7 @@ const KNOWN_ACCOUNTS = ACCOUNT_OPTIONS.filter((a) => a.v !== ACCOUNTS.UNASSIGNED
  * distinct figures, and never re-labels Net Result as spendable cash either.
  */
 export default function AccountingDashboard({ transactions, ar, tx }) {
+  const [assigning, setAssigning] = useState(false);
   const balances = computeAccountBalances(transactions);
   const { from, to } = currentMonthRange();
   const periodTransactions = filterTransactions(transactions, { dateFrom: from, dateTo: to });
@@ -74,6 +78,11 @@ export default function AccountingDashboard({ transactions, ar, tx }) {
             "Real recorded money whose actual wallet (cash/InstaPay/Vodafone/bank) was never logged — not part of any known account's balance.",
           )}
         />
+        {unassigned !== 0 && (
+          <div style={{ display: "flex", alignItems: "center" }}>
+            <Btn v="primary" onClick={() => setAssigning(true)}>{tx("نقل المبلغ كامل إلى خزينة الشركة", "Move it all to Company Cash")}</Btn>
+          </div>
+        )}
       </div>
 
       <SectionLabel>{tx("ملخص هذا الشهر", "This Month's Summary")}</SectionLabel>
@@ -85,6 +94,7 @@ export default function AccountingDashboard({ transactions, ar, tx }) {
         <StatCardCompact Icon={IconSwap} color={C.muted} label={tx("صافي حركة الشهر", "Net Movement")} value={totals.netMovement} suffix={ar ? "ج.م" : "EGP"} />
         <StatCardCompact Icon={IconPeople} color={C.red} label={tx("طلاب دافعون", "Paying Students")} value={totals.payingStudentCount} />
       </div>
+      {assigning && <AssignUnassignedModal transactions={transactions} ar={ar} tx={tx} onClose={() => setAssigning(false)} />}
     </div>
   );
 }
