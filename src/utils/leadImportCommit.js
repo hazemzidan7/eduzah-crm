@@ -40,6 +40,19 @@ export async function runLeadImportCommit({
       .map((entry) => (entry.kind === "create" ? createdKeyToId.get(entry.key) : entry.customerId))
       .filter(Boolean);
 
+  // Position (1-based) of every accepted lead within THIS import's own accepted-lead order — rejected/skipped rows
+  // never consume a position, so a 1200-row file that accepts 1000 leads numbers them 1..1000, never 1..1200. This
+  // becomes `customers/{id}.importSequence` the FIRST time a customer is ever imported (see `needsSequence` below) —
+  // it is the "#" column "عملاء جدد" displays, and it is never reassigned or renumbered on a later re-import.
+  const positionByKey = new Map();
+  const positionByCustomerId = new Map();
+  (plan.acceptedCustomers || []).forEach((entry, i) => {
+    const position = i + 1;
+    if (entry.kind === "create") positionByKey.set(entry.key, position);
+    else positionByCustomerId.set(entry.customerId, position);
+  });
+  const needsSequence = (customerId) => !customers.find((x) => x.id === customerId)?.importSequence;
+
   // Last line of defence: a NEW interest must be an active catalog Program (the planner only ever matches those,
   // but nothing that isn't one may reach Firestore). Ids already stored on a customer are kept untouched.
   let droppedInvalidInterests = 0;
@@ -52,6 +65,7 @@ export async function runLeadImportCommit({
       key: c.key,
       label: c.phone,
       interests: valid.length,
+      pendingSequence: positionByKey.get(c.key),
       data: buildCustomerDoc({ fullName: c.fullName, phone: c.phone, secondaryPhones: c.secondaryPhones, notes: c.notes }, { now, interestedProgramIds: valid }),
     });
   }
@@ -67,8 +81,15 @@ export async function runLeadImportCommit({
     }
     if (u.patch.fullName) patch.fullName = u.patch.fullName;
     if (u.patch.notes) patch.notes = u.patch.notes; // the old note + the appended import note (built by the planner)
-    if (Object.keys(patch).length === 1) continue; // nothing left to write
-    ops.push({ type: "update", id: u.customerId, label: u.phone || u.customerId, interests, patch });
+    const pendingSequence = needsSequence(u.customerId) ? positionByCustomerId.get(u.customerId) : undefined;
+    if (Object.keys(patch).length === 1 && pendingSequence === undefined) continue; // nothing left to write
+    ops.push({ type: "update", id: u.customerId, label: u.phone || u.customerId, interests, pendingSequence, patch });
+  }
+  // An existing customer this import matched with nothing else to change, but who has never been sequenced before
+  // (their first appearance in any import) — still gets exactly one write, for the sequence number alone.
+  for (const entry of plan.acceptedCustomers || []) {
+    if (entry.kind !== "unchanged" || !needsSequence(entry.customerId)) continue;
+    ops.push({ type: "update", id: entry.customerId, label: entry.customerId, interests: 0, pendingSequence: positionByCustomerId.get(entry.customerId), patch: { updatedAt: now } });
   }
 
   if (ops.length === 0) {
@@ -82,6 +103,14 @@ export async function runLeadImportCommit({
   } catch (e) {
     errors.push({ code: "BATCH_CREATE_FAILED", message: e?.message || String(e) });
     return { batchId: null, createdCustomers: 0, updatedCustomers: 0, addedInterests: 0, failedChunks: 0, errors, droppedInvalidInterests, aborted: true, acceptedCustomerIds: buildAcceptedCustomerIds(new Map()) };
+  }
+
+  // Only now that batchId exists can a pending sequence number be finalized with the batch it belongs to.
+  for (const op of ops) {
+    if (op.pendingSequence == null) continue;
+    const seq = { importSequence: op.pendingSequence, importBatchId: batchId };
+    if (op.type === "create") Object.assign(op.data, seq);
+    else Object.assign(op.patch, seq);
   }
 
   const createdCustomerIds = [];

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Card, Btn, PBar } from "../../../../components/UI";
 import { C } from "../../../../theme";
 import { useLang } from "../../../../context/LangContext";
+import { useCustomers } from "../../../../context/CustomerContext";
 import { useLeadDistribution } from "../../../../hooks/useLeadDistribution";
 import { DISTRIBUTION_METHODS, buildDistributionPreview } from "../../../../utils/leadDistribution";
 
@@ -9,15 +10,17 @@ const selectSx = { background: "#fff", border: `1.5px solid ${C.border}`, border
 const th = { textAlign: "start", fontSize: 10.5, letterSpacing: 0.4, textTransform: "uppercase", color: "#475569", fontWeight: 800, padding: "9px 12px", borderBottom: `1px solid ${C.border}`, background: "#F8FAFC", whiteSpace: "nowrap" };
 const td = { padding: "8px 12px", fontSize: 12.5, borderBottom: "1px solid #E2E8F0", verticalAlign: "middle" };
 
-function errorText(code, tx) {
+function errorText(code, tx, params = {}) {
   switch (code) {
-    case "NO_ACCEPTED_LEADS": return tx("لا يوجد عملاء لتوزيعهم", "There are no leads to distribute");
+    case "NO_AVAILABLE_LEADS": return tx("لا يوجد عملاء متاحون للتوزيع", "There are no leads available to distribute");
     case "NO_SALES_SELECTED": return tx("اختر مندوب مبيعات واحد على الأقل", "Select at least one sales representative");
     case "DUPLICATE_SALES_SELECTED": return tx("لا يمكن اختيار نفس المندوب أكثر من مرة", "The same sales representative can't be selected twice");
     case "PERCENT_INVALID": return tx("النسبة يجب أن تكون رقمًا موجبًا", "Percentage must be a valid, non-negative number");
-    case "PERCENT_TOTAL_INVALID": return tx("مجموع النسب يجب أن يساوي 100% بالضبط", "Percentages must sum to exactly 100%");
+    case "PERCENT_TOTAL_INVALID": return tx(`مجموع النسب لا يجب أن يتجاوز 100% (الحالي: ${params.total}%)`, `Percentages can't exceed 100% (currently: ${params.total}%)`);
     case "MANUAL_COUNT_INVALID": return tx("عدد العملاء يجب أن يكون رقمًا صحيحًا موجبًا", "Customer count must be a whole, non-negative number");
-    case "MANUAL_TOTAL_MISMATCH": return tx("مجموع الأعداد يجب أن يساوي إجمالي العملاء المقبولين بالضبط", "The counts must sum to exactly the accepted lead count");
+    case "MANUAL_EXCEEDS_AVAILABLE": return tx(`مجموع الأعداد (${params.total}) أكبر من المتاح (${params.available})`, `The total (${params.total}) exceeds what's available (${params.available})`);
+    case "EQUAL_COUNT_INVALID": return tx("عدد العملاء المراد توزيعهم غير صحيح", "The number of customers to distribute is invalid");
+    case "EQUAL_COUNT_EXCEEDS_AVAILABLE": return tx(`العدد المطلوب توزيعه (${params.total}) أكبر من المتاح (${params.available})`, `The requested amount (${params.total}) exceeds what's available (${params.available})`);
     case "METHOD_INVALID": return tx("طريقة توزيع غير معروفة", "Unknown distribution method");
     case "DISTRIBUTION_CHUNK_FAILED": return tx("فشل جزء من عملية التوزيع", "Part of the distribution failed");
     default: return code;
@@ -31,31 +34,44 @@ const METHOD_LABEL = (tx) => ({
 });
 
 /**
- * LEAD-DISTRIBUTION-01 — "توزيع العملاء على السيلز". Reused for both entry
- * points: right after a lead import (sourceBatchId set — the summary is
- * recorded on that same importBatches doc) and admin-triggered reassignment
- * from "عملاء جدد" (sourceBatchId null). All arithmetic/ordering lives in
+ * LEAD-DISTRIBUTION-01 — "توزيع العملاء على السيلز" / "إعادة توزيع". The
+ * admin is never forced to allocate the whole pool: percentage/equal/manual
+ * all accept LESS than 100% of `customerIds`, and whatever isn't covered
+ * stays exactly as it was — still unassigned (mode="distribute") or still
+ * with its current owner (mode="reassign"). All arithmetic/ordering lives in
  * utils/leadDistribution.js + hooks/useLeadDistribution.js; this only
- * collects the admin's choices and previews/confirms them. Re-running the
- * exact same distribution is always safe — hooks/useLeadDistribution.js's
- * patch diffing only ever touches a customer whose assignment isn't already
- * correct, so a double click or a retry writes nothing twice.
+ * collects the admin's choices and previews/confirms them.
+ *
+ * `mode="distribute"` (default): the hook filters out any already-assigned
+ * id from `customerIds` before computing anything — a normal distribution
+ * can never silently touch an existing Sales owner. `mode="reassign"` skips
+ * that filter — the one explicit path allowed to move SALES A -> SALES B.
  */
-export default function DistributeLeadsPanel({ customerIds, sourceBatchId = null, heading, showReassignmentDetail = false, currentOwnerById, onClose, onDone }) {
+export default function LeadDistributionPanel({ customerIds, sourceBatchId = null, mode = "distribute", heading, stats, onClose, onDone }) {
   const { lang } = useLang();
   const ar = lang === "ar";
   const tx = (a, e) => (ar ? a : e);
+  const { customerById } = useCustomers();
   const { activeSalesUsers, salesNameById, distributeLeads } = useLeadDistribution();
 
   const [method, setMethod] = useState(DISTRIBUTION_METHODS.PERCENTAGE);
   const [selectedIds, setSelectedIds] = useState([]);
   const [percentById, setPercentById] = useState({});
   const [countById, setCountById] = useState({});
+  const [distributeCount, setDistributeCount] = useState(null);
   const [committing, setCommitting] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [result, setResult] = useState(null);
 
-  const totalCount = customerIds.length;
+  // The pool this panel can actually act on — mirrors hooks/useLeadDistribution.js's own filter exactly, so the
+  // preview the admin sees before confirming is never optimistic about a customer a normal distribution won't touch.
+  const pool = useMemo(
+    () => (mode === "reassign" ? customerIds : customerIds.filter((id) => !customerById(id)?.assignedToId)),
+    [customerIds, mode, customerById],
+  );
+  const skippedAlreadyAssigned = customerIds.length - pool.length;
+  const availableCount = pool.length;
+  const effectiveDistributeCount = distributeCount == null ? availableCount : distributeCount;
 
   const toggleSales = (id) => setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
@@ -66,9 +82,9 @@ export default function DistributeLeadsPanel({ customerIds, sourceBatchId = null
   }, [method, selectedIds, percentById, countById]);
 
   const preview = useMemo(
-    () => buildDistributionPreview({ method, totalCount, allocations, salesNameById }),
+    () => buildDistributionPreview({ method, availableCount, allocations, distributeCount: effectiveDistributeCount, salesNameById }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [method, totalCount, allocations],
+    [method, availableCount, allocations, effectiveDistributeCount],
   );
 
   const percentTotal = method === DISTRIBUTION_METHODS.PERCENTAGE
@@ -78,19 +94,19 @@ export default function DistributeLeadsPanel({ customerIds, sourceBatchId = null
     ? selectedIds.reduce((sum, id) => sum + (Number(countById[id]) || 0), 0)
     : null;
 
-  const canConfirm = !committing && preview.errors.length === 0 && selectedIds.length > 0;
+  const canConfirm = !committing && preview.errors.length === 0 && selectedIds.length > 0 && preview.totalAssigned > 0;
 
   const confirm = async () => {
     if (!canConfirm) return;
     const sentence = tx(
-      `سيتم توزيع ${totalCount} عميل على ${preview.rows.length} مندوب مبيعات. هل تريد المتابعة؟`,
-      `${totalCount} leads will be distributed among ${preview.rows.length} sales representatives. Continue?`,
+      `سيتم توزيع ${preview.totalAssigned} من أصل ${availableCount} عميل متاح على ${preview.rows.filter((r) => r.count > 0).length} مندوب مبيعات. سيبقى ${preview.remaining} عميل بدون توزيع. هل تريد المتابعة؟`,
+      `${preview.totalAssigned} of ${availableCount} available leads will be distributed among ${preview.rows.filter((r) => r.count > 0).length} sales representatives. ${preview.remaining} will remain unassigned. Continue?`,
     );
     if (!window.confirm(sentence)) return;
     setCommitting(true);
-    setProgress({ done: 0, total: totalCount });
+    setProgress({ done: 0, total: preview.totalAssigned });
     try {
-      const res = await distributeLeads({ customerIds, method, allocations, sourceBatchId });
+      const res = await distributeLeads({ customerIds, method, allocations, distributeCount: effectiveDistributeCount, sourceBatchId, mode });
       setResult(res);
       onDone?.(res);
     } finally {
@@ -98,11 +114,13 @@ export default function DistributeLeadsPanel({ customerIds, sourceBatchId = null
     }
   };
 
+  const defaultHeading = mode === "reassign" ? tx("إعادة توزيع", "Reassign") : tx("توزيع العملاء على السيلز", "Distribute leads to Sales");
+
   if (activeSalesUsers.length === 0) {
     return (
       <Card style={{ padding: 18, marginBottom: 16, border: `1.5px solid ${C.purple}33` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-          <div style={{ fontWeight: 900, fontSize: 15 }}>{heading || tx("توزيع العملاء على السيلز", "Distribute leads to Sales")}</div>
+          <div style={{ fontWeight: 900, fontSize: 15 }}>{heading || defaultHeading}</div>
           <Btn sm v="ghost" onClick={onClose}>{tx("إغلاق", "Close")}</Btn>
         </div>
         <div style={{ color: C.muted, fontSize: 12.5 }}>{tx("لا يوجد مندوبين مبيعات نشطين حاليًا.", "There are no active sales representatives right now.")}</div>
@@ -110,14 +128,18 @@ export default function DistributeLeadsPanel({ customerIds, sourceBatchId = null
     );
   }
 
-  if (totalCount === 0) {
+  if (availableCount === 0) {
     return (
       <Card style={{ padding: 18, marginBottom: 16, border: `1.5px solid ${C.purple}33` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-          <div style={{ fontWeight: 900, fontSize: 15 }}>{heading || tx("توزيع العملاء على السيلز", "Distribute leads to Sales")}</div>
+          <div style={{ fontWeight: 900, fontSize: 15 }}>{heading || defaultHeading}</div>
           <Btn sm v="ghost" onClick={onClose}>{tx("إغلاق", "Close")}</Btn>
         </div>
-        <div style={{ color: C.muted, fontSize: 12.5 }}>{tx("لا يوجد عملاء لتوزيعهم.", "There are no leads to distribute.")}</div>
+        <div style={{ color: C.muted, fontSize: 12.5 }}>
+          {mode === "reassign"
+            ? tx("لا يوجد عملاء محددون لإعادة توزيعهم.", "There are no selected customers to reassign.")
+            : tx("لا يوجد عملاء غير موزعين متاحين حاليًا.", "There are no unassigned leads available right now.")}
+        </div>
       </Card>
     );
   }
@@ -125,26 +147,21 @@ export default function DistributeLeadsPanel({ customerIds, sourceBatchId = null
   return (
     <Card style={{ padding: 18, marginBottom: 16, border: `1.5px solid ${C.purple}33` }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
-        <div style={{ fontWeight: 900, fontSize: 15 }}>{heading || tx("توزيع العملاء على السيلز", "Distribute leads to Sales")}</div>
+        <div style={{ fontWeight: 900, fontSize: 15 }}>{heading || defaultHeading}</div>
         <Btn sm v="ghost" onClick={onClose} disabled={committing}>{tx("إغلاق", "Close")}</Btn>
       </div>
 
       {!result && (
         <>
-          <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 12 }}>{tx(`إجمالي العملاء المقبولين: ${totalCount}`, `Total accepted leads: ${totalCount}`)}</div>
-
-          {showReassignmentDetail && currentOwnerById && (
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontWeight: 800, fontSize: 12.5, marginBottom: 6 }}>{tx("المسؤول الحالي", "Current owner")}</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 12, color: C.muted }}>
-                {Object.entries(
-                  customerIds.reduce((acc, id) => {
-                    const name = currentOwnerById(id) || tx("غير معيّن", "Unassigned");
-                    acc[name] = (acc[name] || 0) + 1;
-                    return acc;
-                  }, {}),
-                ).map(([name, count]) => <div key={name}>{name} — {count}</div>)}
-              </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 8, marginBottom: 12 }}>
+            {stats && <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 12px", background: "#fff" }}><div style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>{tx("إجمالي العملاء", "Total customers")}</div><div style={{ fontSize: 20, fontWeight: 900 }}>{stats.total}</div></div>}
+            {stats && <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 12px", background: "#fff" }}><div style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>{tx("الموزعين", "Assigned")}</div><div style={{ fontSize: 20, fontWeight: 900 }}>{stats.assigned}</div></div>}
+            {stats && <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 12px", background: "#fff" }}><div style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>{tx("غير الموزعين", "Unassigned")}</div><div style={{ fontSize: 20, fontWeight: 900, color: C.purple }}>{stats.unassigned}</div></div>}
+            <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 12px", background: "#fff" }}><div style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>{tx("المتاح لهذا التوزيع", "Available for this operation")}</div><div style={{ fontSize: 20, fontWeight: 900, color: C.purple }}>{availableCount}</div></div>
+          </div>
+          {skippedAlreadyAssigned > 0 && (
+            <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 10 }}>
+              {tx(`${skippedAlreadyAssigned} من العملاء المحددين موزعون بالفعل ولن يتأثروا بهذا التوزيع العادي.`, `${skippedAlreadyAssigned} of the selected customers are already assigned and won't be touched by this normal distribution.`)}
             </div>
           )}
 
@@ -163,6 +180,21 @@ export default function DistributeLeadsPanel({ customerIds, sourceBatchId = null
               </button>
             ))}
           </div>
+
+          {method === DISTRIBUTION_METHODS.EQUAL && (
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, fontWeight: 700, color: C.muted, maxWidth: 260 }}>
+                {tx("عدد العملاء المراد توزيعهم", "Number of customers to distribute")}
+                <input
+                  type="number" min="0" max={availableCount} step="1" disabled={committing}
+                  value={distributeCount ?? availableCount}
+                  onChange={(e) => setDistributeCount(e.target.value === "" ? null : Number(e.target.value))}
+                  style={{ ...selectSx, width: 140 }}
+                />
+              </label>
+              <Btn sm v="ghost" style={{ marginTop: 6 }} disabled={committing} onClick={() => setDistributeCount(availableCount)}>{tx("توزيع الكل", "Distribute all")}</Btn>
+            </div>
+          )}
 
           <div style={{ marginBottom: 14 }}>
             <div style={{ fontWeight: 800, fontSize: 12.5, marginBottom: 8 }}>{tx("مندوبو المبيعات", "Sales representatives")}</div>
@@ -197,31 +229,31 @@ export default function DistributeLeadsPanel({ customerIds, sourceBatchId = null
               ))}
             </div>
             {method === DISTRIBUTION_METHODS.PERCENTAGE && selectedIds.length > 0 && (
-              <div style={{ fontSize: 11.5, color: percentTotal === 100 ? C.success : C.muted, marginTop: 8, fontWeight: 700 }}>
-                {tx(`الإجمالي: ${percentTotal}% (يجب أن يساوي 100%)`, `Total: ${percentTotal}% (must equal 100%)`)}
+              <div style={{ fontSize: 11.5, color: percentTotal > 100 ? C.danger : C.muted, marginTop: 8, fontWeight: 700 }}>
+                {tx(`الإجمالي: ${percentTotal}% (لا يجب أن يتجاوز 100% — أقل من 100% يترك الباقي بدون توزيع)`, `Total: ${percentTotal}% (must not exceed 100% — less than 100% leaves the rest unassigned)`)}
               </div>
             )}
             {method === DISTRIBUTION_METHODS.MANUAL && selectedIds.length > 0 && (
-              <div style={{ fontSize: 11.5, color: manualTotal === totalCount ? C.success : C.muted, marginTop: 8, fontWeight: 700 }}>
-                {tx(`الإجمالي: ${manualTotal} من ${totalCount}`, `Total: ${manualTotal} of ${totalCount}`)}
+              <div style={{ fontSize: 11.5, color: manualTotal > availableCount ? C.danger : C.muted, marginTop: 8, fontWeight: 700 }}>
+                {tx(`الإجمالي: ${manualTotal} من ${availableCount} متاح`, `Total: ${manualTotal} of ${availableCount} available`)}
               </div>
             )}
           </div>
 
           {selectedIds.length > 0 && preview.errors.length > 0 && (
             <div style={{ marginBottom: 12 }}>
-              {preview.errors.map((e, i) => <div key={i} style={{ color: C.danger, fontSize: 12 }}>{errorText(e.code, tx)}</div>)}
+              {preview.errors.map((e, i) => <div key={i} style={{ color: C.danger, fontSize: 12 }}>{errorText(e.code, tx, e)}</div>)}
             </div>
           )}
 
           {preview.rows.length > 0 && preview.errors.length === 0 && (
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontWeight: 800, fontSize: 12.5, marginBottom: 6 }}>{tx("معاينة التوزيع", "Distribution preview")}</div>
-              <div style={{ overflowX: "auto", border: `1px solid ${C.border}`, borderRadius: 8 }}>
+              <div style={{ overflowX: "auto", border: `1px solid ${C.border}`, borderRadius: 8, marginBottom: 8 }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 360 }}>
                   <thead>
                     <tr>
-                      <th style={th}>{showReassignmentDetail ? tx("المسؤول الجديد", "New owner") : tx("المندوب", "Representative")}</th>
+                      <th style={th}>{mode === "reassign" ? tx("المسؤول الجديد", "New owner") : tx("المندوب", "Representative")}</th>
                       {method === DISTRIBUTION_METHODS.PERCENTAGE && <th style={th}>{tx("النسبة", "Percentage")}</th>}
                       <th style={th}>{tx("عدد العملاء", "Customer count")}</th>
                     </tr>
@@ -236,6 +268,12 @@ export default function DistributeLeadsPanel({ customerIds, sourceBatchId = null
                     ))}
                   </tbody>
                 </table>
+              </div>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: C.text }}>
+                {tx(`سيتم توزيع ${preview.totalAssigned} الآن — `, `${preview.totalAssigned} will be distributed now — `)}
+                <span style={{ color: preview.remaining > 0 ? C.purple : C.muted }}>
+                  {tx(`سيبقى ${preview.remaining} بدون توزيع (غير موزعين، لن يُفقدوا).`, `${preview.remaining} will remain unassigned (not lost).`)}
+                </span>
               </div>
             </div>
           )}
@@ -269,6 +307,10 @@ export default function DistributeLeadsPanel({ customerIds, sourceBatchId = null
               <div style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>{tx("بدون تغيير", "Unchanged")}</div>
               <div style={{ fontSize: 20, fontWeight: 900 }}>{result.unchangedCount}</div>
             </div>
+            <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 12px", background: "#fff" }}>
+              <div style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>{tx("بقي غير موزع", "Remained unassigned")}</div>
+              <div style={{ fontSize: 20, fontWeight: 900, color: C.purple }}>{result.remaining}</div>
+            </div>
             {result.failedChunks > 0 && (
               <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 12px", background: "#fff" }}>
                 <div style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>{tx("دفعات فشلت", "Failed chunks")}</div>
@@ -276,28 +318,10 @@ export default function DistributeLeadsPanel({ customerIds, sourceBatchId = null
               </div>
             )}
           </div>
-          {result.errors?.map((e, i) => <div key={i} style={{ color: C.danger, fontSize: 12 }}>{errorText(e.code, tx)}{e.message ? `: ${e.message}` : ""}</div>)}
-
-          {showReassignmentDetail && result.perSales?.length > 0 && (
-            <div style={{ marginTop: 12, marginBottom: 12 }}>
-              <div style={{ overflowX: "auto", maxHeight: 240, overflowY: "auto", border: `1px solid ${C.border}`, borderRadius: 8 }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 360 }}>
-                  <thead><tr><th style={th}>{tx("المسؤول الجديد", "New owner")}</th><th style={th}>{tx("عدد العملاء", "Customer count")}</th></tr></thead>
-                  <tbody>
-                    {result.perSales.map((r) => (
-                      <tr key={r.salesId}><td style={td}>{r.salesName}</td><td style={td}>{r.count}</td></tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {currentOwnerById && (
-                <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>
-                  {tx("«المسؤول الحالي» قبل هذا التوزيع كان موضّحًا في القائمة قبل التأكيد.", "The “current owner” before this distribution was shown in the list before confirming.")}
-                </div>
-              )}
-            </div>
-          )}
-
+          <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>
+            {tx("العملاء غير الموزعين يبقون في «عملاء جدد» ضمن «غير موزع» — لم يُحذف أو يُفقد أي عميل.", "Unassigned customers stay in “عملاء جدد” under “Unassigned” — no customer was deleted or lost.")}
+          </div>
+          {result.errors?.map((e, i) => <div key={i} style={{ color: C.danger, fontSize: 12 }}>{errorText(e.code, tx, e)}{e.message ? `: ${e.message}` : ""}</div>)}
           <Btn v="ghost" onClick={onClose}>{tx("تم", "Done")}</Btn>
         </div>
       )}

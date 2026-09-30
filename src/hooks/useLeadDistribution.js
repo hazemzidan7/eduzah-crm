@@ -26,33 +26,53 @@ export function useLeadDistribution() {
   const salesNameById = (id) => activeSalesUsers.find((u) => u.id === id)?.name || (users || []).find((u) => u.id === id)?.name || null;
 
   /**
-   * `customerIds` — the ordered accepted-lead list (LeadExcelImportPanel's
-   * fresh `acceptedCustomerIds`, or an admin's manual row selection from
-   * NewCustomersPage for a later reassignment). `sourceBatchId` is nullable —
-   * present for a fresh-import distribution, absent for ad-hoc reassignment;
-   * either way this is the SAME function, never a parallel system.
+   * `customerIds` — an ordered pool of customer ids (the unassigned pool in
+   * import order, a fresh import's own accepted ids, or an admin's manual
+   * selection). `mode` is the safety switch the spec requires kept separate:
+   *  - "distribute" (default): UNASSIGNED -> SALES. Any id in `customerIds`
+   *    that is ALREADY assigned is filtered out before anything is computed —
+   *    a normal distribution never silently touches or overwrites an existing
+   *    Sales owner, no matter what the caller passed in.
+   *  - "reassign": SALES A -> SALES B (or UNASSIGNED -> SALES, for a manual
+   *    pick that happens to include an unassigned one). No such filter — this
+   *    is the one explicit path allowed to change an existing assignment.
+   * `sourceBatchId` is nullable — present when this distribution is tied to
+   * one fresh import, absent for an ad-hoc pool/selection; either way this is
+   * the SAME function, never a parallel system. `distributeCount` only
+   * matters for the "equal" method (how many of the pool to split — defaults
+   * to the whole filtered pool, i.e. "distribute all").
    *
-   * Returns { errors, assignedCount, unchangedCount, perSales:[{salesId,salesName,count}], failedChunks }.
+   * A distribution or reassignment NEVER has to cover the whole pool — only
+   * as many as the chosen allocations add up to; the rest is left exactly as
+   * it was (see `remaining` on the result).
+   *
+   * Returns { errors, assignedCount, unchangedCount, remaining, skippedAlreadyAssigned, perSales:[{salesId,salesName,count}], failedChunks }.
    * Only actually-changed customers are written — a retry after a network
    * failure, or a repeated confirm, recomputes the identical deterministic
    * assignment and only touches whatever didn't already get the right value.
    */
-  const distributeLeads = async ({ customerIds, method, allocations, sourceBatchId = null }) => {
-    const totalCount = (customerIds || []).length;
-    const errors = validateDistribution({ method, totalCount, allocations });
-    if (errors.length > 0) return { errors, assignedCount: 0, unchangedCount: 0, perSales: [], failedChunks: 0 };
+  const distributeLeads = async ({ customerIds, method, allocations, distributeCount, sourceBatchId = null, mode = "distribute" }) => {
+    const pool = mode === "reassign"
+      ? (customerIds || [])
+      : (customerIds || []).filter((id) => !customerById(id)?.assignedToId);
+    const skippedAlreadyAssigned = (customerIds || []).length - pool.length;
 
-    const allocationCounts = computeAllocationCounts({ method, totalCount, allocations });
-    const assignments = buildSequentialAssignments(customerIds, allocationCounts, salesNameById);
+    const availableCount = pool.length;
+    const errors = validateDistribution({ method, availableCount, allocations, distributeCount });
+    if (errors.length > 0) return { errors, assignedCount: 0, unchangedCount: 0, remaining: availableCount, skippedAlreadyAssigned, perSales: [], failedChunks: 0 };
+
+    const allocationCounts = computeAllocationCounts({ method, availableCount, allocations, distributeCount });
+    const assignments = buildSequentialAssignments(pool, allocationCounts, salesNameById);
     const now = new Date().toISOString();
     const { patches, unchangedCount } = buildAssignmentPatches(assignments, {
       customerById, method, sourceBatchId, currentUser, now,
     });
 
     const perSales = allocationCounts.map((a) => ({ salesId: a.salesId, salesName: salesNameById(a.salesId), count: a.count }));
+    const remaining = availableCount - allocationCounts.reduce((s, a) => s + a.count, 0);
 
     if (patches.length === 0) {
-      return { errors: [], assignedCount: 0, unchangedCount, perSales, failedChunks: 0 };
+      return { errors: [], assignedCount: 0, unchangedCount, remaining, skippedAlreadyAssigned, perSales, failedChunks: 0 };
     }
 
     const ops = patches.map(({ customerId, patch, historyEntry }) => ({
@@ -80,14 +100,14 @@ export function useLeadDistribution() {
     if (sourceBatchId) {
       try {
         await updateBatch(sourceBatchId, {
-          distribution: { method, assignedCount, unchangedCount, perSales, distributedBy: currentUser?.id || null, distributedAt: now },
+          distribution: { method, assignedCount, unchangedCount, remaining, perSales, distributedBy: currentUser?.id || null, distributedAt: now },
         });
       } catch {
         // non-fatal: the customer-level assignment already committed above
       }
     }
 
-    return { errors: commitErrors, assignedCount, unchangedCount, perSales, failedChunks };
+    return { errors: commitErrors, assignedCount, unchangedCount, remaining, skippedAlreadyAssigned, perSales, failedChunks };
   };
 
   return { activeSalesUsers, salesNameById, distributeLeads, customers };

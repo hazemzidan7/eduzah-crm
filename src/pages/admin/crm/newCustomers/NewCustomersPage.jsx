@@ -6,11 +6,13 @@ import { useAuth } from "../../../../context/AuthContext";
 import { useCatalog } from "../../../../context/CatalogContext";
 import { useCustomers } from "../../../../context/CustomerContext";
 import { useFollowUps } from "../../../../context/FollowUpContext";
+import { useImportBatches } from "../../../../context/ImportBatchContext";
 import { IconSearch, IconPhone, IconWhatsapp } from "../../../../components/Icons";
 import { toE164Phone } from "../../../../utils/phoneE164";
 import { customerInterestedProgramIds } from "../../../../utils/interestedPrograms";
 import { selectNewCustomers, REGISTRATION_STATUS_KEYS, WORKFLOW_STATUS_KEYS } from "../../../../utils/newCustomerWorkflow";
 import { FOLLOW_UP_STATUSES } from "../../../../utils/followUps";
+import { selectActiveSalesUsers, selectUnassignedLeads, computeDistributionStats } from "../../../../utils/leadDistribution";
 import { InterestedProgramChips, INTEREST_ONLY_NOTE_AR, INTEREST_ONLY_NOTE_EN } from "../../../../components/crm/InterestedPrograms";
 import LeadStatusBadge from "../../../../components/crm/LeadStatusBadge";
 import { useNewCustomerWorkflow } from "../../../../hooks/useNewCustomerWorkflow";
@@ -34,6 +36,7 @@ function Stat({ label, value, tone }) {
 const th = { textAlign: "start", fontSize: 10.5, letterSpacing: 0.4, textTransform: "uppercase", color: "#475569", fontWeight: 800, padding: "11px 14px", borderBottom: `1px solid ${C.border}`, background: "#F8FAFC", whiteSpace: "nowrap" };
 const td = { padding: "10px 14px", fontSize: 12.5, borderBottom: "1px solid #E2E8F0", verticalAlign: "middle" };
 const iconLinkSx = { display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none", padding: 4, borderRadius: 6, color: C.text };
+const filterSx = { background: "#fff", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "8px 10px", fontFamily: "'Cairo',sans-serif", fontSize: 12.5, outline: "none", cursor: "pointer" };
 
 /**
  * "عملاء جدد" — customers who are not registered in any course yet (no
@@ -44,6 +47,11 @@ const iconLinkSx = { display: "inline-flex", alignItems: "center", justifyConten
  * Engagement, and the customer leaves this list automatically because the list
  * simply means "no active engagement". Their "Interested Programs" stay on the
  * customer record and are never the same thing as a registration.
+ *
+ * LEAD-DISTRIBUTION-01: every customer here is either "موزع" (has an
+ * assignedToId) or "غير موزع" (doesn't) — the admin is never required to
+ * distribute the whole pool in one go, so an unassigned customer is a normal,
+ * expected, permanent state, not a transient one.
  */
 export default function NewCustomersPage() {
   const { lang } = useLang();
@@ -53,8 +61,10 @@ export default function NewCustomersPage() {
   const { nodeById } = useCatalog();
   const { customers, engagements, customerById, loading } = useCustomers();
   const { followUps } = useFollowUps();
+  const { batches } = useImportBatches();
   const { statusKeyOf, currentStatusOf } = useNewCustomerWorkflow();
   const isAdmin = currentUser?.role === "admin";
+  const activeSalesUsers = useMemo(() => selectActiveSalesUsers(users), [users]);
 
   const [search, setSearch] = useState("");
   const [adding, setAdding] = useState(false);
@@ -63,12 +73,25 @@ export default function NewCustomersPage() {
   const [contactId, setContactId] = useState(null);
   const [registeringId, setRegisteringId] = useState(null);
   const [followUpId, setFollowUpId] = useState(null);
-  const [mineOnly, setMineOnly] = useState(false);
+  const [ownerFilter, setOwnerFilter] = useState("all"); // "all" | "unassigned" | "mine" | <salesId>
+  const [statusFilter, setStatusFilter] = useState("");
+  const [batchFilter, setBatchFilter] = useState("");
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [reassigning, setReassigning] = useState(false);
+  const [distributing, setDistributing] = useState(false);
 
   const allRows = useMemo(() => selectNewCustomers(customers, engagements, { search }), [customers, engagements, search]);
-  const rows = useMemo(() => (mineOnly && currentUser?.id ? allRows.filter((c) => c.assignedToId === currentUser.id) : allRows), [allRows, mineOnly, currentUser?.id]);
+  const distributionStats = useMemo(() => computeDistributionStats(allRows), [allRows]);
+
+  const rows = useMemo(() => {
+    let out = allRows;
+    if (ownerFilter === "unassigned") out = out.filter((c) => !c.assignedToId);
+    else if (ownerFilter === "mine") out = out.filter((c) => c.assignedToId === currentUser?.id);
+    else if (ownerFilter !== "all") out = out.filter((c) => c.assignedToId === ownerFilter);
+    if (statusFilter) out = out.filter((c) => statusKeyOf(c) === statusFilter);
+    if (batchFilter) out = out.filter((c) => c.importBatchId === batchFilter);
+    return out;
+  }, [allRows, ownerFilter, statusFilter, batchFilter, currentUser?.id, statusKeyOf]);
 
   // The soonest pending follow-up per customer (a Sales session only receives its own — see firestore.rules).
   const nextFollowUpByCustomer = useMemo(() => {
@@ -98,7 +121,29 @@ export default function NewCustomersPage() {
   const registering = registeringId ? customerById(registeringId) : null;
   const followUpCustomer = followUpId ? customerById(followUpId) : null;
   const fmtDate = (iso) => (iso ? new Date(iso).toLocaleDateString(ar ? "ar-EG" : "en-US", { day: "numeric", month: "short", year: "numeric" }) : "—");
-  const assignedLabel = (c) => c.assignedToName || (c.assignedToId ? (users || []).find((u) => u.id === c.assignedToId)?.name : null) || "—";
+  const assignedLabel = (c) => c.assignedToName || (c.assignedToId ? (users || []).find((u) => u.id === c.assignedToId)?.name : null) || tx("غير موزع", "Unassigned");
+
+  const statusLabel = (key) => ({
+    not_contacted: tx("لم يتم التواصل", "Not contacted"),
+    no_answer: tx("لا يوجد رد", "No answer"),
+    thinking: tx("بيفكر", "Thinking"),
+    interested: tx("مهتم", "Interested"),
+    not_interested: tx("غير مهتم", "Not interested"),
+    will_book: tx("هيحجز", "Will register"),
+    booked: tx("تم التسجيل", "Registered"),
+  }[key] || key);
+
+  const [distributeIds, setDistributeIds] = useState([]);
+
+  const startDistribute = () => {
+    const ids = selectedIds.size > 0 ? [...selectedIds] : selectUnassignedLeads(allRows).map((c) => c.id);
+    setDistributeIds(ids);
+    setDistributing(true);
+  };
+  const startReassign = () => {
+    setDistributeIds([...selectedIds]);
+    setReassigning(true);
+  };
 
   return (
     <div>
@@ -122,16 +167,41 @@ export default function NewCustomersPage() {
               style={{ background: "#fff", border: `1.5px solid ${C.border}`, borderRadius: 10, paddingBlock: 9, paddingInlineStart: 34, paddingInlineEnd: 14, fontFamily: "'Cairo',sans-serif", fontSize: 12.5, outline: "none", minWidth: 220 }}
             />
           </div>
-          <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12.5, fontWeight: 700, color: C.muted, cursor: "pointer" }}>
-            <input type="checkbox" checked={mineOnly} onChange={(e) => setMineOnly(e.target.checked)} />
-            {tx("عملائي فقط", "My customers only")}
-          </label>
           <Btn v="ghost" onClick={() => setImporting((v) => !v)}>{tx("رفع ملف Excel", "Upload Excel file")}</Btn>
+          {isAdmin && <Btn v="primary" onClick={startDistribute}>{tx("توزيع العملاء على السيلز", "Distribute leads to Sales")}</Btn>}
           <Btn v="primary" onClick={() => setAdding(true)}>+ {tx("إضافة عميل جديد", "Add New Customer")}</Btn>
         </div>
       </div>
 
-      {mineOnly && myStats && (
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 8, marginBottom: 14 }}>
+        <Stat label={tx("إجمالي العملاء", "Total customers")} value={distributionStats.total} />
+        <Stat label={tx("الموزعين", "Assigned")} value={distributionStats.assigned} tone={C.success} />
+        <Stat label={tx("غير الموزعين", "Unassigned")} value={distributionStats.unassigned} tone={C.purple} />
+        <Stat label={tx("عملائي", "My customers")} value={myStats?.total ?? 0} tone={C.red} />
+      </div>
+
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 14 }}>
+        <select value={ownerFilter} onChange={(e) => setOwnerFilter(e.target.value)} style={filterSx}>
+          <option value="all">{tx("الكل", "All")}</option>
+          <option value="unassigned">{tx("غير موزع", "Unassigned")}</option>
+          <option value="mine">{tx("عملائي فقط", "My customers only")}</option>
+          {isAdmin && activeSalesUsers.map((u) => <option key={u.id} value={u.id}>{u.name || u.email}</option>)}
+        </select>
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={filterSx}>
+          <option value="">{tx("كل الحالات", "All statuses")}</option>
+          {WORKFLOW_STATUS_KEYS.map((k) => <option key={k} value={k}>{statusLabel(k)}</option>)}
+        </select>
+        {isAdmin && batches.length > 0 && (
+          <select value={batchFilter} onChange={(e) => setBatchFilter(e.target.value)} style={filterSx}>
+            <option value="">{tx("كل ملفات الاستيراد", "All import files")}</option>
+            {batches.filter((b) => b.kind === "customer_leads").map((b) => (
+              <option key={b.id} value={b.id}>{b.fileName || b.id} — {fmtDate(b.createdAt)}</option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      {ownerFilter === "mine" && myStats && (
         <Card style={{ padding: 14, marginBottom: 14 }}>
           <div style={{ fontWeight: 900, fontSize: 13, marginBottom: 10 }}>{tx("عملائي", "My customers")}</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 8 }}>
@@ -154,18 +224,27 @@ export default function NewCustomersPage() {
           <div style={{ fontSize: 12.5, fontWeight: 700 }}>{tx(`تم تحديد ${selectedIds.size} عميل`, `${selectedIds.size} customers selected`)}</div>
           <div style={{ display: "flex", gap: 8 }}>
             <Btn sm v="ghost" onClick={() => setSelectedIds(new Set())}>{tx("إلغاء التحديد", "Clear selection")}</Btn>
-            <Btn sm v="primary" onClick={() => setReassigning(true)}>{tx("إعادة توزيع", "Redistribute")}</Btn>
+            <Btn sm v="ghost" onClick={startDistribute}>{tx("توزيع العملاء على السيلز", "Distribute leads to Sales")}</Btn>
+            <Btn sm v="primary" onClick={startReassign}>{tx("إعادة توزيع", "Reassign")}</Btn>
           </div>
         </Card>
       )}
 
+      {distributing && (
+        <DistributeLeadsPanel
+          customerIds={distributeIds}
+          sourceBatchId={null}
+          mode="distribute"
+          stats={distributionStats}
+          onClose={() => { setDistributing(false); setSelectedIds(new Set()); }}
+        />
+      )}
       {reassigning && (
         <DistributeLeadsPanel
-          customerIds={[...selectedIds]}
+          customerIds={distributeIds}
           sourceBatchId={null}
+          mode="reassign"
           heading={tx("إعادة توزيع العملاء المحددين", "Reassign selected customers")}
-          showReassignmentDetail
-          currentOwnerById={(id) => assignedLabel(customerById(id))}
           onClose={() => { setReassigning(false); setSelectedIds(new Set()); }}
         />
       )}
@@ -189,6 +268,7 @@ export default function NewCustomersPage() {
                       />
                     </th>
                   )}
+                  <th style={th}>#</th>
                   <th style={th}>{tx("الاسم", "Name")}</th>
                   <th style={th}>{tx("الهاتف", "Phone")}</th>
                   <th style={th}>{tx("الكورسات المهتم بيها", "Interested Programs")}</th>
@@ -220,6 +300,7 @@ export default function NewCustomersPage() {
                           />
                         </td>
                       )}
+                      <td style={{ ...td, color: C.muted, fontWeight: 700 }}>{c.importSequence ?? "—"}</td>
                       <td style={{ ...td, fontWeight: 800 }}>
                         {c.fullName || <span style={{ color: C.muted, fontWeight: 600 }}>{tx("بدون اسم", "No name")}</span>}
                         {c.notes && <div style={{ fontWeight: 500, fontSize: 11, color: C.muted, marginTop: 2, maxWidth: 220, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={c.notes}>{c.notes}</div>}

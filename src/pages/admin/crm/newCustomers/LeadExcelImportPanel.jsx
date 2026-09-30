@@ -459,7 +459,7 @@ export default function LeadExcelImportPanel({ onClose }) {
           </div>
           {distributing && (
             <div style={{ marginTop: 12 }}>
-              <DistributeLeadsPanel customerIds={result.acceptedCustomerIds} sourceBatchId={result.batchId} onClose={() => setDistributing(false)} />
+              <DistributeLeadsPanel customerIds={result.acceptedCustomerIds} sourceBatchId={result.batchId} mode="distribute" onClose={() => setDistributing(false)} />
             </div>
           )}
         </div>

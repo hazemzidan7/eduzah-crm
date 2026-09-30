@@ -794,7 +794,10 @@ console.log("SHARED NOTE — one optional note for the whole import, written int
   eq("2. an existing name is not touched by the note", "fullName" in patchOf("e1"), false);
   const fs2 = { chunks: [] };
   await runLeadImportCommit({ plan: p2, fileName: "n.xlsx", customers: [old, none, legacy], nodeById, now: "2026-09-19T10:00:00.000Z", createBatch: async () => "b2", updateBatch: async () => {}, commitLeadImportChunk: async (ops) => { fs2.chunks.push(ops); return []; } });
-  eq("2. the committed update writes notes + updatedAt only (nothing else on the customer)", fs2.chunks.flat().find((o) => o.id === "e1").patch, { updatedAt: "2026-09-19T10:00:00.000Z", notes: `ملاحظة قديمة من المبيعات\n\n${BLOCK}` });
+  // LEAD-DISTRIBUTION-01: e1 has never been imported before, so this commit ALSO assigns its one-time
+  // importSequence/importBatchId (see utils/leadImportCommit.js's needsSequence) alongside the note update —
+  // still nothing else on the customer.
+  eq("2. the committed update writes notes + updatedAt + (first-ever) importSequence/importBatchId only", fs2.chunks.flat().find((o) => o.id === "e1").patch, { updatedAt: "2026-09-19T10:00:00.000Z", notes: `ملاحظة قديمة من المبيعات\n\n${BLOCK}`, importSequence: 1, importBatchId: "b2" });
   eq("2. notes is inside the Sales customers.update allow-list in firestore.rules", (() => { const rulesTxt = read("firestore.rules").replace(/\/\*[\s\S]*?\*\//g, ""); const blk = rulesTxt.slice(rulesTxt.indexOf("match /customers/{id}"), rulesTxt.indexOf("match /engagements/{id}")); return [...blk.slice(blk.indexOf("hasOnly([")).matchAll(/'([^']+)'/g)].map((m) => m[1]).includes("notes"); })(), true);
   eq("2. combines with interests (existing kept, selected added) in the same patch", (await planN(R, { existing: [mk({ id: "e1", phone: "01200000001", normalizedPhone: "01200000001", fullName: "Test Person A", notes: "old", interestedProgramIds: ["AI1"] })], note: "حملة سبتمبر", batch: ["FRONT"] })).customersToUpdate[0].patch, { interestedProgramIds: ["AI1", "FRONT"], notes: `old\n\n${BLOCK}` });
 

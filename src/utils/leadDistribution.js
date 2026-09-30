@@ -1,9 +1,16 @@
 /**
- * LEAD-DISTRIBUTION-01 — splits a batch of accepted "عملاء جدد" leads among
+ * LEAD-DISTRIBUTION-01 — splits a POOL of unassigned "عملاء جدد" leads among
  * Sales users. Pure module (no React, no Firestore): this only computes WHO
  * gets WHICH customers and WHY; the actual write is
  * hooks/useLeadDistribution.js, reusing CustomerContext.commitLeadImportChunk
  * exactly as the lead import already does — no new Firestore write path.
+ *
+ * PARTIAL ALLOCATION IS THE NORMAL CASE — an admin is never forced to assign
+ * every available lead in one operation. Percentage/equal/manual all accept
+ * an allocation that covers LESS than the full available pool; whatever
+ * isn't covered stays exactly as it was (still unassigned, or — in a
+ * reassignment — still with its current owner). Only "more than available"
+ * is ever rejected.
  *
  * SCOPE — this only ever writes `customers/{id}.assignedToId` /
  * `.assignedToName` (the field the CRM already uses everywhere else) plus an
@@ -12,9 +19,8 @@
  * creates a second "who owns this lead" concept.
  *
  * DETERMINISM — every function here is a pure computation over its inputs:
- * the same accepted-lead list + the same distribution config always produces
- * the exact same per-customer assignment, in the exact same order. Nothing
- * is randomized by default (see `method` below).
+ * the same available-lead order + the same distribution config always
+ * produces the exact same per-customer assignment. Nothing is randomized.
  */
 
 /** Firestore's own writeBatch() hard limit is 500 ops/batch — same ceiling utils/leadImportCommit.js already respects. */
@@ -33,29 +39,79 @@ export function selectActiveSalesUsers(users) {
   return (users || []).filter((u) => u.role === "sales" && u.status !== "rejected");
 }
 
+// ───────────────────────── imported/assigned/unassigned ─────────────────────────
+
+/**
+ * Stable ordering for any pool of "عملاء جدد" customers that may span
+ * several import batches (or include manually-added customers with no
+ * import batch at all): by the batch's own commit time first (every customer
+ * created in the SAME commit shares one `createdAt`, so this alone can't
+ * separate them), then by `importSequence` — the position assigned once, at
+ * first import, by utils/leadImportCommit.js — as the tiebreaker, then by id
+ * for total determinism. A customer that was never imported (no
+ * `importSequence`) sorts by its own `createdAt` among the rest.
+ */
+function compareByImportOrder(a, b) {
+  const ca = a.createdAt || "", cb = b.createdAt || "";
+  if (ca !== cb) return ca < cb ? -1 : 1;
+  const sa = a.importSequence ?? Infinity, sb = b.importSequence ?? Infinity;
+  if (sa !== sb) return sa - sb;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+/** Imported/total, assigned, unassigned — the three numbers "عملاء جدد" always shows the admin. */
+export function computeDistributionStats(newCustomers) {
+  const total = (newCustomers || []).length;
+  const assigned = (newCustomers || []).filter((c) => c.assignedToId).length;
+  return { total, assigned, unassigned: total - assigned };
+}
+
+/**
+ * The default source pool for a NEW (non-reassignment) distribution: every
+ * "عملاء جدد" customer with no current `assignedToId`, in stable import
+ * order. Never includes an already-assigned customer — reassignment is a
+ * deliberately separate, explicit workflow (see hooks/useLeadDistribution.js's
+ * `mode`).
+ */
+export function selectUnassignedLeads(newCustomers) {
+  return (newCustomers || []).filter((c) => !c.assignedToId).sort(compareByImportOrder);
+}
+
 // ───────────────────────── method: equal ─────────────────────────
 
 /**
- * As even as mathematically possible: everyone gets `floor(total/n)`, and the
- * remainder (always < n) goes one-each to the FIRST `remainder` sales users
- * in the given order — deterministic, and the spread across all allocations
- * never differs by more than 1 (1001/5 -> 201,200,200,200,200; 999/5 ->
- * 200,200,200,200,199).
+ * Splits `distributeCount` (an admin-chosen amount, NOT necessarily the
+ * whole available pool) as evenly as possible: everyone gets
+ * `floor(distributeCount/n)`, and the remainder (always < n) goes one-each to
+ * the FIRST `remainder` sales users in the given order — deterministic, and
+ * the spread across all allocations never differs by more than 1.
  */
-export function computeEqualDistribution(totalCount, salesIds) {
+export function computeEqualDistribution(distributeCount, salesIds) {
   const n = (salesIds || []).length;
   if (n === 0) return [];
-  const base = Math.floor(totalCount / n);
-  const remainder = totalCount - base * n;
+  const base = Math.floor(distributeCount / n);
+  const remainder = distributeCount - base * n;
   return salesIds.map((salesId, i) => ({ salesId, count: base + (i < remainder ? 1 : 0) }));
+}
+
+export function validateEqualDistribution(availableCount, distributeCount, allocations) {
+  const errors = [];
+  const ids = (allocations || []).map((a) => a.salesId);
+  if (ids.length === 0) { errors.push({ code: "NO_SALES_SELECTED" }); return errors; }
+  if (new Set(ids).size !== ids.length) errors.push({ code: "DUPLICATE_SALES_SELECTED" });
+  const n = Number(distributeCount);
+  if (!Number.isInteger(n) || n < 0) errors.push({ code: "EQUAL_COUNT_INVALID" });
+  else if (n > availableCount) errors.push({ code: "EQUAL_COUNT_EXCEEDS_AVAILABLE", total: n, available: availableCount });
+  return errors;
 }
 
 // ───────────────────────── method: percentage ─────────────────────────
 
 /**
- * Percentages must sum to EXACTLY 100 (rounded to 2 decimals, so 33.33 x 3 +
- * 0.01 style inputs that visually read as "100%" still pass) — anything else
- * is a validation error, never silently normalized.
+ * "Percentage" means percentage OF THE AVAILABLE POOL being distributed FROM
+ * — not the whole import. The total may be anywhere in (0, 100]; it does NOT
+ * need to reach 100 (whatever isn't covered stays unassigned). Only a
+ * negative/invalid percentage or a total over 100% is rejected.
  */
 export function validatePercentageAllocations(allocations) {
   const errors = [];
@@ -68,27 +124,31 @@ export function validatePercentageAllocations(allocations) {
   }
   if (errors.length > 0) return errors;
   const total = round2(allocations.reduce((sum, a) => sum + Number(a.percent), 0));
-  if (total !== 100) errors.push({ code: "PERCENT_TOTAL_INVALID", total });
+  if (total > 100) errors.push({ code: "PERCENT_TOTAL_INVALID", total });
   return errors;
 }
 
 /**
- * Percent -> count via the largest-remainder method (Hamilton's method): every
- * allocation gets floor(total * percent/100), then the leftover units (always
- * < allocations.length) go one-each to the allocations with the largest
+ * Percent -> count via the largest-remainder method (Hamilton's method),
+ * targeting `round(availableCount * sumPercent/100)` — the actual amount
+ * this operation assigns, not the whole available pool. Every allocation
+ * gets floor(availableCount * percent/100), then the leftover units (to
+ * reach the rounded target) go one-each to the allocations with the largest
  * fractional remainder — ties broken by the ORIGINAL list order, so the
- * result is fully deterministic. Counts always sum to exactly `totalCount`.
- * Caller must validate first (validatePercentageAllocations) — this assumes
- * the percentages already sum to 100.
+ * result is fully deterministic. Whatever isn't covered by the target stays
+ * unassigned. Caller must validate first — this assumes percentages already
+ * sum to at most 100.
  */
-export function computePercentageDistribution(totalCount, allocations) {
+export function computePercentageDistribution(availableCount, allocations) {
+  const sumPercent = allocations.reduce((sum, a) => sum + Number(a.percent), 0);
+  const target = Math.round((availableCount * sumPercent) / 100);
   const raw = allocations.map((a, i) => {
-    const exact = (totalCount * Number(a.percent)) / 100;
+    const exact = (availableCount * Number(a.percent)) / 100;
     const floor = Math.floor(exact);
     return { salesId: a.salesId, percent: Number(a.percent), floor, remainder: exact - floor, i };
   });
   const flooredTotal = raw.reduce((sum, r) => sum + r.floor, 0);
-  let leftover = totalCount - flooredTotal;
+  let leftover = target - flooredTotal;
   const order = [...raw].sort((a, b) => (b.remainder - a.remainder) || (a.i - b.i));
   const bonus = new Set();
   for (const r of order) { if (leftover <= 0) break; bonus.add(r.i); leftover -= 1; }
@@ -97,8 +157,12 @@ export function computePercentageDistribution(totalCount, allocations) {
 
 // ───────────────────────── method: manual ─────────────────────────
 
-/** Exact counts entered by the admin. Must sum to exactly the accepted-lead count — never auto-adjusted. */
-export function validateManualAllocations(totalCount, allocations) {
+/**
+ * Exact counts entered by the admin. The total must not EXCEED the available
+ * pool — it may be less (the rest stays unassigned); it no longer has to
+ * match exactly.
+ */
+export function validateManualAllocations(availableCount, allocations) {
   const errors = [];
   const ids = (allocations || []).map((a) => a.salesId);
   if (ids.length === 0) { errors.push({ code: "NO_SALES_SELECTED" }); return errors; }
@@ -109,54 +173,52 @@ export function validateManualAllocations(totalCount, allocations) {
   }
   if (errors.length > 0) return errors;
   const total = allocations.reduce((sum, a) => sum + Number(a.count), 0);
-  if (total !== totalCount) errors.push({ code: "MANUAL_TOTAL_MISMATCH", total, expected: totalCount });
+  if (total > availableCount) errors.push({ code: "MANUAL_EXCEEDS_AVAILABLE", total, available: availableCount });
   return errors;
 }
 
 export const DISTRIBUTION_METHODS = { PERCENTAGE: "percentage", EQUAL: "equal", MANUAL: "manual" };
 
 /**
- * Validates a distribution config against the accepted-lead count. Returns
+ * Validates a distribution config against the AVAILABLE pool size. Returns
  * an array of error codes (empty = valid) — same "codes, not strings"
  * convention utils/accounting.js's validateTransaction already uses, so the
- * UI localizes them, this never invents user-facing text.
+ * UI localizes them, this never invents user-facing text. `distributeCount`
+ * only matters for the "equal" method (the admin-chosen amount to split);
+ * it defaults to the whole available pool ("distribute all") when omitted.
  */
-export function validateDistribution({ method, totalCount, allocations }) {
-  if (totalCount <= 0) return [{ code: "NO_ACCEPTED_LEADS" }];
+export function validateDistribution({ method, availableCount, allocations, distributeCount }) {
+  if (availableCount <= 0) return [{ code: "NO_AVAILABLE_LEADS" }];
   if (method === DISTRIBUTION_METHODS.PERCENTAGE) return validatePercentageAllocations(allocations);
-  if (method === DISTRIBUTION_METHODS.MANUAL) return validateManualAllocations(totalCount, allocations);
-  if (method === DISTRIBUTION_METHODS.EQUAL) return (allocations || []).length === 0 ? [{ code: "NO_SALES_SELECTED" }] : [];
+  if (method === DISTRIBUTION_METHODS.MANUAL) return validateManualAllocations(availableCount, allocations);
+  if (method === DISTRIBUTION_METHODS.EQUAL) return validateEqualDistribution(availableCount, distributeCount ?? availableCount, allocations);
   return [{ code: "METHOD_INVALID" }];
 }
 
 /**
  * The per-sales-user {salesId, count} the confirmation preview shows, for
  * whichever method is selected. Callers should validateDistribution() first —
- * this does not re-validate (equal/manual pass counts through almost as-is;
- * percentage needs the conversion).
+ * this does not re-validate.
  */
-export function computeAllocationCounts({ method, totalCount, allocations }) {
-  if (method === DISTRIBUTION_METHODS.PERCENTAGE) return computePercentageDistribution(totalCount, allocations);
+export function computeAllocationCounts({ method, availableCount, allocations, distributeCount }) {
+  if (method === DISTRIBUTION_METHODS.PERCENTAGE) return computePercentageDistribution(availableCount, allocations);
   if (method === DISTRIBUTION_METHODS.MANUAL) return allocations.map((a) => ({ salesId: a.salesId, count: Number(a.count) }));
-  if (method === DISTRIBUTION_METHODS.EQUAL) return computeEqualDistribution(totalCount, allocations.map((a) => a.salesId));
+  if (method === DISTRIBUTION_METHODS.EQUAL) return computeEqualDistribution(distributeCount ?? availableCount, allocations.map((a) => a.salesId));
   return [];
 }
 
 // ───────────────────────── sequential assignment ─────────────────────────
 
 /**
- * The actual per-customer decision: walks `customerIds` IN ORDER (the "final
- * accepted lead list order" — see utils/leadImport.js's acceptedCustomers)
- * and slices it into contiguous ranges, one per allocation, IN THE ORDER the
- * allocations were configured (rep #1's range comes first, then rep #2's,
- * etc.) — never randomized. `salesNameById` resolves the display name once,
- * up front, so a later rename doesn't change what a completed distribution
- * recorded.
- *
- * Every customer id is assigned to EXACTLY one sales user — the ranges are
- * contiguous and non-overlapping, and their lengths always sum to
- * customerIds.length (guaranteed by validateDistribution + the count
- * functions above, both of which force the total to match exactly).
+ * The actual per-customer decision: walks `customerIds` IN ORDER (the
+ * available pool's stable import order) and slices it into contiguous
+ * ranges, one per allocation, IN THE ORDER the allocations were configured —
+ * never randomized. Whatever comes AFTER the last consumed slice (i.e.
+ * `customerIds.slice(sum(counts))`) is left completely untouched — this is
+ * exactly how a partial allocation naturally leaves the rest of the pool
+ * unassigned, with no extra bookkeeping needed. `salesNameById` resolves the
+ * display name once, up front, so a later rename doesn't change what a
+ * completed distribution recorded.
  */
 export function buildSequentialAssignments(customerIds, allocationCounts, salesNameById) {
   const assignments = [];
@@ -174,11 +236,11 @@ export function buildSequentialAssignments(customerIds, allocationCounts, salesN
 /**
  * Turns {customerId, toSalesId, toSalesName} decisions into the actual
  * customer-doc patches to write — SKIPPING any customer whose `assignedToId`
- * is already exactly that value (the no-op case). This is what makes a
- * retried/double-submitted distribution safe: recomputing the same
- * deterministic assignment and diffing against current data means a repeat
- * run only ever touches whatever didn't already get written, never anything
- * else, and never appends a duplicate history entry for an unchanged customer.
+ * is already exactly that value (the no-op case: never a history entry, never
+ * a write, for "assigning" someone to the Sales user they already have). This
+ * is also what makes a retried/double-submitted distribution safe: recomputing
+ * the same deterministic assignment and diffing against current data means a
+ * repeat run only ever touches whatever didn't already get written.
  *
  * `customerById(id)` resolves the CURRENT customer doc (for its existing
  * assignedToId/assignedToName, to build the history entry's "from" side).
@@ -216,18 +278,20 @@ export function chunkDistributionOps(ops, chunkSize = LEAD_DISTRIBUTION_CHUNK_SI
 
 /**
  * The full preview the confirmation UI shows: per-sales-user name/percent-or-
- * null/count, ready to render without the UI re-deriving any of the
- * arithmetic above.
+ * null/count, the total this operation would assign, and — critically — how
+ * many of the available pool would remain unassigned afterward, so the admin
+ * always sees that the rest isn't lost.
  */
-export function buildDistributionPreview({ method, totalCount, allocations, salesNameById }) {
-  const errors = validateDistribution({ method, totalCount, allocations });
-  if (errors.length > 0) return { errors, rows: [], totalAssigned: 0 };
-  const counts = computeAllocationCounts({ method, totalCount, allocations });
+export function buildDistributionPreview({ method, availableCount, allocations, distributeCount, salesNameById }) {
+  const errors = validateDistribution({ method, availableCount, allocations, distributeCount });
+  if (errors.length > 0) return { errors, rows: [], totalAssigned: 0, remaining: availableCount };
+  const counts = computeAllocationCounts({ method, availableCount, allocations, distributeCount });
   const rows = counts.map((c) => ({
     salesId: c.salesId,
     salesName: salesNameById(c.salesId) || c.salesId,
     percent: method === DISTRIBUTION_METHODS.PERCENTAGE ? c.percent : null,
     count: c.count,
   }));
-  return { errors: [], rows, totalAssigned: rows.reduce((s, r) => s + r.count, 0) };
+  const totalAssigned = rows.reduce((s, r) => s + r.count, 0);
+  return { errors: [], rows, totalAssigned, remaining: availableCount - totalAssigned };
 }

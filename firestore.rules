@@ -181,7 +181,12 @@ service cloud.firestore {
                will register in, sales notes, and the assigned employee. Still no
                archivedAt / authUid / createdAt, and still no delete. */
             'contactStatusId', 'contactStatusUpdatedAt', 'contactStatusUpdatedBy',
-            'plannedProgramId', 'notes', 'assignedToId', 'assignedToName'
+            'plannedProgramId', 'notes', 'assignedToId', 'assignedToName',
+            /* LEAD-DISTRIBUTION-01: a Sales-run import (see importBatches below) can also be this
+               customer's FIRST import — needs to write its own one-time importSequence/importBatchId
+               (see utils/leadImportCommit.js's needsSequence). Never rewritten after that. Distribution/
+               reassignment itself (assignmentHistory[]) stays admin-only — not added here. */
+            'importSequence', 'importBatchId'
           ]));
       allow delete: if isAdmin();
     }

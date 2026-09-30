@@ -362,7 +362,10 @@ console.log("8b. Follow-ups reuse the EXISTING follow-up system (customer-level,
 console.log("16. Sales permissions remain safe");
 {
   eq("every field the workflow writes is inside the Sales allow-list in firestore.rules", WORKFLOW_CUSTOMER_FIELDS.filter((f) => !SALES_CUSTOMER_ALLOW.includes(f)), []);
-  eq("the allow-list gained ONLY the 7 lead-workflow fields", SALES_CUSTOMER_ALLOW.filter((f) => !["fullName", "phone", "normalizedPhone", "secondaryPhones", "email", "normalizedEmail", "whatsapp", "updatedAt", "interestedProgramIds"].includes(f)).sort(), ["assignedToId", "assignedToName", "contactStatusId", "contactStatusUpdatedAt", "contactStatusUpdatedBy", "notes", "plannedProgramId"]);
+  // LEAD-DISTRIBUTION-01 added importSequence/importBatchId: a Sales-run import can be a customer's FIRST import
+  // too, and needs to write its own one-time sequence number (see utils/leadImportCommit.js's needsSequence) —
+  // still a precise, deliberate widening, not a broad one (assignmentHistory/distribution stay admin-only).
+  eq("the allow-list gained ONLY these 9 lead-workflow + distribution-sequencing fields", SALES_CUSTOMER_ALLOW.filter((f) => !["fullName", "phone", "normalizedPhone", "secondaryPhones", "email", "normalizedEmail", "whatsapp", "updatedAt", "interestedProgramIds"].includes(f)).sort(), ["assignedToId", "assignedToName", "contactStatusId", "contactStatusUpdatedAt", "contactStatusUpdatedBy", "importBatchId", "importSequence", "notes", "plannedProgramId"]);
   eq("Sales still cannot touch archivedAt / authUid / createdAt on a customer", ["archivedAt", "authUid", "createdAt"].filter((f) => SALES_CUSTOMER_ALLOW.includes(f)), []);
   check("customers: delete stays admin-only; create/read unchanged", /allow delete: if isAdmin\(\);/.test(customersBlock) && /allow create: if isAdmin\(\) \|\| isSalesStaff\(\);/.test(customersBlock) && /allow read: if isAdmin\(\) \|\| isSalesStaff\(\);/.test(customersBlock));
   const env = makeEnv();
