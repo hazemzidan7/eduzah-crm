@@ -380,11 +380,15 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
                   return (
                     <tr key={e.id} className={`edu-sheet-row${profileEngagementId === e.id ? " is-selected" : ""}`}>
                       <td style={stickyTd1}>
-                        <InlineText value={customer?.fullName} onSave={(v) => updateCustomer(customer.id, { fullName: v })} minWidth={130} size={16} />
+                        {/* SALES-VISIBILITY-01: customer can be null here for a Sales session when the engagement's
+                            owner differs from the customer's own assignedToId (firestore.rules now scopes a Sales
+                            session's customer reads to assignedToId==self) — guard so this degrades to a no-op
+                            instead of throwing. */}
+                        <InlineText value={customer?.fullName} onSave={(v) => customer && updateCustomer(customer.id, { fullName: v })} minWidth={130} size={16} />
                       </td>
                       <td style={stickyTd2}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
-                          <InlineText value={customer?.phone} onSave={(v) => updateCustomer(customer.id, { phone: v })} minWidth={100} size={12} dir="ltr" />
+                          <InlineText value={customer?.phone} onSave={(v) => customer && updateCustomer(customer.id, { phone: v })} minWidth={100} size={12} dir="ltr" />
                           {e164 && (
                             <>
                               <a href={`tel:${e164}`} title={tx("اتصال", "Call")} style={iconLinkSx}><IconPhone size={13} /></a>

@@ -51,7 +51,7 @@ export const canAccessCrm = (currentUser) =>
   currentUser?.role === "admin" || currentUser?.role === "sales";
 
 export function CustomerProvider({ children }) {
-  const { currentUser } = useAuth();
+  const { currentUser, users } = useAuth();
   const { nodeById: catalogNodeById } = useCatalog();
   const [customers, setCustomers] = useState([]);
   const [engagements, setEngagements] = useState([]);
@@ -60,8 +60,17 @@ export function CustomerProvider({ children }) {
   useEffect(() => {
     if (!canAccessCrm(currentUser)) { setCustomers([]); setEngagements([]); setLoading(false); return; }
     setLoading(true);
+    // SALES-VISIBILITY-01: a Sales session must never load the full customers
+    // collection into the browser and hide rows in React — firestore.rules'
+    // /customers read rule only allows a Sales session to read a document
+    // whose assignedToId is its own uid, so the query itself has to be
+    // scoped to match, or Firestore rejects the whole `list` request. Admin
+    // is unrestricted, same listener as before.
+    const customersRef = currentUser.role === "admin"
+      ? collection(db, "customers")
+      : query(collection(db, "customers"), where("assignedToId", "==", currentUser.id));
     const unsubCustomers = onSnapshot(
-      collection(db, "customers"),
+      customersRef,
       (snap) => { setCustomers(snap.docs.map((d) => ({ id: d.id, ...d.data() }))); setLoading(false); },
       (err) => { console.error("[CustomerContext] customers listener failed — check that firestore.rules is deployed to match this build.", err); setLoading(false); },
     );
@@ -381,6 +390,27 @@ export function CustomerProvider({ children }) {
 
   const updateEngagement = async (id, updates) => {
     await updateDoc(doc(db, "engagements", id), { ...updates, updatedAt: new Date().toISOString() });
+    // SALES-VISIBILITY-01: engagement.ownerId ("الموظف المسؤول" on Engagement Detail) is a second place
+    // "who's responsible" can be set, independent of customers/{id}.assignedToId. A Sales session's customers
+    // read is now scoped to assignedToId==self, so if these two ever drift, the new owner loses visibility
+    // into the very customer they were just assigned — keep assignedToId following the engagement's owner,
+    // same single ownership field, never a second one. Only synced when this is the customer's ONLY
+    // non-archived engagement: with more than one, which owner "wins" isn't decidable here, so this leaves
+    // assignedToId untouched rather than guess (no worse than before this change).
+    if (Object.prototype.hasOwnProperty.call(updates, "ownerId")) {
+      const engagement = engagementById(id);
+      if (engagement?.customerId) {
+        const active = engagementsForCustomer(engagement.customerId).filter((e) => !e.archivedAt);
+        if (active.length <= 1) {
+          const ownerName = updates.ownerId ? ((users || []).find((u) => u.id === updates.ownerId)?.name || null) : null;
+          await updateDoc(doc(db, "customers", engagement.customerId), {
+            assignedToId: updates.ownerId || null,
+            assignedToName: ownerName,
+            updatedAt: new Date().toISOString(),
+          }).catch(() => {});
+        }
+      }
+    }
   };
 
   const changeEngagementStatus = async (id, newStatusId) => {

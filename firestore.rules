@@ -168,7 +168,19 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     match /customers/{id} {
-      allow read: if isAdmin() || isSalesStaff();
+      /* SALES-VISIBILITY-01: a Sales session may only read a customer it is
+         the assigned owner of — enforced here (not just hidden in the UI),
+         so a Sales session cannot read another rep's or an unassigned lead
+         via devtools/a raw query either. This is why CustomerContext's
+         customers listener queries `where('assignedToId','==',uid)` for a
+         Sales session instead of the whole collection: Firestore only
+         allows a `list` request when the query itself is provably
+         constrained to what the rule permits, so the client query and this
+         rule must agree. Once a customer is registered (has an engagement),
+         the existing engagements/followUps/paymentRecords rules — untouched
+         by this change — remain the Sales access path for that work; this
+         rule only governs the raw customers/{id} document. */
+      allow read: if isAdmin() || (isSalesStaff() && resource.data.get('assignedToId', null) == request.auth.uid);
       allow create: if isAdmin() || isSalesStaff();
       allow update: if isAdmin()
         || (isSalesStaff()
@@ -257,19 +269,19 @@ service cloud.firestore {
     match /dictionaries/{id}            { allow read, write: if isAdmin(); }
     match /importProfiles/{id}          { allow read, write: if isAdmin(); }
     match /importProfileVersions/{id}   { allow read, write: if isAdmin(); }
-    /* LEAD-IMPORT-01: bulk "عملاء جدد" imports. Sales may only TRACK their own
-       customer-lead import (create the batch, then finalize its counters) —
-       the batch carries no engagement/payment/accounting data, and Sales still
-       cannot read, rewrite, or delete any batch. Program imports (no kind)
-       stay admin-only. */
+    /* LEAD-IMPORT-01 / SALES-VISIBILITY-01: bulk "عملاء جدد" imports are now
+       admin-only end to end. A Sales session's own customers listener is
+       scoped to `assignedToId==me` (see the customers rule above), so it can
+       no longer see the full customer base an import needs to dedupe
+       against — a Sales-run import would silently create duplicate customer
+       records for any phone it can't see. Import stays part of the
+       admin-driven "import → distribute" flow; Sales still works whatever
+       is assigned to it. The old Sales-create branch here is removed, not
+       just hidden in the UI, for the same reason as the customers rule
+       above. */
     match /importBatches/{id} {
       allow read: if isAdmin();
-      allow create: if isAdmin()
-        || (isSalesStaff()
-          && request.resource.data.get('kind', '') == 'customer_leads'
-          && request.resource.data.get('importedBy', '') == request.auth.uid
-          && request.resource.data.get('status', '') == 'committing'
-          && request.resource.data.get('createdEngagementIds', []).size() == 0);
+      allow create: if isAdmin();
       allow update: if isAdmin()
         || (isSalesStaff()
           && resource.data.get('kind', '') == 'customer_leads'

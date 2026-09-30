@@ -242,7 +242,10 @@ export default function EngagementDetailModal({ engagement, onClose }) {
     setSaving(true);
     try {
       const { fullName, phone, email, whatsapp, ...sp } = profileDraft;
-      await updateCustomer(customer.id, { fullName, phone, email, whatsapp });
+      // SALES-VISIBILITY-01: customer can be null for a Sales session whose customers read is scoped to
+      // assignedToId==self (firestore.rules) when this engagement's owner differs from it — skip the
+      // customer-doc write rather than throw; the engagement-level studentProfile still saves.
+      if (customer) await updateCustomer(customer.id, { fullName, phone, email, whatsapp });
       await updateEngagement(engagement.id, { studentProfile: sp });
       setEditingProfile(false);
       setProfileDraft(null);

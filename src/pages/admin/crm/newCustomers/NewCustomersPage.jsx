@@ -167,7 +167,7 @@ export default function NewCustomersPage() {
               style={{ background: "#fff", border: `1.5px solid ${C.border}`, borderRadius: 10, paddingBlock: 9, paddingInlineStart: 34, paddingInlineEnd: 14, fontFamily: "'Cairo',sans-serif", fontSize: 12.5, outline: "none", minWidth: 220 }}
             />
           </div>
-          <Btn v="ghost" onClick={() => setImporting((v) => !v)}>{tx("رفع ملف Excel", "Upload Excel file")}</Btn>
+          {isAdmin && <Btn v="ghost" onClick={() => setImporting((v) => !v)}>{tx("رفع ملف Excel", "Upload Excel file")}</Btn>}
           {isAdmin && <Btn v="primary" onClick={startDistribute}>{tx("توزيع العملاء على السيلز", "Distribute leads to Sales")}</Btn>}
           <Btn v="primary" onClick={() => setAdding(true)}>+ {tx("إضافة عميل جديد", "Add New Customer")}</Btn>
         </div>
@@ -279,7 +279,7 @@ export default function NewCustomersPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((c) => {
+                {rows.map((c, rowIndex) => {
                   const e164 = toE164Phone(c.phone);
                   const status = currentStatusOf(c);
                   const key = statusKeyOf(c);
@@ -300,7 +300,11 @@ export default function NewCustomersPage() {
                           />
                         </td>
                       )}
-                      <td style={{ ...td, color: C.muted, fontWeight: 700 }}>{c.importSequence ?? "—"}</td>
+                      {/* Display sequence: 1..N over the currently visible (filtered/sorted) rows — never the raw
+                          per-import c.importSequence, which restarts per batch and isn't meaningful as a row number
+                          once multiple imports or filters are involved. See selectNewCustomers' own deterministic
+                          createdAt-descending sort for why this is stable across re-renders. */}
+                      <td style={{ ...td, color: C.muted, fontWeight: 700 }}>{rowIndex + 1}</td>
                       <td style={{ ...td, fontWeight: 800 }}>
                         {c.fullName || <span style={{ color: C.muted, fontWeight: 600 }}>{tx("بدون اسم", "No name")}</span>}
                         {c.notes && <div style={{ fontWeight: 500, fontSize: 11, color: C.muted, marginTop: 2, maxWidth: 220, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={c.notes}>{c.notes}</div>}

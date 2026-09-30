@@ -367,7 +367,10 @@ console.log("16. Sales permissions remain safe");
   // still a precise, deliberate widening, not a broad one (assignmentHistory/distribution stay admin-only).
   eq("the allow-list gained ONLY these 9 lead-workflow + distribution-sequencing fields", SALES_CUSTOMER_ALLOW.filter((f) => !["fullName", "phone", "normalizedPhone", "secondaryPhones", "email", "normalizedEmail", "whatsapp", "updatedAt", "interestedProgramIds"].includes(f)).sort(), ["assignedToId", "assignedToName", "contactStatusId", "contactStatusUpdatedAt", "contactStatusUpdatedBy", "importBatchId", "importSequence", "notes", "plannedProgramId"]);
   eq("Sales still cannot touch archivedAt / authUid / createdAt on a customer", ["archivedAt", "authUid", "createdAt"].filter((f) => SALES_CUSTOMER_ALLOW.includes(f)), []);
-  check("customers: delete stays admin-only; create/read unchanged", /allow delete: if isAdmin\(\);/.test(customersBlock) && /allow create: if isAdmin\(\) \|\| isSalesStaff\(\);/.test(customersBlock) && /allow read: if isAdmin\(\) \|\| isSalesStaff\(\);/.test(customersBlock));
+  // SALES-VISIBILITY-01: read is now scoped to assignedToId==self for Sales (create is unchanged —
+  // single "+ إضافة عميل جديد" adds still go through the same dedup-then-create path as before).
+  check("customers: delete stays admin-only; create unchanged", /allow delete: if isAdmin\(\);/.test(customersBlock) && /allow create: if isAdmin\(\) \|\| isSalesStaff\(\);/.test(customersBlock));
+  check("customers: read scoped to assignedToId==self for Sales, not a blanket allow", customersBlock.includes("resource.data.get('assignedToId', null) == request.auth.uid") && !/allow read: if isAdmin\(\) \|\| isSalesStaff\(\);/.test(customersBlock));
   const env = makeEnv();
   let denied = null;
   try { await env.patchCustomer("c1", { archivedAt: "2026-09-19" }); } catch (e) { denied = e.message; }

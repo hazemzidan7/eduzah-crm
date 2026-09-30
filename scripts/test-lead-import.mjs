@@ -370,8 +370,10 @@ console.log("Permissions / Firestore rules");
   const block = rules.slice(rules.indexOf("match /importBatches/{id}"), rules.indexOf("match /accountingEvents"));
   check("importBatches: read stays admin-only", /allow read: if isAdmin\(\);/.test(block));
   check("importBatches: delete stays admin-only", /allow delete: if isAdmin\(\);/.test(block));
-  check("importBatches: Sales create limited to their OWN customer_leads batch", block.includes("get('kind', '') == 'customer_leads'") && block.includes("get('importedBy', '') == request.auth.uid") && block.includes("get('status', '') == 'committing'"));
-  check("importBatches: Sales create cannot carry engagements", block.includes("get('createdEngagementIds', []).size() == 0"));
+  // SALES-VISIBILITY-01: bulk import is admin-only now — a Sales session's customers read is scoped to
+  // assignedToId==self, so it can no longer dedupe an import against the full customer base.
+  check("importBatches: create is admin-only (no Sales branch)", /allow create: if isAdmin\(\);\s*\n\s*allow update:/.test(block));
+  check("importBatches: update still has a Sales counter-only branch (inert once create is admin-only, left as-is)", block.includes("get('kind', '') == 'customer_leads'"));
   check("importBatches: Sales update limited to a counter allow-list", /hasOnly\(\[[^\]]*'status'[^\]]*'interestsAddedCount'[^\]]*\]\)/.test(block) && !/hasOnly\(\[[^\]]*'importedBy'/.test(block));
   check("importBatches: no accounting role clause anywhere", !/isAccountingStaff/.test(block));
   const customersBlock = rules.slice(rules.indexOf("match /customers/{id}"), rules.indexOf("match /engagements/{id}"));
