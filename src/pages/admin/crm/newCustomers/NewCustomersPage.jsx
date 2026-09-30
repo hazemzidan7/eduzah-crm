@@ -9,7 +9,7 @@ import { useFollowUps } from "../../../../context/FollowUpContext";
 import { IconSearch, IconPhone, IconWhatsapp } from "../../../../components/Icons";
 import { toE164Phone } from "../../../../utils/phoneE164";
 import { customerInterestedProgramIds } from "../../../../utils/interestedPrograms";
-import { selectNewCustomers, REGISTRATION_STATUS_KEYS } from "../../../../utils/newCustomerWorkflow";
+import { selectNewCustomers, REGISTRATION_STATUS_KEYS, WORKFLOW_STATUS_KEYS } from "../../../../utils/newCustomerWorkflow";
 import { FOLLOW_UP_STATUSES } from "../../../../utils/followUps";
 import { InterestedProgramChips, INTEREST_ONLY_NOTE_AR, INTEREST_ONLY_NOTE_EN } from "../../../../components/crm/InterestedPrograms";
 import LeadStatusBadge from "../../../../components/crm/LeadStatusBadge";
@@ -20,6 +20,16 @@ import LeadExcelImportPanel from "./LeadExcelImportPanel";
 import EditNewCustomerModal from "./EditNewCustomerModal";
 import ContactOutcomeModal from "./ContactOutcomeModal";
 import RegisterCustomerModal from "./RegisterCustomerModal";
+import DistributeLeadsPanel from "./DistributeLeadsPanel";
+
+function Stat({ label, value, tone }) {
+  return (
+    <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 12px", background: "#fff" }}>
+      <div style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: 20, fontWeight: 900, color: tone || C.text }}>{value}</div>
+    </div>
+  );
+}
 
 const th = { textAlign: "start", fontSize: 10.5, letterSpacing: 0.4, textTransform: "uppercase", color: "#475569", fontWeight: 800, padding: "11px 14px", borderBottom: `1px solid ${C.border}`, background: "#F8FAFC", whiteSpace: "nowrap" };
 const td = { padding: "10px 14px", fontSize: 12.5, borderBottom: "1px solid #E2E8F0", verticalAlign: "middle" };
@@ -39,11 +49,12 @@ export default function NewCustomersPage() {
   const { lang } = useLang();
   const ar = lang === "ar";
   const tx = (a, e) => (ar ? a : e);
-  const { users } = useAuth();
+  const { users, currentUser } = useAuth();
   const { nodeById } = useCatalog();
   const { customers, engagements, customerById, loading } = useCustomers();
   const { followUps } = useFollowUps();
   const { statusKeyOf, currentStatusOf } = useNewCustomerWorkflow();
+  const isAdmin = currentUser?.role === "admin";
 
   const [search, setSearch] = useState("");
   const [adding, setAdding] = useState(false);
@@ -52,8 +63,12 @@ export default function NewCustomersPage() {
   const [contactId, setContactId] = useState(null);
   const [registeringId, setRegisteringId] = useState(null);
   const [followUpId, setFollowUpId] = useState(null);
+  const [mineOnly, setMineOnly] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [reassigning, setReassigning] = useState(false);
 
-  const rows = useMemo(() => selectNewCustomers(customers, engagements, { search }), [customers, engagements, search]);
+  const allRows = useMemo(() => selectNewCustomers(customers, engagements, { search }), [customers, engagements, search]);
+  const rows = useMemo(() => (mineOnly && currentUser?.id ? allRows.filter((c) => c.assignedToId === currentUser.id) : allRows), [allRows, mineOnly, currentUser?.id]);
 
   // The soonest pending follow-up per customer (a Sales session only receives its own — see firestore.rules).
   const nextFollowUpByCustomer = useMemo(() => {
@@ -65,6 +80,18 @@ export default function NewCustomersPage() {
     }
     return map;
   }, [followUps]);
+
+  // "عملائي" mini-dashboard — reuses the EXISTING Lead Status workflow keys and the follow-up/engagement data
+  // already loaded on this page; no new status system, no separate collection.
+  const myStats = useMemo(() => {
+    if (!currentUser?.id) return null;
+    const mine = allRows.filter((c) => c.assignedToId === currentUser.id);
+    const byKey = Object.fromEntries(WORKFLOW_STATUS_KEYS.map((k) => [k, 0]));
+    for (const c of mine) { const k = statusKeyOf(c); if (byKey[k] !== undefined) byKey[k] += 1; }
+    const followUpCount = mine.filter((c) => nextFollowUpByCustomer.has(c.id)).length;
+    const registered = (engagements || []).filter((e) => !e.archivedAt && e.ownerId === currentUser.id).length;
+    return { total: mine.length, followUpCount, registered, byKey };
+  }, [allRows, currentUser?.id, engagements, statusKeyOf, nextFollowUpByCustomer]);
 
   const editing = editingId ? customerById(editingId) : null;
   const contacting = contactId ? customerById(contactId) : null;
@@ -95,12 +122,53 @@ export default function NewCustomersPage() {
               style={{ background: "#fff", border: `1.5px solid ${C.border}`, borderRadius: 10, paddingBlock: 9, paddingInlineStart: 34, paddingInlineEnd: 14, fontFamily: "'Cairo',sans-serif", fontSize: 12.5, outline: "none", minWidth: 220 }}
             />
           </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12.5, fontWeight: 700, color: C.muted, cursor: "pointer" }}>
+            <input type="checkbox" checked={mineOnly} onChange={(e) => setMineOnly(e.target.checked)} />
+            {tx("عملائي فقط", "My customers only")}
+          </label>
           <Btn v="ghost" onClick={() => setImporting((v) => !v)}>{tx("رفع ملف Excel", "Upload Excel file")}</Btn>
           <Btn v="primary" onClick={() => setAdding(true)}>+ {tx("إضافة عميل جديد", "Add New Customer")}</Btn>
         </div>
       </div>
 
+      {mineOnly && myStats && (
+        <Card style={{ padding: 14, marginBottom: 14 }}>
+          <div style={{ fontWeight: 900, fontSize: 13, marginBottom: 10 }}>{tx("عملائي", "My customers")}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 8 }}>
+            <Stat label={tx("إجمالي المسندين", "Total assigned")} value={myStats.total} tone={C.red} />
+            <Stat label={tx("لم يتم التواصل", "Not contacted")} value={myStats.byKey.not_contacted} />
+            <Stat label={tx("متابعات مجدولة", "Scheduled follow-ups")} value={myStats.followUpCount} />
+            <Stat label={tx("مهتم", "Interested")} value={myStats.byKey.interested} />
+            <Stat label={tx("بيفكر", "Thinking")} value={myStats.byKey.thinking} />
+            <Stat label={tx("هيحجز", "Will register")} value={myStats.byKey.will_book} />
+            <Stat label={tx("غير مهتم", "Not interested")} value={myStats.byKey.not_interested} />
+            <Stat label={tx("تم التسجيل", "Registered")} value={myStats.registered} tone={C.success} />
+          </div>
+        </Card>
+      )}
+
       {importing && <LeadExcelImportPanel onClose={() => setImporting(false)} />}
+
+      {isAdmin && selectedIds.size > 0 && (
+        <Card style={{ padding: "10px 14px", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 700 }}>{tx(`تم تحديد ${selectedIds.size} عميل`, `${selectedIds.size} customers selected`)}</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Btn sm v="ghost" onClick={() => setSelectedIds(new Set())}>{tx("إلغاء التحديد", "Clear selection")}</Btn>
+            <Btn sm v="primary" onClick={() => setReassigning(true)}>{tx("إعادة توزيع", "Redistribute")}</Btn>
+          </div>
+        </Card>
+      )}
+
+      {reassigning && (
+        <DistributeLeadsPanel
+          customerIds={[...selectedIds]}
+          sourceBatchId={null}
+          heading={tx("إعادة توزيع العملاء المحددين", "Reassign selected customers")}
+          showReassignmentDetail
+          currentOwnerById={(id) => assignedLabel(customerById(id))}
+          onClose={() => { setReassigning(false); setSelectedIds(new Set()); }}
+        />
+      )}
 
       {loading ? (
         <Card style={{ padding: 32, textAlign: "center" }}><div style={{ color: C.muted }}>{tx("جاري التحميل…", "Loading…")}</div></Card>
@@ -112,6 +180,15 @@ export default function NewCustomersPage() {
             <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
               <thead>
                 <tr>
+                  {isAdmin && (
+                    <th style={th}>
+                      <input
+                        type="checkbox"
+                        checked={rows.length > 0 && rows.every((c) => selectedIds.has(c.id))}
+                        onChange={(e) => setSelectedIds(e.target.checked ? new Set(rows.map((c) => c.id)) : new Set())}
+                      />
+                    </th>
+                  )}
                   <th style={th}>{tx("الاسم", "Name")}</th>
                   <th style={th}>{tx("الهاتف", "Phone")}</th>
                   <th style={th}>{tx("الكورسات المهتم بيها", "Interested Programs")}</th>
@@ -130,6 +207,19 @@ export default function NewCustomersPage() {
                   const plannedProgram = c.plannedProgramId ? nodeById(c.plannedProgramId) : null;
                   return (
                     <tr key={c.id} className="edu-sheet-row">
+                      {isAdmin && (
+                        <td style={td}>
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(c.id)}
+                            onChange={(e) => setSelectedIds((prev) => {
+                              const next = new Set(prev);
+                              if (e.target.checked) next.add(c.id); else next.delete(c.id);
+                              return next;
+                            })}
+                          />
+                        </td>
+                      )}
                       <td style={{ ...td, fontWeight: 800 }}>
                         {c.fullName || <span style={{ color: C.muted, fontWeight: 600 }}>{tx("بدون اسم", "No name")}</span>}
                         {c.notes && <div style={{ fontWeight: 500, fontSize: 11, color: C.muted, marginTop: 2, maxWidth: 220, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={c.notes}>{c.notes}</div>}

@@ -513,6 +513,12 @@ export async function planLeadImport({
   // ── resolve each unique phone against the customers that already exist ──
   const customersToCreate = [];
   const customersToUpdate = [];
+  // Every ACCEPTED lead (created, updated, or already existing with nothing new to write), one entry per unique
+  // phone, in the order its phone was FIRST seen in the file — never randomized, never re-sorted. This is the
+  // "final accepted lead list order" that Sales distribution slices into ranges; ambiguous/archived matches (see
+  // `skippedGroups` below) never reach this array. `customerId` is null for a "create" entry — the real Firestore
+  // id only exists after the commit step (see utils/leadImportCommit.js's acceptedCustomerIds).
+  const acceptedCustomers = [];
   let unchangedExisting = 0, missingNameCustomers = 0, newInterests = 0, notesApplied = 0;
   const skippedGroups = new Map(); // key -> reason
   const rowsByGroup = new Map();
@@ -541,10 +547,12 @@ export async function planLeadImport({
       if (noteBlock && nextNotes !== (c.notes ?? "")) { patch.notes = nextNotes; notesApplied += 1; }
       if (Object.keys(patch).length > 0) {
         customersToUpdate.push({ customerId: c.id, phone: c.phone, patch, addedInterestIds: added, filledName: fillName, sourceRows: group.rows });
+        acceptedCustomers.push({ key: group.key, kind: "update", customerId: c.id });
         newInterests += added.length;
         setOutcome("update");
       } else {
         unchangedExisting += 1;
+        acceptedCustomers.push({ key: group.key, kind: "unchanged", customerId: c.id });
         setOutcome("existing_unchanged");
       }
       if (!cleanWhitespace(c.fullName) && !group.name) missingNameCustomers += 1;
@@ -565,6 +573,7 @@ export async function planLeadImport({
       ...(noteBlock ? { notes: noteBlock } : {}),
       sourceRows: group.rows,
     });
+    acceptedCustomers.push({ key: group.key, kind: "create", customerId: null });
     if (noteBlock) notesApplied += 1;
     newInterests += wanted.length;
     if (!group.name) missingNameCustomers += 1;
@@ -583,6 +592,7 @@ export async function planLeadImport({
     rows: rowResults,
     customersToCreate,
     customersToUpdate,
+    acceptedCustomers,
     unmatchedPrograms: [...unmatchedTokens.values()].map((u) => ({ ...u, count: u.rows.length })),
     matchedPrograms,
     stats: {

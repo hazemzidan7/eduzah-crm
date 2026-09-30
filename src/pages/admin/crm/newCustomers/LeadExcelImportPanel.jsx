@@ -7,6 +7,7 @@ import { parseWorkbookFileWithRowNumbers } from "../../../../utils/importEngine/
 import { detectColumns, MAX_IMPORT_ROWS } from "../../../../utils/leadImport";
 import { useLeadImportCommit } from "../../../../hooks/useLeadImportCommit";
 import { InterestedProgramsPicker } from "../../../../components/crm/InterestedPrograms";
+import DistributeLeadsPanel from "./DistributeLeadsPanel";
 
 const th = { textAlign: "start", fontSize: 10.5, letterSpacing: 0.4, textTransform: "uppercase", color: "#475569", fontWeight: 800, padding: "9px 12px", borderBottom: `1px solid ${C.border}`, background: "#F8FAFC", whiteSpace: "nowrap" };
 const td = { padding: "8px 12px", fontSize: 12, borderBottom: "1px solid #E2E8F0", verticalAlign: "top" };
@@ -85,6 +86,7 @@ export default function LeadExcelImportPanel({ onClose }) {
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [result, setResult] = useState(null);
+  const [distributing, setDistributing] = useState(false);
   const planRun = useRef(0);
   const fileInput = useRef(null);
 
@@ -197,7 +199,7 @@ export default function LeadExcelImportPanel({ onClose }) {
     }
   };
 
-  const reset = () => { setParsed(null); setPlan(null); setResult(null); setParseError(""); setNotice(""); setTokenOverrides({}); setBatchProgramIds([]); setSharedNote(""); setAppliedNote(""); };
+  const reset = () => { setParsed(null); setPlan(null); setResult(null); setParseError(""); setNotice(""); setTokenOverrides({}); setBatchProgramIds([]); setSharedNote(""); setAppliedNote(""); setDistributing(false); };
 
   return (
     <Card style={{ padding: 18, marginBottom: 16, border: `1.5px solid ${C.red}33` }}>
@@ -449,7 +451,17 @@ export default function LeadExcelImportPanel({ onClose }) {
           {result.errors?.map((e, i) => (
             <div key={i} style={{ color: C.danger, fontSize: 12 }}>{e.code}{e.from ? ` (${e.from}–${e.to})` : ""}: {e.message}</div>
           ))}
-          <div style={{ marginTop: 10 }}><Btn v="ghost" onClick={reset}>{tx("استيراد ملف آخر", "Import another file")}</Btn></div>
+          <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <Btn v="ghost" onClick={reset}>{tx("استيراد ملف آخر", "Import another file")}</Btn>
+            {!result.aborted && (result.acceptedCustomerIds?.length || 0) > 0 && !distributing && (
+              <Btn v="primary" onClick={() => setDistributing(true)}>{tx("توزيع العملاء على السيلز", "Distribute leads to sales")}</Btn>
+            )}
+          </div>
+          {distributing && (
+            <div style={{ marginTop: 12 }}>
+              <DistributeLeadsPanel customerIds={result.acceptedCustomerIds} sourceBatchId={result.batchId} onClose={() => setDistributing(false)} />
+            </div>
+          )}
         </div>
       )}
     </Card>

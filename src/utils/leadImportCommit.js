@@ -22,7 +22,7 @@ const yieldToUi = () => new Promise((resolve) => setTimeout(resolve, 0));
  * No engagement, payment, accounting transaction, catalog node, lead status,
  * or user record is reachable from here.
  *
- * Returns { batchId, createdCustomers, updatedCustomers, addedInterests, failedChunks, errors, droppedInvalidInterests, aborted, nothingToDo? }.
+ * Returns { batchId, createdCustomers, updatedCustomers, addedInterests, failedChunks, errors, droppedInvalidInterests, aborted, acceptedCustomerIds, nothingToDo? }.
  */
 export async function runLeadImportCommit({
   plan, fileName, customers, nodeById,
@@ -30,6 +30,15 @@ export async function runLeadImportCommit({
   onProgress, chunkSize = LEAD_IMPORT_CHUNK_SIZE, now = new Date().toISOString(),
 }) {
   const errors = [];
+
+  // Every ACCEPTED lead's REAL Firestore id, in the plan's original order (see leadImport.js's acceptedCustomers) —
+  // an existing/updated customer's id was already known at plan time; a newly-created one only exists once its
+  // chunk actually commits, so a create whose chunk failed is correctly left out (it was never written). Feeds
+  // Sales distribution's sequential range assignment; nothing here writes anything by itself.
+  const buildAcceptedCustomerIds = (createdKeyToId) =>
+    (plan.acceptedCustomers || [])
+      .map((entry) => (entry.kind === "create" ? createdKeyToId.get(entry.key) : entry.customerId))
+      .filter(Boolean);
 
   // Last line of defence: a NEW interest must be an active catalog Program (the planner only ever matches those,
   // but nothing that isn't one may reach Firestore). Ids already stored on a customer are kept untouched.
@@ -40,6 +49,7 @@ export async function runLeadImportCommit({
     droppedInvalidInterests += invalid.length;
     ops.push({
       type: "create",
+      key: c.key,
       label: c.phone,
       interests: valid.length,
       data: buildCustomerDoc({ fullName: c.fullName, phone: c.phone, secondaryPhones: c.secondaryPhones, notes: c.notes }, { now, interestedProgramIds: valid }),
@@ -62,7 +72,7 @@ export async function runLeadImportCommit({
   }
 
   if (ops.length === 0) {
-    return { batchId: null, createdCustomers: 0, updatedCustomers: 0, addedInterests: 0, failedChunks: 0, errors, droppedInvalidInterests, aborted: false, nothingToDo: true };
+    return { batchId: null, createdCustomers: 0, updatedCustomers: 0, addedInterests: 0, failedChunks: 0, errors, droppedInvalidInterests, aborted: false, acceptedCustomerIds: buildAcceptedCustomerIds(new Map()), nothingToDo: true };
   }
 
   // Tracking doc first. If it can't be created we stop BEFORE writing any customer, so nothing is ever imported untracked.
@@ -71,11 +81,12 @@ export async function runLeadImportCommit({
     batchId = await createBatch({ kind: "customer_leads", fileName });
   } catch (e) {
     errors.push({ code: "BATCH_CREATE_FAILED", message: e?.message || String(e) });
-    return { batchId: null, createdCustomers: 0, updatedCustomers: 0, addedInterests: 0, failedChunks: 0, errors, droppedInvalidInterests, aborted: true };
+    return { batchId: null, createdCustomers: 0, updatedCustomers: 0, addedInterests: 0, failedChunks: 0, errors, droppedInvalidInterests, aborted: true, acceptedCustomerIds: buildAcceptedCustomerIds(new Map()) };
   }
 
   const createdCustomerIds = [];
   const updatedCustomerIds = [];
+  const createdKeyToId = new Map();
   let createdCustomers = 0, updatedCustomers = 0, addedInterests = 0, failedChunks = 0, errorCount = 0;
 
   for (let start = 0; start < ops.length; start += chunkSize) {
@@ -86,6 +97,10 @@ export async function runLeadImportCommit({
       const newIds = await commitLeadImportChunk(chunk);
       createdCustomerIds.push(...newIds);
       createdCustomers += newIds.length;
+      // `newIds` is in the same order as this chunk's create-type ops (see CustomerContext.commitLeadImportChunk) —
+      // pair each one back to its plan `key` so acceptedCustomerIds can resolve a "create" entry to its real id.
+      const createOpsInChunk = chunk.filter((op) => op.type === "create");
+      createOpsInChunk.forEach((op, i) => createdKeyToId.set(op.key, newIds[i]));
       for (const op of chunk) {
         if (op.type === "update") { updatedCustomers += 1; updatedCustomerIds.push(op.id); }
         addedInterests += op.interests;
@@ -115,5 +130,5 @@ export async function runLeadImportCommit({
     errors.push({ code: "BATCH_FINALIZE_FAILED", message: e?.message || String(e) });
   }
 
-  return { batchId, createdCustomers, updatedCustomers, addedInterests, failedChunks, errors, droppedInvalidInterests, aborted: false };
+  return { batchId, createdCustomers, updatedCustomers, addedInterests, failedChunks, errors, droppedInvalidInterests, aborted: false, acceptedCustomerIds: buildAcceptedCustomerIds(createdKeyToId) };
 }
