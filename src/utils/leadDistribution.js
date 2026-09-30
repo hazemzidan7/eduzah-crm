@@ -21,7 +21,16 @@
  * DETERMINISM — every function here is a pure computation over its inputs:
  * the same available-lead order + the same distribution config always
  * produces the exact same per-customer assignment. Nothing is randomized.
+ *
+ * COURSE-BASED FILTERING (additive) — selectLeadsByInterestedPrograms() below
+ * is the ONLY course-related addition: a plain, order-preserving membership
+ * filter over an already-built pool. It produces an ordered subset of
+ * customer ids that is then handed, completely unchanged, to the exact same
+ * computeAllocationCounts/buildSequentialAssignments/buildAssignmentPatches
+ * functions every other distribution already uses — there is no second
+ * assignment engine.
  */
+import { customerInterestedProgramIds } from "./interestedPrograms";
 
 /** Firestore's own writeBatch() hard limit is 500 ops/batch — same ceiling utils/leadImportCommit.js already respects. */
 export const LEAD_DISTRIBUTION_CHUNK_SIZE = 400;
@@ -75,6 +84,24 @@ export function computeDistributionStats(newCustomers) {
  */
 export function selectUnassignedLeads(newCustomers) {
   return (newCustomers || []).filter((c) => !c.assignedToId).sort(compareByImportOrder);
+}
+
+/**
+ * Narrows an ORDERED pool of customer ids down to those interested in at
+ * least one of `programIds` — using the customer's EXISTING, unmodified
+ * `interestedProgramIds` purely as a read-only filter (never touched,
+ * never converted into an engagement/registration/payment). Order is
+ * preserved (a plain Array.filter never reorders), and a customer with
+ * SEVERAL matching interests still appears exactly once, since it is only
+ * ever visited once in the input pool — no separate dedup step is needed.
+ * `programIds` empty/nullish means "no course filter" — returns the pool
+ * unchanged, so this is fully opt-in and never alters the normal (non
+ * course-based) distribution path.
+ */
+export function selectLeadsByInterestedPrograms(customerIds, programIds, customerById) {
+  if (!programIds || programIds.length === 0) return [...(customerIds || [])];
+  const wanted = new Set(programIds);
+  return (customerIds || []).filter((id) => customerInterestedProgramIds(customerById(id)).some((pid) => wanted.has(pid)));
 }
 
 // ───────────────────────── method: equal ─────────────────────────

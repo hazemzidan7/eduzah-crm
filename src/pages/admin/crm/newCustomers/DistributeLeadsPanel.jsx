@@ -3,8 +3,9 @@ import { Card, Btn, PBar } from "../../../../components/UI";
 import { C } from "../../../../theme";
 import { useLang } from "../../../../context/LangContext";
 import { useCustomers } from "../../../../context/CustomerContext";
+import { useCatalog } from "../../../../context/CatalogContext";
 import { useLeadDistribution } from "../../../../hooks/useLeadDistribution";
-import { DISTRIBUTION_METHODS, buildDistributionPreview } from "../../../../utils/leadDistribution";
+import { DISTRIBUTION_METHODS, buildDistributionPreview, selectLeadsByInterestedPrograms } from "../../../../utils/leadDistribution";
 
 const selectSx = { background: "#fff", border: `1.5px solid ${C.border}`, borderRadius: 8, padding: "7px 10px", fontFamily: "'Cairo',sans-serif", fontSize: 12.5, outline: "none", width: 90 };
 const th = { textAlign: "start", fontSize: 10.5, letterSpacing: 0.4, textTransform: "uppercase", color: "#475569", fontWeight: 800, padding: "9px 12px", borderBottom: `1px solid ${C.border}`, background: "#F8FAFC", whiteSpace: "nowrap" };
@@ -52,6 +53,7 @@ export default function LeadDistributionPanel({ customerIds, sourceBatchId = nul
   const ar = lang === "ar";
   const tx = (a, e) => (ar ? a : e);
   const { customerById } = useCustomers();
+  const { nodes } = useCatalog();
   const { activeSalesUsers, salesNameById, distributeLeads } = useLeadDistribution();
 
   const [method, setMethod] = useState(DISTRIBUTION_METHODS.PERCENTAGE);
@@ -62,6 +64,18 @@ export default function LeadDistributionPanel({ customerIds, sourceBatchId = nul
   const [committing, setCommitting] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [result, setResult] = useState(null);
+  // Additive, opt-in course-based filter (see utils/leadDistribution.js's selectLeadsByInterestedPrograms) — "normal"
+  // never changes anything below; the percentage/equal/manual engine is completely unaware this exists.
+  const [distributionMode, setDistributionMode] = useState("normal"); // "normal" | "course"
+  const [selectedProgramIds, setSelectedProgramIds] = useState([]);
+
+  // Same catalog-Program-picker convention as LeadExcelImportPanel.jsx's InterestedProgramsPicker: active Programs
+  // only, never a business unit/category, never an invented "Unknown Course".
+  const programOptions = useMemo(
+    () => (nodes || []).filter((n) => n.type === "program" && n.isActive !== false && !n.archivedAt).sort((a, b) => (a.name_en || "").localeCompare(b.name_en || "")),
+    [nodes],
+  );
+  const toggleProgram = (id) => setSelectedProgramIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
   // The pool this panel can actually act on — mirrors hooks/useLeadDistribution.js's own filter exactly, so the
   // preview the admin sees before confirming is never optimistic about a customer a normal distribution won't touch.
@@ -70,7 +84,13 @@ export default function LeadDistributionPanel({ customerIds, sourceBatchId = nul
     [customerIds, mode, customerById],
   );
   const skippedAlreadyAssigned = customerIds.length - pool.length;
-  const availableCount = pool.length;
+  // Course mode narrows `pool` further by interestedProgramIds (order preserved) before it ever reaches the
+  // existing percentage/equal/manual engine; "normal" mode leaves it exactly as `pool` — byte-identical to before.
+  const eligiblePool = useMemo(
+    () => (distributionMode === "course" ? selectLeadsByInterestedPrograms(pool, selectedProgramIds, customerById) : pool),
+    [distributionMode, pool, selectedProgramIds, customerById],
+  );
+  const availableCount = eligiblePool.length;
   const effectiveDistributeCount = distributeCount == null ? availableCount : distributeCount;
 
   const toggleSales = (id) => setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -106,7 +126,9 @@ export default function LeadDistributionPanel({ customerIds, sourceBatchId = nul
     setCommitting(true);
     setProgress({ done: 0, total: preview.totalAssigned });
     try {
-      const res = await distributeLeads({ customerIds, method, allocations, distributeCount: effectiveDistributeCount, sourceBatchId, mode });
+      // eligiblePool === pool (== the same ids the hook would filter to itself) in "normal" mode — passing it here
+      // is behaviorally identical to the pre-existing `customerIds` call; in "course" mode it's the narrowed subset.
+      const res = await distributeLeads({ customerIds: eligiblePool, method, allocations, distributeCount: effectiveDistributeCount, sourceBatchId, mode });
       setResult(res);
       onDone?.(res);
     } finally {
@@ -128,7 +150,10 @@ export default function LeadDistributionPanel({ customerIds, sourceBatchId = nul
     );
   }
 
-  if (availableCount === 0) {
+  {/* Baseline emptiness (no unassigned leads at all / no selection to reassign) — a full dead-end is correct here,
+      nothing else to configure. A course filter yielding zero matches is handled INLINE further below instead, so
+      the admin can still see the mode/program pickers and pick a different course. */}
+  if (pool.length === 0) {
     return (
       <Card style={{ padding: 18, marginBottom: 16, border: `1.5px solid ${C.purple}33` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
@@ -157,6 +182,12 @@ export default function LeadDistributionPanel({ customerIds, sourceBatchId = nul
             {stats && <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 12px", background: "#fff" }}><div style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>{tx("إجمالي العملاء", "Total customers")}</div><div style={{ fontSize: 20, fontWeight: 900 }}>{stats.total}</div></div>}
             {stats && <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 12px", background: "#fff" }}><div style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>{tx("الموزعين", "Assigned")}</div><div style={{ fontSize: 20, fontWeight: 900 }}>{stats.assigned}</div></div>}
             {stats && <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 12px", background: "#fff" }}><div style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>{tx("غير الموزعين", "Unassigned")}</div><div style={{ fontSize: 20, fontWeight: 900, color: C.purple }}>{stats.unassigned}</div></div>}
+            {distributionMode === "course" && (
+              <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 12px", background: "#fff" }}><div style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>{tx("غير الموزعين قبل تصفية الكورس", "Unassigned before course filter")}</div><div style={{ fontSize: 20, fontWeight: 900 }}>{pool.length}</div></div>
+            )}
+            {distributionMode === "course" && (
+              <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 12px", background: "#fff" }}><div style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>{tx("المهتمين بالكورس المحدد", "Interested in the selected course(s)")}</div><div style={{ fontSize: 20, fontWeight: 900, color: C.purple }}>{eligiblePool.length}</div></div>
+            )}
             <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 12px", background: "#fff" }}><div style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>{tx("المتاح لهذا التوزيع", "Available for this operation")}</div><div style={{ fontSize: 20, fontWeight: 900, color: C.purple }}>{availableCount}</div></div>
           </div>
           {skippedAlreadyAssigned > 0 && (
@@ -165,6 +196,53 @@ export default function LeadDistributionPanel({ customerIds, sourceBatchId = nul
             </div>
           )}
 
+          {/* Additive: which POOL feeds the (unchanged) method engine below. "التوزيع العادي" is the default and
+              behaves exactly as before this feature existed. Not offered during an explicit reassignment — course
+              filtering is scoped to the unassigned pool (see utils/leadDistribution.js's selectLeadsByInterestedPrograms). */}
+          {mode !== "reassign" && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontWeight: 800, fontSize: 12.5, marginBottom: 8 }}>{tx("طريقة التوزيع", "Distribution scope")}</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: distributionMode === "course" ? 10 : 0 }}>
+                {[["normal", tx("التوزيع العادي", "Normal distribution")], ["course", tx("التوزيع حسب الكورسات المهتم بيها", "By interested course")]].map(([m, label]) => (
+                  <button
+                    key={m} disabled={committing}
+                    onClick={() => setDistributionMode(m)}
+                    style={{
+                      padding: "6px 14px", borderRadius: 99, border: "none", cursor: "pointer",
+                      fontWeight: 800, fontSize: 12, fontFamily: "'Cairo',sans-serif",
+                      background: distributionMode === m ? C.text : `${C.text}0d`, color: distributionMode === m ? "#fff" : C.text,
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {distributionMode === "course" && (
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 6 }}>{tx("اختر الكورسات المهتم بيها", "Select the interested course(s)")}</div>
+                  {programOptions.length === 0 ? (
+                    <div style={{ fontSize: 12, color: C.muted }}>{tx("لا يوجد كورسات نشطة في الكتالوج.", "There are no active courses in the catalog.")}</div>
+                  ) : (
+                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                      {programOptions.map((p) => (
+                        <label key={p.id} style={{ display: "flex", alignItems: "center", gap: 5, fontWeight: 600, fontSize: 12.5, cursor: "pointer" }}>
+                          <input type="checkbox" checked={selectedProgramIds.includes(p.id)} onChange={() => toggleProgram(p.id)} disabled={committing} />
+                          {p.name_en || p.name_ar}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {distributionMode === "course" && selectedProgramIds.length > 0 && eligiblePool.length === 0 ? (
+            <div style={{ color: C.muted, fontSize: 12.5, marginBottom: 12 }}>{tx("لا يوجد عملاء غير موزعين مهتمون بهذا الكورس.", "There are no unassigned leads interested in this course.")}</div>
+          ) : distributionMode === "course" && selectedProgramIds.length === 0 ? (
+            <div style={{ color: C.muted, fontSize: 12.5, marginBottom: 12 }}>{tx("اختر كورس واحد على الأقل لعرض العملاء المهتمين.", "Select at least one course to see interested leads.")}</div>
+          ) : (
+            <>
           <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
             {Object.values(DISTRIBUTION_METHODS).map((m) => (
               <button
@@ -285,6 +363,8 @@ export default function LeadDistributionPanel({ customerIds, sourceBatchId = nul
             </div>
           ) : (
             <Btn v="primary" disabled={!canConfirm} onClick={confirm}>{tx("تأكيد التوزيع", "Confirm distribution")}</Btn>
+          )}
+            </>
           )}
         </>
       )}
