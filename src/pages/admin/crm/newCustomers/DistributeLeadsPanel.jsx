@@ -4,8 +4,12 @@ import { C } from "../../../../theme";
 import { useLang } from "../../../../context/LangContext";
 import { useCustomers } from "../../../../context/CustomerContext";
 import { useCatalog } from "../../../../context/CatalogContext";
+import { useImportBatches } from "../../../../context/ImportBatchContext";
 import { useLeadDistribution } from "../../../../hooks/useLeadDistribution";
-import { DISTRIBUTION_METHODS, buildDistributionPreview, selectLeadsByInterestedPrograms } from "../../../../utils/leadDistribution";
+import {
+  DISTRIBUTION_METHODS, buildDistributionPreview, selectLeadsByInterestedPrograms,
+  selectLeadsBySource, buildBatchSourceIndex, buildSourceOptions,
+} from "../../../../utils/leadDistribution";
 
 const selectSx = { background: "#fff", border: `1.5px solid ${C.border}`, borderRadius: 8, padding: "7px 10px", fontFamily: "'Cairo',sans-serif", fontSize: 12.5, outline: "none", width: 90 };
 const th = { textAlign: "start", fontSize: 10.5, letterSpacing: 0.4, textTransform: "uppercase", color: "#475569", fontWeight: 800, padding: "9px 12px", borderBottom: `1px solid ${C.border}`, background: "#F8FAFC", whiteSpace: "nowrap" };
@@ -48,12 +52,13 @@ const METHOD_LABEL = (tx) => ({
  * can never silently touch an existing Sales owner. `mode="reassign"` skips
  * that filter — the one explicit path allowed to move SALES A -> SALES B.
  */
-export default function LeadDistributionPanel({ customerIds, sourceBatchId = null, mode = "distribute", heading, stats, onClose, onDone }) {
+export default function LeadDistributionPanel({ customerIds, universeIds, sourceBatchId = null, mode = "distribute", heading, stats, onClose, onDone }) {
   const { lang } = useLang();
   const ar = lang === "ar";
   const tx = (a, e) => (ar ? a : e);
   const { customerById } = useCustomers();
   const { nodes } = useCatalog();
+  const { batches } = useImportBatches();
   const { activeSalesUsers, salesNameById, distributeLeads } = useLeadDistribution();
 
   const [method, setMethod] = useState(DISTRIBUTION_METHODS.PERCENTAGE);
@@ -68,6 +73,10 @@ export default function LeadDistributionPanel({ customerIds, sourceBatchId = nul
   // never changes anything below; the percentage/equal/manual engine is completely unaware this exists.
   const [distributionMode, setDistributionMode] = useState("normal"); // "normal" | "course"
   const [selectedProgramIds, setSelectedProgramIds] = useState([]);
+  // Additive, opt-in import-source filter (see utils/leadDistribution.js's selectLeadsBySource). "" = All sources =
+  // no filter at all, i.e. today's behavior. Like the course filter it only narrows the pool; the engine below
+  // never knows it exists. Not offered during an explicit reassignment (that workflow is for already-owned leads).
+  const [sourceKey, setSourceKey] = useState("");
 
   // Same catalog-Program-picker convention as LeadExcelImportPanel.jsx's InterestedProgramsPicker: active Programs
   // only, never a business unit/category, never an invented "Unknown Course".
@@ -86,10 +95,27 @@ export default function LeadDistributionPanel({ customerIds, sourceBatchId = nul
   const skippedAlreadyAssigned = customerIds.length - pool.length;
   // Course mode narrows `pool` further by interestedProgramIds (order preserved) before it ever reaches the
   // existing percentage/equal/manual engine; "normal" mode leaves it exactly as `pool` — byte-identical to before.
-  const eligiblePool = useMemo(
-    () => (distributionMode === "course" ? selectLeadsByInterestedPrograms(pool, selectedProgramIds, customerById) : pool),
-    [distributionMode, pool, selectedProgramIds, customerById],
+  // Source options come from real data only: the sources recorded on the customers (customers.importSources, plus
+  // the import batches that created/updated them — which also covers customers imported before sources existed).
+  const batchIndex = useMemo(() => buildBatchSourceIndex(batches), [batches]);
+  const sourceOptions = useMemo(
+    () => (mode === "reassign" ? [] : buildSourceOptions({ universeIds: universeIds || customerIds, poolIds: pool, customerById, batchIndex })),
+    [mode, universeIds, customerIds, pool, customerById, batchIndex],
   );
+  const activeSourceKey = mode === "reassign" ? "" : sourceKey;
+  const selectedSource = sourceOptions.find((o) => o.key === activeSourceKey) || null;
+  // pool -> source filter -> course filter -> (existing engine). With no source this is exactly `pool` again.
+  const sourcePool = useMemo(
+    () => (activeSourceKey ? selectLeadsBySource(pool, activeSourceKey, customerById, batchIndex) : pool),
+    [activeSourceKey, pool, customerById, batchIndex],
+  );
+  const eligiblePool = useMemo(
+    () => (distributionMode === "course" ? selectLeadsByInterestedPrograms(sourcePool, selectedProgramIds, customerById) : sourcePool),
+    [distributionMode, sourcePool, selectedProgramIds, customerById],
+  );
+  const courseFilterActive = distributionMode === "course" && selectedProgramIds.length > 0;
+  const noMatch = eligiblePool.length === 0 && (!!activeSourceKey || courseFilterActive);
+  const needsProgram = distributionMode === "course" && selectedProgramIds.length === 0 && !activeSourceKey;
   const availableCount = eligiblePool.length;
   const effectiveDistributeCount = distributeCount == null ? availableCount : distributeCount;
 
@@ -182,8 +208,11 @@ export default function LeadDistributionPanel({ customerIds, sourceBatchId = nul
             {stats && <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 12px", background: "#fff" }}><div style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>{tx("إجمالي العملاء", "Total customers")}</div><div style={{ fontSize: 20, fontWeight: 900 }}>{stats.total}</div></div>}
             {stats && <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 12px", background: "#fff" }}><div style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>{tx("الموزعين", "Assigned")}</div><div style={{ fontSize: 20, fontWeight: 900 }}>{stats.assigned}</div></div>}
             {stats && <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 12px", background: "#fff" }}><div style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>{tx("غير الموزعين", "Unassigned")}</div><div style={{ fontSize: 20, fontWeight: 900, color: C.purple }}>{stats.unassigned}</div></div>}
+            {activeSourceKey && (
+              <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 12px", background: "#fff" }}><div style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>{tx("غير الموزعين من المصدر المحدد", "Unassigned from the selected source")}</div><div style={{ fontSize: 20, fontWeight: 900, color: C.purple }}>{sourcePool.length}</div></div>
+            )}
             {distributionMode === "course" && (
-              <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 12px", background: "#fff" }}><div style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>{tx("غير الموزعين قبل تصفية الكورس", "Unassigned before course filter")}</div><div style={{ fontSize: 20, fontWeight: 900 }}>{pool.length}</div></div>
+              <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 12px", background: "#fff" }}><div style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>{tx("غير الموزعين قبل تصفية الكورس", "Unassigned before course filter")}</div><div style={{ fontSize: 20, fontWeight: 900 }}>{sourcePool.length}</div></div>
             )}
             {distributionMode === "course" && (
               <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 12px", background: "#fff" }}><div style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>{tx("المهتمين بالكورس المحدد", "Interested in the selected course(s)")}</div><div style={{ fontSize: 20, fontWeight: 900, color: C.purple }}>{eligiblePool.length}</div></div>
@@ -237,9 +266,38 @@ export default function LeadDistributionPanel({ customerIds, sourceBatchId = nul
             </div>
           )}
 
-          {distributionMode === "course" && selectedProgramIds.length > 0 && eligiblePool.length === 0 ? (
-            <div style={{ color: C.muted, fontSize: 12.5, marginBottom: 12 }}>{tx("لا يوجد عملاء غير موزعين مهتمون بهذا الكورس.", "There are no unassigned leads interested in this course.")}</div>
-          ) : distributionMode === "course" && selectedProgramIds.length === 0 ? (
+          {/* Source filter — independent of, and combinable with, the course filter above (pool ∩ source ∩ program). */}
+          {mode !== "reassign" && (
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, fontWeight: 700, color: C.muted, maxWidth: 360 }}>
+                {tx("المصدر", "Source")}
+                <select
+                  value={sourceKey} disabled={committing} data-testid="distribution-source-filter"
+                  onChange={(e) => setSourceKey(e.target.value)}
+                  style={{ ...selectSx, width: "100%", fontSize: 12.5 }}
+                >
+                  <option value="">{tx("كل المصادر", "All sources")}</option>
+                  {sourceOptions.map((o) => <option key={o.key} value={o.key}>{o.name} ({o.unassigned})</option>)}
+                </select>
+              </label>
+              {selectedSource && (
+                <div style={{ fontSize: 12, fontWeight: 700, color: selectedSource.unassigned > 0 ? C.purple : C.muted, marginTop: 6 }}>
+                  {tx(`${selectedSource.name} — ${selectedSource.unassigned} عميل غير موزع`, `${selectedSource.name} — ${selectedSource.unassigned} unassigned customers`)}
+                </div>
+              )}
+              {sourceOptions.length === 0 && (
+                <div style={{ fontSize: 11.5, color: C.muted, marginTop: 6 }}>{tx("لا توجد مصادر استيراد مسجَّلة بعد.", "No import sources are recorded yet.")}</div>
+              )}
+            </div>
+          )}
+
+          {noMatch ? (
+            <div style={{ color: C.muted, fontSize: 12.5, marginBottom: 12 }}>
+              {activeSourceKey
+                ? tx("لا يوجد عملاء غير موزعين يطابقون عوامل التصفية المحددة.", "No unassigned customers match the selected filters.")
+                : tx("لا يوجد عملاء غير موزعين مهتمون بهذا الكورس.", "There are no unassigned leads interested in this course.")}
+            </div>
+          ) : needsProgram ? (
             <div style={{ color: C.muted, fontSize: 12.5, marginBottom: 12 }}>{tx("اختر كورس واحد على الأقل لعرض العملاء المهتمين.", "Select at least one course to see interested leads.")}</div>
           ) : (
             <>
@@ -327,6 +385,13 @@ export default function LeadDistributionPanel({ customerIds, sourceBatchId = nul
           {preview.rows.length > 0 && preview.errors.length === 0 && (
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontWeight: 800, fontSize: 12.5, marginBottom: 6 }}>{tx("معاينة التوزيع", "Distribution preview")}</div>
+              {(activeSourceKey || courseFilterActive) && (
+                <div style={{ fontSize: 12, color: C.muted, marginBottom: 6 }} data-testid="distribution-filter-summary">
+                  {activeSourceKey && <span>{tx("المصدر: ", "Source: ")}<b>{selectedSource?.name}</b>{"  "}</span>}
+                  {courseFilterActive && <span>{tx("البرنامج: ", "Program: ")}<b>{selectedProgramIds.map((id) => programOptions.find((p) => p.id === id)?.name_en || id).join("، ")}</b>{"  "}</span>}
+                  <span>{tx("المتاح: ", "Eligible: ")}<b>{availableCount}</b></span>
+                </div>
+              )}
               <div style={{ overflowX: "auto", border: `1px solid ${C.border}`, borderRadius: 8, marginBottom: 8 }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 360 }}>
                   <thead>

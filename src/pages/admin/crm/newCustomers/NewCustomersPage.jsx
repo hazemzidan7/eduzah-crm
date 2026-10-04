@@ -82,6 +82,8 @@ export default function NewCustomersPage() {
 
   const allRows = useMemo(() => selectNewCustomers(customers, engagements, { search }), [customers, engagements, search]);
   const distributionStats = useMemo(() => computeDistributionStats(allRows), [allRows]);
+  // Every "عملاء جدد" customer (assigned or not) — the universe the distribution panel's Source filter lists sources from.
+  const allRowIds = useMemo(() => allRows.map((c) => c.id), [allRows]);
 
   const rows = useMemo(() => {
     let out = allRows;
@@ -233,6 +235,7 @@ export default function NewCustomersPage() {
       {distributing && (
         <DistributeLeadsPanel
           customerIds={distributeIds}
+          universeIds={allRowIds}
           sourceBatchId={null}
           mode="distribute"
           stats={distributionStats}

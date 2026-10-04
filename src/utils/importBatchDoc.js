@@ -34,6 +34,9 @@ export function buildImportBatchDoc(form, { currentUser, now = new Date().toISOS
     // LEAD-IMPORT-01: bulk customer/lead imports from "عملاء جدد" are tagged
     // so they're distinguishable from Program imports (which carry no kind).
     ...(form.kind ? { kind: form.kind } : {}),
+    // IMPORT-SOURCE-01: the name the admin gave this lead import ("WhatsApp Group - September") — what the
+    // distribution "Source" filter lists. Only present when given, so Program imports and older batches are unchanged.
+    ...(form.sourceName ? { sourceName: form.sourceName } : {}),
     importedBy: currentUser?.id || null,
     importedByName: currentUser?.name || null,
     status: "committing",

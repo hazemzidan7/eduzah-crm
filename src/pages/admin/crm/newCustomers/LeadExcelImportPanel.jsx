@@ -94,6 +94,9 @@ export default function LeadExcelImportPanel({ onClose }) {
   // `appliedNote` trails what is typed by a moment so the preview counts don't re-plan the whole file on every keystroke.
   const [sharedNote, setSharedNote] = useState("");
   const [appliedNote, setAppliedNote] = useState("");
+  // IMPORT-SOURCE-01: the name of this import ("WhatsApp Group - September"). Prefilled from the file name so every
+  // import has a source, editable before importing; it is what the distribution "Source" filter lists.
+  const [sourceName, setSourceName] = useState("");
   const [plan, setPlan] = useState(null);
   const [planning, setPlanning] = useState(false);
   const [parseError, setParseError] = useState("");
@@ -137,6 +140,7 @@ export default function LeadExcelImportPanel({ onClose }) {
       const big = data.sheets.find((s) => s.rows.length > MAX_IMPORT_ROWS);
       if (big) { setParseError(tx(`الملف كبير جدًا (أكثر من ${MAX_IMPORT_ROWS} صف) — قسّمه على أكثر من ملف`, `File too large (over ${MAX_IMPORT_ROWS} rows) — split it into several files`)); return; }
       setParsed(data);
+      setSourceName(String(data.fileName || "").replace(/\.(xlsx|xls|csv)$/i, ""));
       pickSheet(data, firstWithRows);
     } catch (err) {
       setParseError(tx("تعذّرت قراءة الملف", "Could not read the file") + (err?.message ? `: ${err.message}` : ""));
@@ -206,7 +210,11 @@ export default function LeadExcelImportPanel({ onClose }) {
     setImporting(true);
     setProgress({ done: 0, total: f.newCustomers + f.updatedCustomers });
     try {
-      const res = await commitLeadImport({ plan: fresh, fileName: parsed.fileName, onProgress: (done, total) => setProgress({ done, total }) });
+      const res = await commitLeadImport({
+        plan: fresh, fileName: parsed.fileName,
+        sourceName: sourceName.trim() || String(parsed.fileName || "").replace(/\.(xlsx|xls|csv)$/i, ""),
+        onProgress: (done, total) => setProgress({ done, total }),
+      });
       setResult(res);
     } catch (err) {
       setResult({ aborted: true, errors: [{ code: "UNEXPECTED", message: err?.message || String(err) }], createdCustomers: 0, updatedCustomers: 0, addedInterests: 0, failedChunks: 0 });
@@ -215,7 +223,7 @@ export default function LeadExcelImportPanel({ onClose }) {
     }
   };
 
-  const reset = () => { setParsed(null); setPlan(null); setResult(null); setParseError(""); setNotice(""); setTokenOverrides({}); setBatchProgramIds([]); setSharedNote(""); setAppliedNote(""); setDistributing(false); };
+  const reset = () => { setParsed(null); setPlan(null); setResult(null); setParseError(""); setNotice(""); setTokenOverrides({}); setBatchProgramIds([]); setSharedNote(""); setAppliedNote(""); setSourceName(""); setDistributing(false); };
 
   return (
     <Card style={{ padding: 18, marginBottom: 16, border: `1.5px solid ${C.red}33` }}>
@@ -427,6 +435,20 @@ export default function LeadExcelImportPanel({ onClose }) {
               )}
 
               <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
+                <div style={{ marginBottom: 12 }}>
+                  <label htmlFor="lead-import-source-name" style={{ display: "block", fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 2 }}>
+                    {tx("اسم المصدر", "Source name")}
+                  </label>
+                  <div style={{ fontSize: 11, color: C.muted, marginBottom: 6 }}>
+                    {tx("اسم يُسجَّل لكل عميل في هذا الملف (مثال: جروب واتساب - سبتمبر). يمكن توزيع العملاء لاحقًا حسب المصدر.", "Recorded on every customer in this file (e.g. WhatsApp Group - September). Customers can be distributed by source later.")}
+                  </div>
+                  <input
+                    id="lead-import-source-name" data-testid="lead-import-source-name"
+                    value={sourceName} onChange={(e) => setSourceName(e.target.value)} disabled={importing}
+                    maxLength={120} dir="auto"
+                    style={{ width: "100%", maxWidth: 420, boxSizing: "border-box", background: "#fff", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "9px 12px", fontFamily: "'Cairo',sans-serif", fontSize: 12.5, outline: "none" }}
+                  />
+                </div>
                 <div style={{ marginBottom: 12 }}>
                   <label htmlFor="lead-import-shared-note" style={{ display: "block", fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 2 }}>
                     {tx("ملاحظة عامة", "General note")} <span style={{ fontWeight: 600 }}>({tx("اختياري", "optional")})</span>

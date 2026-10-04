@@ -104,6 +104,98 @@ export function selectLeadsByInterestedPrograms(customerIds, programIds, custome
   return (customerIds || []).filter((id) => customerInterestedProgramIds(customerById(id)).some((pid) => wanted.has(pid)));
 }
 
+// ───────────────────────── import-source filtering (additive) ─────────────────────────
+
+/**
+ * IMPORT-SOURCE FILTERING (additive, like the course filter above) — a source
+ * is the name an admin gave one lead import ("WhatsApp Group - September").
+ * A customer can have several (`customers/{id}.importSources[]`, appended by
+ * utils/leadImportCommit.js, never rewritten). Everything here is a read-only
+ * ELIGIBILITY filter over an already-ordered pool of ids; the survivors go to
+ * the exact same allocation/assignment functions as every other distribution.
+ */
+
+/** Comparable identity of a source: case/whitespace-insensitive name, so "Facebook Leads" imported twice is ONE source. */
+export const sourceKeyOf = (name) => String(name ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+
+const batchSourceName = (b) => String(b?.sourceName || b?.fileName || "").replace(/\s+/g, " ").trim();
+
+/**
+ * customerId -> source entries derived from the lead-import batches
+ * themselves (each batch records which customers it created/updated). This is
+ * what gives customers imported BEFORE `importSources` existed a source with
+ * no data migration: the batch's own name (sourceName, else its file name).
+ * Only customer-lead batches count — never a Program import — and a rolled
+ * back batch contributes nothing.
+ */
+export function buildBatchSourceIndex(batches) {
+  const index = new Map();
+  for (const b of batches || []) {
+    if (b?.kind !== "customer_leads" || b.rolledBackAt) continue;
+    const sourceName = batchSourceName(b);
+    if (!sourceKeyOf(sourceName)) continue;
+    const entry = { batchId: b.id, sourceName, fileName: b.fileName || "", importedAt: b.createdAt || null };
+    for (const id of [...(b.createdCustomerIds || []), ...(b.updatedCustomerIds || [])]) {
+      const list = index.get(id);
+      if (!list) index.set(id, [entry]);
+      else if (!list.some((e) => e.batchId === b.id)) list.push(entry);
+    }
+  }
+  return index;
+}
+
+/** A customer's effective sources: its stored `importSources` plus the batch-derived ones, ONE entry per distinct source (stored entry wins). */
+export function customerSourceEntries(customer, batchIndex) {
+  const out = [];
+  const seen = new Set();
+  const add = (e) => {
+    const k = sourceKeyOf(e?.sourceName);
+    if (!k || seen.has(k)) return;
+    seen.add(k);
+    out.push(e);
+  };
+  for (const e of Array.isArray(customer?.importSources) ? customer.importSources : []) add(e);
+  for (const e of batchIndex?.get(customer?.id) || []) add(e);
+  return out;
+}
+
+/**
+ * Narrows an ORDERED pool of ids to customers that have the given source
+ * (any one of their sources matching is enough, and a customer is visited
+ * once, so it can never appear twice). No source (""/null) = no filter: the
+ * pool comes back unchanged — fully opt-in, "All Sources" is exactly today's
+ * behavior. Order is preserved; nothing is reassigned or modified.
+ */
+export function selectLeadsBySource(customerIds, sourceKey, customerById, batchIndex) {
+  const key = sourceKeyOf(sourceKey);
+  if (!key) return [...(customerIds || [])];
+  return (customerIds || []).filter((id) => customerSourceEntries(customerById(id), batchIndex).some((e) => sourceKeyOf(e.sourceName) === key));
+}
+
+/**
+ * The Source dropdown's options, derived from real data only (never a hardcoded
+ * list): every distinct source found on the `universeIds` customers, with how
+ * many customers have it (`total`) and how many of those are in the
+ * distributable `poolIds` AND unassigned (`unassigned`). A source whose
+ * customers are all assigned is still listed, with 0 unassigned.
+ */
+export function buildSourceOptions({ universeIds, poolIds, customerById, batchIndex }) {
+  const pool = new Set(poolIds || []);
+  const options = new Map();
+  for (const id of universeIds || []) {
+    const c = customerById(id);
+    if (!c) continue;
+    for (const e of customerSourceEntries(c, batchIndex)) {
+      const key = sourceKeyOf(e.sourceName);
+      if (!options.has(key)) options.set(key, { key, name: String(e.sourceName).replace(/\s+/g, " ").trim(), total: 0, unassigned: 0 });
+      const o = options.get(key);
+      o.total += 1;
+      if (pool.has(id) && !c.assignedToId) o.unassigned += 1;
+    }
+  }
+  return [...options.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
 // ───────────────────────── method: equal ─────────────────────────
 
 /**

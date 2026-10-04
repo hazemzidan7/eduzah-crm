@@ -26,8 +26,8 @@ export function useLeadImportCommit() {
   const buildPlan = (input, opts = {}) => planLeadImport({ ...input, existingCustomers: customers, programs: nodes, ...opts });
 
   /** `plan` = the result of buildPlan (re-derive it right before calling this). */
-  const commitLeadImport = ({ plan, fileName, onProgress }) =>
-    runLeadImportCommit({ plan, fileName, onProgress, customers, nodeById, createBatch, updateBatch, commitLeadImportChunk });
+  const commitLeadImport = ({ plan, fileName, sourceName, onProgress }) =>
+    runLeadImportCommit({ plan, fileName, sourceName, onProgress, customers, nodeById, createBatch, updateBatch, commitLeadImportChunk });
 
   return { buildPlan, commitLeadImport };
 }
