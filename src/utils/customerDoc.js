@@ -1,4 +1,5 @@
 import { normalizePhone, normalizeEmail } from "./leadDedupe";
+import { normalizeWhatsappUsername } from "./whatsappContact";
 
 /**
  * The one place a NEW `customers/{id}` document's shape is defined — used by
@@ -23,6 +24,9 @@ export function buildCustomerDoc(form, { now = new Date().toISOString(), interes
     // The customer-level notes field (edited in "عملاء جدد"). Written only when there is one, so every existing
     // caller keeps producing exactly the document it did before.
     ...(form.notes ? { notes: form.notes } : {}),
+    // WHATSAPP-USERNAME-01: optional, its own field next to `phone` (never merged into it). Written only when there
+    // is one, in its normalized form, so every customer without a username keeps exactly the document it always had.
+    ...(normalizeWhatsappUsername(form.whatsappUsername) ? { whatsappUsername: normalizeWhatsappUsername(form.whatsappUsername) } : {}),
     authUid: null,
     archivedAt: null,
     createdAt: now,

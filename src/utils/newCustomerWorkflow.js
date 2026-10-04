@@ -28,6 +28,7 @@ import { normalizePhone } from "./leadDedupe";
 import { cleanWhitespace } from "./importEngine/dataCleaning";
 import { normalizeImportPhone } from "./leadImport";
 import { normalizeInterestedProgramIds, validateInterestedProgramIds } from "./interestedPrograms";
+import { parseWhatsappUsername, normalizeWhatsappUsername, matchesWhatsappUsernameQuery } from "./whatsappContact";
 
 // ───────────────────────── contact statuses ─────────────────────────
 
@@ -132,7 +133,7 @@ export function buildContactPatch({ statusDoc, statusKey, plannedProgramId, note
 
 /** The complete set of customer fields the workflow ever writes — this must stay inside firestore.rules' Sales allow-list for /customers. */
 export const WORKFLOW_CUSTOMER_FIELDS = [
-  "fullName", "phone", "normalizedPhone", "notes", "interestedProgramIds",
+  "fullName", "phone", "normalizedPhone", "whatsappUsername", "notes", "interestedProgramIds",
   "contactStatusId", "contactStatusUpdatedAt", "contactStatusUpdatedBy", "plannedProgramId",
   "assignedToId", "assignedToName", "updatedAt",
 ];
@@ -155,10 +156,31 @@ export function buildCustomerEditPatch({ customer, edits, otherCustomers = [], n
     if (next !== (customer.fullName || "")) patch.fullName = next;
   }
 
+  // WHATSAPP-USERNAME-01: the username is its own optional field. A customer needs a phone OR a username — never
+  // neither — so clearing the phone is fine only while a username remains (and the other way round).
+  const currentUsername = normalizeWhatsappUsername(customer.whatsappUsername);
+  let nextUsername = currentUsername;
+  if (edits.whatsappUsername !== undefined) {
+    const parsed = parseWhatsappUsername(edits.whatsappUsername);
+    if (parsed.status === "invalid") errors.push({ code: "USERNAME_INVALID", why: parsed.why });
+    else {
+      nextUsername = parsed.status === "ok" ? parsed.normalized : "";
+      if (nextUsername !== currentUsername) {
+        const clash = nextUsername && otherCustomers.find((c) => c.id !== customer.id && normalizeWhatsappUsername(c.whatsappUsername) === nextUsername);
+        if (clash) errors.push({ code: "USERNAME_DUPLICATE", customerId: clash.id });
+        else patch.whatsappUsername = nextUsername;
+      }
+    }
+  }
+  const phoneAfter = cleanWhitespace(edits.phone !== undefined ? edits.phone : customer.phone);
+  if (!phoneAfter && !nextUsername && edits.whatsappUsername !== undefined && edits.phone === undefined) errors.push({ code: "CONTACT_REQUIRED" });
+
   if (edits.phone !== undefined && cleanWhitespace(edits.phone) !== cleanWhitespace(customer.phone)) {
     const raw = cleanWhitespace(edits.phone);
-    if (!raw) errors.push({ code: "PHONE_REQUIRED" });
-    else {
+    if (!raw) {
+      if (!nextUsername) errors.push({ code: "PHONE_REQUIRED" });
+      else { patch.phone = ""; patch.normalizedPhone = ""; }
+    } else {
       const n = normalizeImportPhone(raw);
       if (!n.valid) errors.push({ code: "PHONE_INVALID", why: n.why });
       else {
@@ -203,7 +225,7 @@ export function selectNewCustomers(customers, engagements, { search = "" } = {})
   const q = String(search || "").trim().toLowerCase();
   return (customers || [])
     .filter((c) => !c.archivedAt && !registered.has(c.id))
-    .filter((c) => !q || (c.fullName || "").toLowerCase().includes(q) || (c.phone || "").includes(q) || (c.email || "").toLowerCase().includes(q))
+    .filter((c) => !q || (c.fullName || "").toLowerCase().includes(q) || (c.phone || "").includes(q) || (c.email || "").toLowerCase().includes(q) || matchesWhatsappUsernameQuery(c, q))
     .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
 }
 

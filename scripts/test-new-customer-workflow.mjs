@@ -365,7 +365,8 @@ console.log("16. Sales permissions remain safe");
   // LEAD-DISTRIBUTION-01 added importSequence/importBatchId: a Sales-run import can be a customer's FIRST import
   // too, and needs to write its own one-time sequence number (see utils/leadImportCommit.js's needsSequence) —
   // still a precise, deliberate widening, not a broad one (assignmentHistory/distribution stay admin-only).
-  eq("the allow-list gained ONLY these 9 lead-workflow + distribution-sequencing fields", SALES_CUSTOMER_ALLOW.filter((f) => !["fullName", "phone", "normalizedPhone", "secondaryPhones", "email", "normalizedEmail", "whatsapp", "updatedAt", "interestedProgramIds"].includes(f)).sort(), ["assignedToId", "assignedToName", "contactStatusId", "contactStatusUpdatedAt", "contactStatusUpdatedBy", "importBatchId", "importSequence", "notes", "plannedProgramId"]);
+  // WHATSAPP-USERNAME-01 added exactly one more: the optional WhatsApp username, edited from the same form as the phone.
+  eq("the allow-list gained ONLY these 10 lead-workflow + distribution-sequencing + contact fields", SALES_CUSTOMER_ALLOW.filter((f) => !["fullName", "phone", "normalizedPhone", "secondaryPhones", "email", "normalizedEmail", "whatsapp", "updatedAt", "interestedProgramIds"].includes(f)).sort(), ["assignedToId", "assignedToName", "contactStatusId", "contactStatusUpdatedAt", "contactStatusUpdatedBy", "importBatchId", "importSequence", "notes", "plannedProgramId", "whatsappUsername"]);
   eq("Sales still cannot touch archivedAt / authUid / createdAt on a customer", ["archivedAt", "authUid", "createdAt"].filter((f) => SALES_CUSTOMER_ALLOW.includes(f)), []);
   // SALES-VISIBILITY-01: read is now scoped to assignedToId==self for Sales (create is unchanged —
   // single "+ إضافة عميل جديد" adds still go through the same dedup-then-create path as before).

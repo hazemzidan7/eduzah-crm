@@ -198,7 +198,10 @@ service cloud.firestore {
                customer's FIRST import — needs to write its own one-time importSequence/importBatchId
                (see utils/leadImportCommit.js's needsSequence). Never rewritten after that. Distribution/
                reassignment itself (assignmentHistory[]) stays admin-only — not added here. */
-            'importSequence', 'importBatchId'
+            'importSequence', 'importBatchId',
+            /* WHATSAPP-USERNAME-01: the optional WhatsApp username sits next to `phone` and is edited
+               from the same "تعديل" form Sales already uses for phone/name — same trust level as `phone`. */
+            'whatsappUsername'
           ]));
       allow delete: if isAdmin();
     }

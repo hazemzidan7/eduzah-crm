@@ -13,13 +13,15 @@
  * only ever ADDED — an existing customer's interests are never overwritten
  * or removed.
  *
- * THE ONE REQUIRED FIELD IS THE PHONE NUMBER — any country's (see normalizeImportPhone). A missing name is fine (the
- * customer schema's own empty `fullName`, never an invented placeholder);
- * a name with no phone is rejected.
+ * THE CONTACT IDENTIFIER IS A PHONE NUMBER (any country's — see normalizeImportPhone) OR A WHATSAPP USERNAME (see
+ * utils/whatsappContact.js) — at least one of the two per row, both kept when both are there; a username is never
+ * stored in, or converted into, a phone. A missing name is fine (the customer schema's own empty `fullName`, never an
+ * invented placeholder); a name with neither a phone nor a username is rejected.
  */
 import { cleanPhone, cleanWhitespace } from "./importEngine/dataCleaning";
 import { convertArabicDigits, normalizeForFuzzyMatch } from "./importEngine/arabicNormalize";
 import { normalizeInterestedProgramIds } from "./interestedPrograms";
+import { parseWhatsappUsername, normalizeWhatsappUsername } from "./whatsappContact";
 
 /** Hard ceiling on rows per file — beyond this the browser would be doing far more than a lead import should. */
 export const MAX_IMPORT_ROWS = 20000;
@@ -151,6 +153,8 @@ const FIELD_SYNONYMS = {
   notes: ["ملاحظات", "ملاحظة", "notes", "note", "comments"],
   source: ["مصدر", "المصدر", "مصدر العميل", "source", "lead source"],
   assignedTo: ["موظف مسؤول", "الموظف المسؤول", "الموظف", "المسؤول", "مسؤول", "assignedto", "assigned to", "assigned"],
+  // WHATSAPP-USERNAME-01: matched by exact header, so the "whatsapp"-keyword phone fallback below never sees these.
+  username: ["username", "user name", "whatsapp username", "whatsapp user name", "wa username", "اسم المستخدم", "اسم مستخدم", "اسم المستخدم واتساب", "اسم المستخدم في واتساب", "اسم المستخدم على واتساب", "يوزر", "يوزرنيم", "يوزر واتساب", "معرف واتساب"],
 };
 const SYNONYM_LOOKUP = new Map();
 for (const [field, list] of Object.entries(FIELD_SYNONYMS)) for (const label of list) SYNONYM_LOOKUP.set(compact(label), field);
@@ -201,7 +205,7 @@ export function guessNameColumn(headers, rows, phoneHeader) {
 }
 
 export function detectColumns(headers, rows = [], { hasHeader = true } = {}) {
-  const candidates = { phone: [], name: [], programs: [], notes: [], source: [], assignedTo: [] };
+  const candidates = { phone: [], name: [], programs: [], notes: [], source: [], assignedTo: [], username: [] };
   const claimed = new Set();
   for (const h of headers) {
     const field = SYNONYM_LOOKUP.get(compact(h));
@@ -220,6 +224,7 @@ export function detectColumns(headers, rows = [], { hasHeader = true } = {}) {
     if (guess) { candidates.phone.push(guess); claimed.add(guess); phoneGuessed = true; }
   }
   const phoneHeader = candidates.phone[0] || null;
+  const usernameHeader = candidates.username[0] || null;
   let nameHeader = candidates.name[0] || null;
   let nameGuessed = false;
   if (!nameHeader && !hasHeader) {
@@ -232,6 +237,8 @@ export function detectColumns(headers, rows = [], { hasHeader = true } = {}) {
       phone: phoneHeader,
       name: nameHeader,
       programs: [...candidates.programs],
+      // Present only when the sheet has a username column, so a phone-only sheet maps exactly as it always did.
+      ...(usernameHeader ? { username: usernameHeader } : {}),
     },
     candidates,
     phoneGuessed,
@@ -408,6 +415,19 @@ function buildCustomerIndex(customers) {
   return map;
 }
 
+/** normalized whatsappUsername -> the existing customers that have it (customers without one are simply absent). */
+function buildUsernameIndex(customers) {
+  const map = new Map();
+  for (const c of customers || []) {
+    const u = normalizeWhatsappUsername(c.whatsappUsername);
+    if (!u) continue;
+    const list = map.get(u);
+    if (!list) map.set(u, [c]);
+    else if (!list.includes(c)) list.push(c);
+  }
+  return map;
+}
+
 const sameName = (a, b) => normalizeForFuzzyMatch(a) === normalizeForFuzzyMatch(b);
 
 /**
@@ -433,13 +453,21 @@ export async function planLeadImport({
   // customer this file imports or updates. Only ACTIVE catalog Programs count — anything else is silently dropped.
   const batchIds = uniq(normalizeInterestedProgramIds(batchProgramIds)).filter((id) => index.byId.has(id));
   const customerIndex = buildCustomerIndex(existingCustomers);
+  const usernameIndex = buildUsernameIndex(existingCustomers);
   const programHeaders = mapping?.programs || [];
+  const hasUsernameColumn = !!mapping?.username;
 
   const rowResults = [];
-  const groups = new Map(); // normalized phone -> group
+  // One group per real person in the file. Its key is the normalized phone — or "u:<username>" for a contact that
+  // only has a WhatsApp username so far. A phone-only file therefore groups exactly as it always did.
+  const groups = new Map();
+  const byPhone = new Map(); // normalized phone -> group
+  const byUsername = new Map(); // normalized username -> group
+  const mergedInto = new Map(); // key of a group absorbed into another -> key of the survivor
+  let groupOrder = 0;
   const unmatchedTokens = new Map(); // override key -> { token, key, rows:[] }
   const matchedCounts = new Map(); // programId -> rows
-  let missingPhoneRows = 0, invalidPhoneRows = 0, duplicateRows = 0;
+  let missingPhoneRows = 0, invalidPhoneRows = 0, invalidUsernameRows = 0, usernameOnlyRows = 0, duplicateRows = 0;
 
   for (let i = 0; i < rows.length; i++) {
     if (yieldEvery && i > 0 && i % yieldEvery === 0) { onProgress?.(i, rows.length); await yieldToUi(); }
@@ -448,22 +476,35 @@ export async function planLeadImport({
     const name = mapping?.name ? cleanWhitespace(row[mapping.name]) : "";
     const phoneCell = mapping?.phone ? row[mapping.phone] : "";
     const phone = extractPhones(phoneCell);
-    const result = { rowNumber, name, phoneRaw: phone.status === "empty" ? "" : String(phoneCell).trim(), phoneNormalized: phone.status === "ok" ? phone.normalized : "", phoneDisplay: phone.status === "ok" ? phone.display : "", phoneKind: phone.status === "ok" ? phone.kind : null, status: "accepted", outcome: null, reasons: [], warnings: [] };
+    const usernameCell = hasUsernameColumn ? row[mapping.username] : "";
+    const uname = hasUsernameColumn ? parseWhatsappUsername(usernameCell) : { status: "empty", normalized: "" };
+    const result = {
+      rowNumber, name, phoneRaw: phone.status === "empty" ? "" : String(phoneCell).trim(), phoneNormalized: phone.status === "ok" ? phone.normalized : "", phoneDisplay: phone.status === "ok" ? phone.display : "", phoneKind: phone.status === "ok" ? phone.kind : null, status: "accepted", outcome: null, reasons: [], warnings: [],
+      // Only on sheets that have a username column, so a phone-only import produces exactly the rows it always did.
+      ...(hasUsernameColumn ? { usernameRaw: uname.status === "empty" ? "" : String(usernameCell).trim(), username: uname.status === "ok" ? uname.normalized : "" } : {}),
+    };
 
-    if (phone.status === "empty") {
-      missingPhoneRows += 1;
+    const phoneOk = phone.status === "ok";
+    const userOk = uname.status === "ok";
+    // A row needs a phone OR a username. A bad value next to a good one never costs the lead — it is kept out of the
+    // customer and flagged for review instead; a bad value with nothing good beside it rejects the row.
+    if (!phoneOk && !userOk) {
       result.status = "rejected";
-      result.reasons.push({ code: "NO_PHONE" });
+      if (phone.status === "invalid") {
+        invalidPhoneRows += 1;
+        result.reasons.push({ code: "INVALID_PHONE", params: { normalized: phone.normalized, why: phone.why } });
+      } else if (uname.status === "invalid") {
+        invalidUsernameRows += 1;
+        result.reasons.push({ code: "INVALID_USERNAME", params: { normalized: uname.normalized, why: uname.why } });
+      } else {
+        missingPhoneRows += 1;
+        result.reasons.push({ code: hasUsernameColumn ? "NO_CONTACT" : "NO_PHONE" });
+      }
       rowResults.push(result);
       continue;
     }
-    if (phone.status === "invalid") {
-      invalidPhoneRows += 1;
-      result.status = "rejected";
-      result.reasons.push({ code: "INVALID_PHONE", params: { normalized: phone.normalized, why: phone.why } });
-      rowResults.push(result);
-      continue;
-    }
+    if (phone.status === "invalid") result.warnings.push({ code: "INVALID_PHONE_IGNORED", severity: "review", params: { normalized: phone.normalized, why: phone.why } });
+    if (uname.status === "invalid") result.warnings.push({ code: "INVALID_USERNAME_IGNORED", severity: "review", params: { normalized: uname.normalized, why: uname.why } });
 
     // Interests for this row (zero, one, or many tokens across every mapped interests column).
     const rowProgramIds = [];
@@ -482,18 +523,55 @@ export async function planLeadImport({
         }
       }
     }
-    if (phone.secondaryRaw.length > 0) result.warnings.push({ code: "MULTI_PHONE", severity: "info", params: { secondary: phone.secondaryRaw } });
+    if (phoneOk && phone.secondaryRaw.length > 0) result.warnings.push({ code: "MULTI_PHONE", severity: "info", params: { secondary: phone.secondaryRaw } });
 
-    const key = phone.normalized;
-    let group = groups.get(key);
-    if (!group) {
-      group = { key, phoneRaw: phone.primaryRaw, phoneDisplay: phone.display, secondaryRaw: [], secondaryDisplay: [], secondaryNormalized: [], name: "", nameRow: null, interestIds: [], rows: [], firstRow: rowNumber };
-      groups.set(key, group);
+    const pk = phoneOk ? phone.normalized : "";
+    const un = userOk ? uname.normalized : "";
+    if (!pk && un) usernameOnlyRows += 1;
+
+    // Which person is this row? The phone decides first (exactly as before). A row with only a username — or a
+    // username-only contact that now shows its phone — joins the contact that already owns that username, so one
+    // person is never split in two just because one row had the phone and another the username. The one thing that
+    // keeps two customers apart is a username that appears with two DIFFERENT phones.
+    let group = pk ? byPhone.get(pk) : undefined;
+    const usernameOwner = un ? byUsername.get(un) : undefined;
+    if (!group && usernameOwner && (!pk || !usernameOwner.phoneKey)) {
+      group = usernameOwner;
+      if (pk) { group.phoneKey = pk; group.phoneRaw = phone.primaryRaw; group.phoneDisplay = phone.display; byPhone.set(pk, group); }
+    }
+    const isNewGroup = !group;
+    if (isNewGroup) {
+      group = { key: pk || `u:${un}`, phoneKey: pk, username: "", phoneRaw: pk ? phone.primaryRaw : "", phoneDisplay: pk ? phone.display : "", secondaryRaw: [], secondaryDisplay: [], secondaryNormalized: [], name: "", nameRow: null, interestIds: [], rows: [], firstRow: rowNumber, order: groupOrder++ };
+      groups.set(group.key, group);
+      if (pk) byPhone.set(pk, group);
     } else {
       duplicateRows += 1;
       result.outcome = "duplicate";
       result.duplicateOfRow = group.firstRow;
       result.warnings.push({ code: "DUPLICATE_IN_FILE", severity: "info", params: { firstRow: group.firstRow } });
+    }
+    if (un) {
+      const owner = byUsername.get(un);
+      if (!owner) {
+        if (!group.username) { group.username = un; byUsername.set(un, group); }
+        else result.warnings.push({ code: "USERNAME_CONFLICT", severity: "review", params: { username: un, keptUsername: group.username } });
+      } else if (owner !== group) {
+        if (!owner.phoneKey) {
+          // A username-only contact seen earlier turns out to be this same person: fold it in.
+          group.rows.push(...owner.rows);
+          group.rows.sort((a, b) => a - b);
+          group.firstRow = Math.min(group.firstRow, owner.firstRow);
+          group.order = Math.min(group.order, owner.order);
+          if (!group.name && owner.name) { group.name = owner.name; group.nameRow = owner.nameRow; }
+          for (const id of owner.interestIds) if (!group.interestIds.includes(id)) group.interestIds.push(id);
+          if (!group.username) group.username = un;
+          byUsername.set(un, group);
+          groups.delete(owner.key);
+          mergedInto.set(owner.key, group.key);
+        } else {
+          result.warnings.push({ code: "USERNAME_CONFLICT", severity: "review", params: { username: un, otherPhoneRow: owner.firstRow } });
+        }
+      }
     }
     group.rows.push(rowNumber);
     // Same phone, same customer: merge interests; keep the first name we see, fill it from a later row if it was empty.
@@ -502,13 +580,16 @@ export async function planLeadImport({
       else if (!sameName(group.name, name)) result.warnings.push({ code: "NAME_CONFLICT", severity: "review", params: { keptName: group.name, keptRow: group.nameRow, otherName: name } });
     }
     for (const id of rowProgramIds) if (!group.interestIds.includes(id)) group.interestIds.push(id);
-    phone.secondaryRaw.forEach((raw, k) => {
+    if (phoneOk) phone.secondaryRaw.forEach((raw, k) => {
       const n = phone.secondaryNormalized[k];
-      if (n !== key && !group.secondaryNormalized.includes(n)) { group.secondaryRaw.push(raw); group.secondaryDisplay.push(phone.secondaryDisplay[k]); group.secondaryNormalized.push(n); }
+      if (n !== pk && !group.secondaryNormalized.includes(n)) { group.secondaryRaw.push(raw); group.secondaryDisplay.push(phone.secondaryDisplay[k]); group.secondaryNormalized.push(n); }
     });
-    result.groupKey = key;
+    result.groupKey = group.key;
     rowResults.push(result);
   }
+  // A row that went into a group which was later folded into another belongs to the survivor.
+  const survivorKey = (k) => { let cur = k; while (mergedInto.has(cur)) cur = mergedInto.get(cur); return cur; };
+  if (mergedInto.size > 0) for (const r of rowResults) if (r.groupKey) r.groupKey = survivorKey(r.groupKey);
 
   // ── resolve each unique phone against the customers that already exist ──
   const customersToCreate = [];
@@ -524,8 +605,16 @@ export async function planLeadImport({
   const rowsByGroup = new Map();
   for (const r of rowResults) if (r.groupKey) { if (!rowsByGroup.has(r.groupKey)) rowsByGroup.set(r.groupKey, []); rowsByGroup.get(r.groupKey).push(r); }
 
-  for (const group of groups.values()) {
-    const matches = customerIndex.get(group.key) || [];
+  // Insertion order IS first-seen order — unless two groups were folded together above, in which case the survivor
+  // takes the earlier group's position.
+  const orderedGroups = mergedInto.size > 0 ? [...groups.values()].sort((a, b) => a.order - b.order) : [...groups.values()];
+  for (const group of orderedGroups) {
+    // An existing customer matches by phone (primary or secondary — exactly as before) OR by WhatsApp username. One
+    // group landing on two different customers is ambiguous and left for manual review, never guessed.
+    const matchSet = new Set();
+    if (group.phoneKey) for (const c of customerIndex.get(group.phoneKey) || []) matchSet.add(c);
+    if (group.username) for (const c of usernameIndex.get(group.username) || []) matchSet.add(c);
+    const matches = [...matchSet];
     // Interests this customer should end up with from THIS import: whatever the file's own program column said + the batch selection.
     const wanted = uniq([...group.interestIds, ...batchIds]);
     const setOutcome = (outcome) => { for (const r of rowsByGroup.get(group.key) || []) if (!r.outcome) r.outcome = outcome; };
@@ -542,6 +631,14 @@ export async function planLeadImport({
       const patch = {};
       if (added.length > 0) patch.interestedProgramIds = [...have, ...added]; // existing interests kept, new ones appended
       if (fillName) patch.fullName = group.name; // never overwrites a name that's already there
+      // Contact identifiers are only ever FILLED IN, never overwritten: an existing phone / username stays exactly as it is.
+      const keptUsername = normalizeWhatsappUsername(c.whatsappUsername);
+      if (group.username && !keptUsername) patch.whatsappUsername = group.username;
+      const hasPhone = !!(cleanWhitespace(c.phone) || c.normalizedPhone);
+      if (group.phoneKey && !hasPhone) { patch.phone = group.phoneDisplay; patch.normalizedPhone = group.phoneKey; }
+      const noteExisting = (code, params) => { for (const r of rowsByGroup.get(group.key) || []) r.warnings.push({ code, severity: "info", params }); };
+      if (group.username && keptUsername && keptUsername !== group.username) noteExisting("EXISTING_USERNAME_KEPT", { kept: keptUsername, ignored: group.username });
+      if (group.phoneKey && hasPhone && !(customerIndex.get(group.phoneKey) || []).includes(c)) noteExisting("EXISTING_PHONE_KEPT", { kept: c.phone, ignored: group.phoneDisplay });
       // The old note is kept; the import note is appended (skipped if this exact block is already there).
       const nextNotes = appendImportNote(c.notes, noteBlock);
       if (noteBlock && nextNotes !== (c.notes ?? "")) { patch.notes = nextNotes; notesApplied += 1; }
@@ -565,8 +662,10 @@ export async function planLeadImport({
       // cell exactly as typed, kept for the preview/audit only. `normalizedPhone` is the matching key.
       phone: group.phoneDisplay,
       originalPhone: group.phoneRaw,
-      normalizedPhone: group.key,
+      normalizedPhone: group.phoneKey,
       secondaryPhones: group.secondaryDisplay,
+      // Its own field next to `phone` — only present when the file gave one, so a phone-only import plans exactly what it always did.
+      ...(group.username ? { whatsappUsername: group.username } : {}),
       fullName: group.name, // "" when the file had none — the schema's empty value, never an invented name
       interestedProgramIds: wanted,
       // Only present when a shared note was entered, so an import without one produces exactly the documents it always did.
@@ -597,7 +696,10 @@ export async function planLeadImport({
     matchedPrograms,
     stats: {
       totalRows: rows.length,
-      validPhoneRows: rows.length - missingPhoneRows - invalidPhoneRows,
+      // Rows with a usable contact identifier (a phone, or — only on sheets with a username column — a username).
+      validPhoneRows: rows.length - missingPhoneRows - invalidPhoneRows - invalidUsernameRows,
+      usernameOnlyRows,
+      invalidUsernameRows,
       uniquePhones: groups.size,
       batchProgramCount: batchIds.length,
       notesApplied,

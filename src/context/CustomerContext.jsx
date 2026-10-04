@@ -23,6 +23,7 @@ import { ACCOUNTING_EVENTS_COLLECTION, buildConfirmedPaymentEvent } from "../uti
 import { buildPricingSnapshot, applyPaymentPlan, MAX_COURSE_PRICE } from "../utils/pricingSnapshot";
 import { normalizeInterestedProgramIds, validateInterestedProgramIds } from "../utils/interestedPrograms";
 import { buildCustomerDoc } from "../utils/customerDoc";
+import { normalizeWhatsappUsername } from "../utils/whatsappContact";
 import { ACCOUNTING_TRANSACTIONS_COLLECTION, buildTransaction, buildIncomeDraftFromConfirmedPayment } from "../utils/accounting";
 import { buildCustomerDeletionSet, chunkDeletionOps } from "../utils/deleteCustomer";
 import { buildTrackDeletionPlan, chunkTrackDeletionOps } from "../utils/deleteTrack";
@@ -92,6 +93,12 @@ export function CustomerProvider({ children }) {
     const ne = email ? normalizeEmail(email) : null;
     if (!ne) return null;
     return customers.find((c) => c.normalizedEmail === ne) || null;
+  };
+  // WHATSAPP-USERNAME-01: same global person-level dedup, keyed on the normalized username (a username is never compared to a phone).
+  const findCustomerByWhatsappUsername = (username) => {
+    const nu = normalizeWhatsappUsername(username);
+    if (!nu) return null;
+    return customers.find((c) => normalizeWhatsappUsername(c.whatsappUsername) === nu) || null;
   };
   const customerById = (id) => customers.find((c) => c.id === id) || null;
 
@@ -711,7 +718,7 @@ export function CustomerProvider({ children }) {
   return (
     <CustomerCtx.Provider value={{
       customers, engagements, loading,
-      findCustomerByPhone, findCustomerByEmail, customerById,
+      findCustomerByPhone, findCustomerByEmail, findCustomerByWhatsappUsername, customerById,
       addCustomer, commitLeadImportChunk, resolveOrCreateCustomer, updateCustomer, setCustomerInterestedPrograms, archiveCustomer, restoreCustomer, deleteCustomerCascade, deleteTrackCascade,
       findEngagement, engagementById, engagementsForCustomer, engagementsForBusinessUnit,
       addEngagement, buildEngagementDoc, createEngagementIfAbsent, listCustomerEngagements, patchCustomer, mergeStudentProfile, resolveOrCreateEngagement, updateEngagement,

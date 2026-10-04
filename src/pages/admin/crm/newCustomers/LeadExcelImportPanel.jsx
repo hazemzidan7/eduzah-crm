@@ -31,6 +31,22 @@ function reasonText(r, tx) {
       }[p.why] || "";
       return `${tx("رقم التليفون غير صالح", "phone number is invalid")}${why ? ` — ${why}` : ""}`;
     }
+    case "NO_CONTACT": return tx("لا يوجد رقم تليفون ولا اسم مستخدم — واحد منهما على الأقل مطلوب", "no phone number and no username — at least one is required");
+    case "INVALID_USERNAME": {
+      const why = {
+        too_short: tx("أقصر من 3 أحرف", "shorter than 3 characters"),
+        too_long: tx("أطول من 35 حرفًا", "longer than 35 characters"),
+        invalid_characters: tx("حروف إنجليزية صغيرة وأرقام ونقطة وشرطة سفلية فقط", "only lowercase letters, digits, periods and underscores"),
+        no_letter: tx("لازم يحتوي على حرف واحد على الأقل (الأرقام فقط ليست اسم مستخدم)", "needs at least one letter (digits alone are not a username)"),
+        bad_period: tx("النقطة لا تكون في أول الاسم أو آخره ولا مكررة", "a period can't start, end, or repeat"),
+      }[p.why] || "";
+      return `${tx("اسم المستخدم غير صالح", "username is invalid")}${why ? ` — ${why}` : ""}`;
+    }
+    case "INVALID_PHONE_IGNORED": return tx("رقم التليفون غير صالح وتم تجاهله — استُخدم اسم المستخدم فقط", "the phone number is invalid and was ignored — only the username is used");
+    case "INVALID_USERNAME_IGNORED": return tx("اسم المستخدم غير صالح وتم تجاهله — استُخدم رقم التليفون فقط", "the username is invalid and was ignored — only the phone is used");
+    case "USERNAME_CONFLICT": return tx(`اسم المستخدم «${p.username}» ظاهر مع رقم آخر — لم يُضف للعميل الثاني`, `username "${p.username}" appears with a different phone — not added to the second customer`);
+    case "EXISTING_USERNAME_KEPT": return tx(`العميل الموجود له اسم مستخدم «${p.kept}» — لم يُغيَّر`, `the existing customer already has username "${p.kept}" — left unchanged`);
+    case "EXISTING_PHONE_KEPT": return tx(`العميل الموجود له رقم «${p.kept}» — لم يُغيَّر`, `the existing customer already has phone "${p.kept}" — left unchanged`);
     case "AMBIGUOUS_EXISTING": return tx(`الرقم مطابق لـ ${p.count} عملاء موجودين — مراجعة يدوية (لن يُعدَّل أي منهم)`, `phone matches ${p.count} existing customers — manual review (none will be changed)`);
     case "ARCHIVED_CUSTOMER": return tx("العميل موجود لكنه مؤرشف — لن يُنشأ عميل مكرر ولن يُعاد تفعيله", "customer exists but is archived — no duplicate is created and it is not reactivated");
     case "UNMATCHED_PROGRAM": return tx(`كورس غير موجود في الكتالوج: «${p.token}» — لن يُضاف الاهتمام`, `program not in the catalog: "${p.token}" — interest not added`);
@@ -209,8 +225,8 @@ export default function LeadExcelImportPanel({ onClose }) {
       </div>
       <div style={{ fontSize: 12, color: C.muted, marginBottom: 12, maxWidth: 760 }}>
         {tx(
-          "رقم التليفون هو الحقل الوحيد المطلوب — الاسم اختياري. اختيار الملف يعرض معاينة فقط ولا يكتب أي بيانات؛ الاستيراد لا يبدأ إلا بزر «استيراد العملاء». الاستيراد ينشئ عملاء واهتمامات فقط — لا تسجيلات ولا مدفوعات ولا معاملات محاسبية.",
-          "Phone is the only required field — the name is optional. Choosing a file only shows a preview and writes nothing; the import starts only with the “Import customers” button. It creates customers and interests only — no registrations, payments or accounting transactions.",
+          "المطلوب رقم التليفون أو اسم مستخدم واتساب (واحد على الأقل، ويُحفظ الاثنان لو وُجدا) — الاسم اختياري. اختيار الملف يعرض معاينة فقط ولا يكتب أي بيانات؛ الاستيراد لا يبدأ إلا بزر «استيراد العملاء». الاستيراد ينشئ عملاء واهتمامات فقط — لا تسجيلات ولا مدفوعات ولا معاملات محاسبية.",
+          "A phone number or a WhatsApp username is required (at least one; both are kept when both are there) — the name is optional. Choosing a file only shows a preview and writes nothing; the import starts only with the “Import customers” button. It creates customers and interests only — no registrations, payments or accounting transactions.",
         )}
       </div>
 
@@ -238,6 +254,13 @@ export default function LeadExcelImportPanel({ onClose }) {
               {tx("عمود رقم التليفون (مطلوب)", "Phone column (required)")}
               <select value={mapping.phone || ""} onChange={(e) => setField("phone", e.target.value)} style={selectSx} disabled={importing}>
                 <option value="">{tx("— اختر —", "— choose —")}</option>
+                {sheet.headers.map((h) => <option key={h} value={h}>{h}</option>)}
+              </select>
+            </label>
+            <label style={{ fontSize: 12, fontWeight: 700, color: C.muted, display: "flex", flexDirection: "column", gap: 4 }}>
+              {tx("عمود اسم المستخدم (اختياري)", "Username column (optional)")}
+              <select value={mapping.username || ""} onChange={(e) => setField("username", e.target.value)} style={selectSx} disabled={importing}>
+                <option value="">{tx("— بدون —", "— none —")}</option>
                 {sheet.headers.map((h) => <option key={h} value={h}>{h}</option>)}
               </select>
             </label>
@@ -274,6 +297,7 @@ export default function LeadExcelImportPanel({ onClose }) {
             <div style={{ fontWeight: 900, fontSize: 15, marginBottom: 10 }} data-testid="lead-import-phone-count">
               {tx(`عدد الأرقام: ${s.validPhoneRows}`, `Phone numbers: ${s.validPhoneRows}`)}
               {s.uniquePhones !== s.validPhoneRows && <span style={{ fontWeight: 600, fontSize: 12, color: C.muted }}> {tx(`(${s.uniquePhones} رقم مختلف)`, `(${s.uniquePhones} distinct)`)}</span>}
+              {mapping.username && <span style={{ fontWeight: 600, fontSize: 12, color: C.muted }}> {tx(`— منهم ${s.usernameOnlyRows} باسم مستخدم فقط (بدون رقم)`, `— ${s.usernameOnlyRows} with a username only (no phone)`)}</span>}
             </div>
           )}
           <div style={{ opacity: importing ? 0.6 : 1, pointerEvents: importing ? "none" : "auto" }}>
@@ -300,6 +324,8 @@ export default function LeadExcelImportPanel({ onClose }) {
                 <Stat label={tx("صفوف صالحة", "Valid rows")} value={s.validPhoneRows} tone={C.success} />
                 <Stat label={tx("رقم تليفون ناقص", "Missing phone")} value={s.missingPhoneRows} tone={s.missingPhoneRows ? C.danger : undefined} />
                 <Stat label={tx("رقم تليفون غير صالح", "Invalid phone")} value={s.invalidPhoneRows} tone={s.invalidPhoneRows ? C.danger : undefined} />
+                {mapping.username && <Stat label={tx("اسم مستخدم فقط", "Username only")} value={s.usernameOnlyRows} />}
+                {mapping.username && <Stat label={tx("اسم مستخدم غير صالح", "Invalid username")} value={s.invalidUsernameRows} tone={s.invalidUsernameRows ? C.danger : undefined} />}
                 <Stat label={tx("صفوف مكررة", "Duplicate rows")} value={s.duplicateRows} />
                 <Stat label={tx("عملاء موجودون", "Existing customers")} value={s.existingCustomers} />
                 <Stat label={tx("عملاء جدد", "New customers")} value={s.newCustomers} tone={C.red} />
@@ -319,13 +345,14 @@ export default function LeadExcelImportPanel({ onClose }) {
                     <div style={{ fontWeight: 800, fontSize: 12.5, marginBottom: 6 }}>{tx("معاينة أول الصفوف المقبولة", "Sample of the first accepted rows")}</div>
                     <div style={{ overflowX: "auto", border: `1px solid ${C.border}`, borderRadius: 8 }}>
                       <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 420 }}>
-                        <thead><tr><th style={th}>{tx("الصف", "Row")}</th><th style={th}>{tx("الاسم", "Name")}</th><th style={th}>{tx("الهاتف", "Phone")}</th><th style={th}>{tx("النتيجة", "Result")}</th></tr></thead>
+                        <thead><tr><th style={th}>{tx("الصف", "Row")}</th><th style={th}>{tx("الاسم", "Name")}</th><th style={th}>{tx("الهاتف", "Phone")}</th>{mapping.username && <th style={th}>{tx("اسم المستخدم", "Username")}</th>}<th style={th}>{tx("النتيجة", "Result")}</th></tr></thead>
                         <tbody>
                           {sample.map((r) => (
                             <tr key={r.rowNumber}>
                               <td style={td}>{r.rowNumber}</td>
                               <td style={td} dir="auto">{r.name || <span style={{ color: C.muted }}>{tx("بدون اسم", "no name")}</span>}</td>
-                              <td style={td} dir="ltr">{r.phoneDisplay}</td>
+                              <td style={td} dir="ltr">{r.phoneDisplay || (mapping.username ? "—" : "")}</td>
+                              {mapping.username && <td style={td} dir="ltr">{r.username || "—"}</td>}
                               <td style={td}>{outcomeLabel[r.outcome] || "—"}</td>
                             </tr>
                           ))}
@@ -379,7 +406,7 @@ export default function LeadExcelImportPanel({ onClose }) {
                           <tr key={r.rowNumber}>
                             <td style={td}>{r.rowNumber}</td>
                             <td style={td} dir="auto">{r.name || "—"}</td>
-                            <td style={td} dir="ltr">{r.phoneRaw || tx("فارغ", "empty")}</td>
+                            <td style={td} dir="ltr">{[r.phoneRaw, r.usernameRaw].filter(Boolean).join(" / ") || tx("فارغ", "empty")}</td>
                             <td style={td}>
                               {r.status === "rejected"
                                 ? <Badge color={C.danger}>{tx("مرفوض", "REJECTED")}</Badge>

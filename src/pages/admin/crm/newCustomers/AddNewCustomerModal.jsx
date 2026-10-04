@@ -4,6 +4,7 @@ import { C } from "../../../../theme";
 import { useLang } from "../../../../context/LangContext";
 import { useCustomers } from "../../../../context/CustomerContext";
 import { InterestedProgramsPicker } from "../../../../components/crm/InterestedPrograms";
+import { parseWhatsappUsername } from "../../../../utils/whatsappContact";
 
 /**
  * "عملاء جدد" — add a customer who has NOT registered in any course yet.
@@ -17,10 +18,11 @@ export default function AddNewCustomerModal({ onClose }) {
   const { lang } = useLang();
   const ar = lang === "ar";
   const tx = (a, e) => (ar ? a : e);
-  const { addCustomer, findCustomerByPhone, findCustomerByEmail } = useCustomers();
+  const { addCustomer, findCustomerByPhone, findCustomerByEmail, findCustomerByWhatsappUsername } = useCustomers();
 
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
+  const [whatsappUsername, setWhatsappUsername] = useState("");
   const [email, setEmail] = useState("");
   const [interestedProgramIds, setInterestedProgramIds] = useState([]);
   const [error, setError] = useState("");
@@ -28,20 +30,30 @@ export default function AddNewCustomerModal({ onClose }) {
 
   const submit = async () => {
     setError("");
-    // The phone number is the ONLY required field — the name is optional (a customer is identified by phone).
-    if (!phone.trim()) { setError(tx("أدخل رقم الهاتف", "Enter a phone number")); return; }
-    // Same global person-level dedup the rest of the CRM uses — never a second customer for the same phone/email.
-    const existing = findCustomerByPhone(phone) || (email.trim() ? findCustomerByEmail(email) : null);
+    // A customer needs a phone number OR a WhatsApp username (either alone is fine, both are kept) — the name is optional.
+    const parsedUsername = parseWhatsappUsername(whatsappUsername);
+    if (!phone.trim() && parsedUsername.status === "empty") { setError(tx("أدخل رقم الهاتف أو اسم مستخدم واتساب", "Enter a phone number or a WhatsApp username")); return; }
+    if (parsedUsername.status === "invalid") {
+      setError(tx(
+        "اسم مستخدم واتساب غير صالح — حروف إنجليزية صغيرة وأرقام ونقطة وشرطة سفلية فقط، من 3 إلى 35 حرفًا، وبه حرف واحد على الأقل",
+        "Invalid WhatsApp username — lowercase letters, digits, periods and underscores only, 3–35 characters, with at least one letter",
+      ));
+      return;
+    }
+    // Same global person-level dedup the rest of the CRM uses — never a second customer for the same phone/username/email.
+    const existing = (phone.trim() ? findCustomerByPhone(phone) : null)
+      || (parsedUsername.status === "ok" ? findCustomerByWhatsappUsername(parsedUsername.normalized) : null)
+      || (email.trim() ? findCustomerByEmail(email) : null);
     if (existing) {
       setError(tx(
-        `العميل ده مسجّل بالفعل: ${existing.fullName || existing.phone}. لتعديل الكورسات المهتم بيها افتح ملفه.`,
-        `This customer already exists: ${existing.fullName || existing.phone}. Open their profile to edit interested programs.`,
+        `العميل ده مسجّل بالفعل: ${existing.fullName || existing.phone || existing.whatsappUsername}. لتعديل الكورسات المهتم بيها افتح ملفه.`,
+        `This customer already exists: ${existing.fullName || existing.phone || existing.whatsappUsername}. Open their profile to edit interested programs.`,
       ));
       return;
     }
     setSaving(true);
     try {
-      await addCustomer({ fullName: fullName.trim(), phone: phone.trim(), email: email.trim(), interestedProgramIds });
+      await addCustomer({ fullName: fullName.trim(), phone: phone.trim(), whatsappUsername: parsedUsername.normalized, email: email.trim(), interestedProgramIds });
       onClose();
     } catch (e) {
       setError(e?.message?.startsWith("INVALID_INTERESTED_PROGRAMS")
@@ -56,6 +68,7 @@ export default function AddNewCustomerModal({ onClose }) {
     <Modal title={tx("إضافة عميل جديد", "Add New Customer")} onClose={onClose}>
       <Input label={tx("الاسم الكامل (اختياري)", "Full Name (optional)")} value={fullName} onChange={setFullName} />
       <Input label={tx("رقم الهاتف", "Phone Number")} value={phone} onChange={setPhone} dir="ltr" />
+      <Input label={tx("اسم مستخدم واتساب (اختياري إذا أدخلت رقم الهاتف)", "WhatsApp Username (optional if you enter a phone)")} value={whatsappUsername} onChange={setWhatsappUsername} dir="ltr" placeholder="ahmed123" />
       <Input label={tx("البريد الإلكتروني (اختياري)", "Email (optional)")} value={email} onChange={setEmail} dir="ltr" />
       <InterestedProgramsPicker value={interestedProgramIds} onChange={setInterestedProgramIds} />
       {error && <div style={{ color: C.danger, fontSize: 12, marginBottom: 10 }}>{error}</div>}

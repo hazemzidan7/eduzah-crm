@@ -16,6 +16,9 @@ export function workflowErrorText(err, tx) {
     case "PHONE_REQUIRED": return tx("رقم الهاتف مطلوب ولا يمكن تركه فارغًا", "The phone number is required and can't be empty");
     case "PHONE_INVALID": return tx("رقم الهاتف غير صالح — اكتبه مع رمز الدولة لو مش مصري (مثل +971)", "The phone number is invalid — include the country code if it isn't Egyptian (e.g. +971)");
     case "PHONE_DUPLICATE": return tx("الرقم ده مسجّل لعميل تاني بالفعل", "That phone number already belongs to another customer");
+    case "USERNAME_INVALID": return tx("اسم مستخدم واتساب غير صالح — حروف إنجليزية صغيرة وأرقام ونقطة وشرطة سفلية فقط، من 3 إلى 35 حرفًا، وبه حرف واحد على الأقل", "Invalid WhatsApp username — lowercase letters, digits, periods and underscores only, 3–35 characters, with at least one letter");
+    case "USERNAME_DUPLICATE": return tx("اسم المستخدم ده مسجّل لعميل تاني بالفعل", "That WhatsApp username already belongs to another customer");
+    case "CONTACT_REQUIRED": return tx("لازم يفضل للعميل رقم هاتف أو اسم مستخدم واتساب", "The customer must keep a phone number or a WhatsApp username");
     case "INVALID_INTERESTED_PROGRAMS": return tx("في كورس مش متاح — اختار من القائمة فقط", "A selected program isn't available — pick from the list only");
     case "STATUS_REQUIRED": return tx("اختر الحالة (وقد تكون هذه الحالة لم تُفعَّل بعد — افتح النظام كأدمن مرة واحدة)", "Choose a status (it may not be enabled yet — open the CRM once as an admin)");
     case "PROGRAM_REQUIRED": return tx("اختر الكورس اللي هيحجز فيه", "Select the program the customer will register in");
@@ -42,6 +45,7 @@ export default function EditNewCustomerModal({ customer, onClose }) {
 
   const [fullName, setFullName] = useState(customer.fullName || "");
   const [phone, setPhone] = useState(customer.phone || "");
+  const [whatsappUsername, setWhatsappUsername] = useState(customer.whatsappUsername || "");
   const [notes, setNotes] = useState(customer.notes || "");
   const [interestedProgramIds, setInterestedProgramIds] = useState(() => customerInterestedProgramIds(customer));
   const [assignedToId, setAssignedToId] = useState(customer.assignedToId || "");
@@ -57,7 +61,7 @@ export default function EditNewCustomerModal({ customer, onClose }) {
     try {
       const assignee = salesUsers.find((u) => u.id === assignedToId);
       await saveCustomerEdits(customer, {
-        fullName, phone, notes, interestedProgramIds,
+        fullName, phone, whatsappUsername, notes, interestedProgramIds,
         ...(isAdmin ? { assignedToId, assignedToName: assignee ? (assignee.name || assignee.email) : null } : {}),
       });
       onClose();
@@ -72,6 +76,7 @@ export default function EditNewCustomerModal({ customer, onClose }) {
     <Modal title={tx("تعديل بيانات العميل", "Edit Customer")} onClose={onClose}>
       <Input label={tx("الاسم (اختياري)", "Name (optional)")} value={fullName} onChange={setFullName} placeholder={tx("سيب الاسم فاضي لو لسه معروفش", "Leave empty if not known yet")} />
       <Input label={tx("رقم الهاتف", "Phone Number")} value={phone} onChange={setPhone} dir="ltr" />
+      <Input label={tx("اسم مستخدم واتساب (اختياري إذا وُجد رقم هاتف)", "WhatsApp Username (optional if there is a phone)")} value={whatsappUsername} onChange={setWhatsappUsername} dir="ltr" placeholder="ahmed123" />
       <InterestedProgramsPicker value={interestedProgramIds} onChange={setInterestedProgramIds} />
       <Input label={tx("ملاحظات", "Notes")} value={notes} onChange={setNotes} rows={4} />
       {isAdmin ? (

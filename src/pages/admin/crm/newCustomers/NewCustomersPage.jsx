@@ -8,7 +8,7 @@ import { useCustomers } from "../../../../context/CustomerContext";
 import { useFollowUps } from "../../../../context/FollowUpContext";
 import { useImportBatches } from "../../../../context/ImportBatchContext";
 import { IconSearch, IconPhone, IconWhatsapp } from "../../../../components/Icons";
-import { toE164Phone } from "../../../../utils/phoneE164";
+import { customerContactTargets } from "../../../../utils/whatsappContact";
 import { customerInterestedProgramIds } from "../../../../utils/interestedPrograms";
 import { selectNewCustomers, REGISTRATION_STATUS_KEYS, WORKFLOW_STATUS_KEYS } from "../../../../utils/newCustomerWorkflow";
 import { FOLLOW_UP_STATUSES } from "../../../../utils/followUps";
@@ -163,7 +163,7 @@ export default function NewCustomersPage() {
             <span style={{ position: "absolute", insetInlineStart: 12, color: C.muted, display: "flex", pointerEvents: "none" }}><IconSearch size={14} /></span>
             <input
               value={search} onChange={(e) => setSearch(e.target.value)}
-              placeholder={tx("بحث بالاسم أو الهاتف…", "Search name or phone…")}
+              placeholder={tx("بحث بالاسم أو الهاتف أو اسم المستخدم…", "Search name, phone or username…")}
               style={{ background: "#fff", border: `1.5px solid ${C.border}`, borderRadius: 10, paddingBlock: 9, paddingInlineStart: 34, paddingInlineEnd: 14, fontFamily: "'Cairo',sans-serif", fontSize: 12.5, outline: "none", minWidth: 220 }}
             />
           </div>
@@ -256,7 +256,7 @@ export default function NewCustomersPage() {
       ) : (
         <Card style={{ padding: 0, overflow: "hidden" }}>
           <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1020 }}>
               <thead>
                 <tr>
                   {isAdmin && (
@@ -271,6 +271,7 @@ export default function NewCustomersPage() {
                   <th style={th}>#</th>
                   <th style={th}>{tx("الاسم", "Name")}</th>
                   <th style={th}>{tx("الهاتف", "Phone")}</th>
+                  <th style={th}>{tx("واتساب (اسم المستخدم)", "WhatsApp Username")}</th>
                   <th style={th}>{tx("الكورسات المهتم بيها", "Interested Programs")}</th>
                   <th style={th}>{tx("حالة التواصل", "Contact status")}</th>
                   <th style={th}>{tx("الموظف المسؤول", "Assigned")}</th>
@@ -280,7 +281,7 @@ export default function NewCustomersPage() {
               </thead>
               <tbody>
                 {rows.map((c, rowIndex) => {
-                  const e164 = toE164Phone(c.phone);
+                  const contact = customerContactTargets(c);
                   const status = currentStatusOf(c);
                   const key = statusKeyOf(c);
                   const nextFollowUp = nextFollowUpByCustomer.get(c.id);
@@ -312,13 +313,22 @@ export default function NewCustomersPage() {
                       <td style={td}>
                         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                           <span dir="ltr">{c.phone || "—"}</span>
-                          {e164 && (
+                          {contact.e164 && (
                             <>
-                              <a href={`tel:${e164}`} title={tx("اتصال", "Call")} style={iconLinkSx}><IconPhone size={13} /></a>
-                              <a href={`https://wa.me/${e164.replace("+", "")}`} target="_blank" rel="noreferrer" title="WhatsApp" style={{ ...iconLinkSx, color: "#25d366" }}><IconWhatsapp size={14} /></a>
+                              <a href={`tel:${contact.e164}`} title={tx("اتصال", "Call")} style={iconLinkSx}><IconPhone size={13} /></a>
+                              <a href={contact.phoneLink} target="_blank" rel="noreferrer" title="WhatsApp" style={{ ...iconLinkSx, color: "#25d366" }}><IconWhatsapp size={14} /></a>
                             </>
                           )}
                         </div>
+                      </td>
+                      {/* WHATSAPP-USERNAME-01: the username is its own contact next to the phone (never merged into it); with
+                          only a username this link IS the WhatsApp contact action. Neither -> no WhatsApp link at all. */}
+                      <td style={td}>
+                        {contact.username ? (
+                          <a href={contact.usernameLink} target="_blank" rel="noreferrer" title={tx("فتح واتساب", "Open WhatsApp")} dir="ltr" style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "#128c7e", fontWeight: 700, textDecoration: "none" }}>
+                            <IconWhatsapp size={14} />{contact.username}
+                          </a>
+                        ) : <span style={{ color: C.muted }}>—</span>}
                       </td>
                       <td style={td}><InterestedProgramChips ids={customerInterestedProgramIds(c)} tx={tx} emptyLabel="—" /></td>
                       <td style={td}>

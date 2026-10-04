@@ -6,7 +6,7 @@ import { useLeadStatus } from "../../../../context/LeadStatusContext";
 import { useCustomers } from "../../../../context/CustomerContext";
 import { useFollowUps } from "../../../../context/FollowUpContext";
 import { useCrmNav } from "../../../../context/CrmNavContext";
-import { toE164Phone } from "../../../../utils/phoneE164";
+import { customerContactTargets, matchesWhatsappUsernameQuery } from "../../../../utils/whatsappContact";
 import { ATTENDANCE_TYPE_OPTIONS, PAYMENT_PLAN_OPTIONS, ENROLLMENT_STATUS_OPTIONS } from "../../../../constants/crmOptions";
 import { confirmedAmountPaid, effectivePaymentRecords, findPaymentConflicts } from "../../../../utils/paymentRecords";
 import { buildDueAt, splitDueAt, nearestPendingFollowUpsByEngagement } from "../../../../utils/followUps";
@@ -170,7 +170,7 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
     if (q) {
       rows = rows.filter((e) => {
         const c = customerById(e.customerId);
-        return (c?.fullName || "").toLowerCase().includes(q) || (c?.phone || "").includes(q) || (c?.email || "").toLowerCase().includes(q);
+        return (c?.fullName || "").toLowerCase().includes(q) || (c?.phone || "").includes(q) || (c?.email || "").toLowerCase().includes(q) || matchesWhatsappUsernameQuery(c, q);
       });
     }
     rows = [...rows];
@@ -374,7 +374,8 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
                   const hasConflict = records.some((r) => (r.status === "pending" || r.status === "under_review") && findPaymentConflicts(r, e, allEngagements).length > 0);
                   const timeline = [...(e.timeline || [])].sort((a, b) => (b.at || "").localeCompare(a.at || ""));
                   const lastContact = timeline.find((t) => t.type !== "system");
-                  const e164 = toE164Phone(customer?.phone);
+                  const contact = customerContactTargets(customer);
+                  const e164 = contact.e164;
                   const status = statusById(e.statusId);
 
                   return (
@@ -392,8 +393,12 @@ export default function ProgramSalesSheet({ engagements, program, businessUnitId
                           {e164 && (
                             <>
                               <a href={`tel:${e164}`} title={tx("اتصال", "Call")} style={iconLinkSx}><IconPhone size={13} /></a>
-                              <a href={`https://wa.me/${e164.replace("+", "")}`} target="_blank" rel="noreferrer" title="WhatsApp" style={{ ...iconLinkSx, color: "#25d366" }}><IconWhatsapp size={14} /></a>
+                              <a href={contact.phoneLink} target="_blank" rel="noreferrer" title="WhatsApp" style={{ ...iconLinkSx, color: "#25d366" }}><IconWhatsapp size={14} /></a>
                             </>
+                          )}
+                          {/* WHATSAPP-USERNAME-01: a username-only customer's WhatsApp contact action. */}
+                          {contact.username && (
+                            <a href={contact.usernameLink} target="_blank" rel="noreferrer" title={tx("واتساب (اسم المستخدم)", "WhatsApp username")} dir="ltr" style={{ ...iconLinkSx, gap: 3, color: "#128c7e", fontSize: 11, fontWeight: 700 }}><IconWhatsapp size={13} />{contact.username}</a>
                           )}
                         </div>
                       </td>

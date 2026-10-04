@@ -63,10 +63,11 @@ export async function runLeadImportCommit({
     ops.push({
       type: "create",
       key: c.key,
-      label: c.phone,
+      label: c.phone || c.whatsappUsername,
       interests: valid.length,
       pendingSequence: positionByKey.get(c.key),
-      data: buildCustomerDoc({ fullName: c.fullName, phone: c.phone, secondaryPhones: c.secondaryPhones, notes: c.notes }, { now, interestedProgramIds: valid }),
+      // whatsappUsername rides along as its own field (undefined — and so absent from the doc — for a phone-only lead).
+      data: buildCustomerDoc({ fullName: c.fullName, phone: c.phone, secondaryPhones: c.secondaryPhones, notes: c.notes, whatsappUsername: c.whatsappUsername }, { now, interestedProgramIds: valid }),
     });
   }
   for (const u of plan.customersToUpdate) {
@@ -80,6 +81,9 @@ export async function runLeadImportCommit({
       if (interests > 0) patch.interestedProgramIds = valid;
     }
     if (u.patch.fullName) patch.fullName = u.patch.fullName;
+    // Contact identifiers the planner decided to FILL IN on an existing customer (it never plans an overwrite).
+    if (u.patch.whatsappUsername) patch.whatsappUsername = u.patch.whatsappUsername;
+    if (u.patch.phone) { patch.phone = u.patch.phone; patch.normalizedPhone = u.patch.normalizedPhone; }
     if (u.patch.notes) patch.notes = u.patch.notes; // the old note + the appended import note (built by the planner)
     const pendingSequence = needsSequence(u.customerId) ? positionByCustomerId.get(u.customerId) : undefined;
     if (Object.keys(patch).length === 1 && pendingSequence === undefined) continue; // nothing left to write
