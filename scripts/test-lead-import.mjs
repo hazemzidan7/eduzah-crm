@@ -372,9 +372,9 @@ console.log("Permissions / Firestore rules");
   check("importBatches: delete stays admin-only", /allow delete: if isAdmin\(\);/.test(block));
   // SALES-VISIBILITY-01: bulk import is admin-only now — a Sales session's customers read is scoped to
   // assignedToId==self, so it can no longer dedupe an import against the full customer base.
-  check("importBatches: create is admin-only (no Sales branch)", /allow create: if isAdmin\(\);\s*\n\s*allow update:/.test(block));
-  check("importBatches: update still has a Sales counter-only branch (inert once create is admin-only, left as-is)", block.includes("get('kind', '') == 'customer_leads'"));
-  check("importBatches: Sales update limited to a counter allow-list", /hasOnly\(\[[^\]]*'status'[^\]]*'interestsAddedCount'[^\]]*\]\)/.test(block) && !/hasOnly\(\[[^\]]*'importedBy'/.test(block));
+  check("importBatches: create is admin-only (no Sales branch)", /allow create: if isAdmin\(\);/.test(block) && !/allow create:[^;]*isSalesStaff/.test(block));
+  // SAFE-DELETE-01: the dormant Sales counter-update branch is gone too — import history is admin-only end to end.
+  check("importBatches: update is admin-only (the old Sales counter-update branch was removed)", /allow update: if isAdmin\(\);/.test(block) && !/allow update:[^;]*isSalesStaff/.test(block) && !block.includes("hasOnly("));
   check("importBatches: no accounting role clause anywhere", !/isAccountingStaff/.test(block));
   const customersBlock = rules.slice(rules.indexOf("match /customers/{id}"), rules.indexOf("match /engagements/{id}"));
   check("customers rule unchanged: Sales update allow-list still covers interestedProgramIds + fullName", customersBlock.includes("'interestedProgramIds'") && customersBlock.includes("'fullName'"));

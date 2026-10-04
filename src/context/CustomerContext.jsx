@@ -176,6 +176,20 @@ export function CustomerProvider({ children }) {
     await updateDoc(doc(db, "customers", customerId), { interestedProgramIds: next, updatedAt: new Date().toISOString() });
   };
 
+  // SAFE-DELETE-01: applies ONE chunk of a safe bulk deletion / "Delete Import" as a single atomic Firestore batch.
+  // Customer-document writes ONLY: {type:"delete", id} or {type:"update", id, patch} (the patch is an importSources
+  // rewrite). No engagement / payment / accounting / follow-up collection is reachable from here. Admin-only at the real
+  // boundary: customers `delete` is isAdmin() and a Sales `update` may not touch importSources (firestore.rules).
+  // Orchestrated (verification, chunking, failure reporting, audit) by utils/safeDeleteRun.js.
+  const commitCustomerDeletionChunk = async (ops) => {
+    const batch = writeBatch(db);
+    for (const op of ops) {
+      if (op.type === "delete") batch.delete(doc(db, "customers", op.id));
+      else if (op.type === "update") batch.update(doc(db, "customers", op.id), op.patch);
+    }
+    await batch.commit();
+  };
+
   const archiveCustomer = async (id) => {
     await updateDoc(doc(db, "customers", id), { archivedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
   };
@@ -719,7 +733,7 @@ export function CustomerProvider({ children }) {
     <CustomerCtx.Provider value={{
       customers, engagements, loading,
       findCustomerByPhone, findCustomerByEmail, findCustomerByWhatsappUsername, customerById,
-      addCustomer, commitLeadImportChunk, resolveOrCreateCustomer, updateCustomer, setCustomerInterestedPrograms, archiveCustomer, restoreCustomer, deleteCustomerCascade, deleteTrackCascade,
+      addCustomer, commitLeadImportChunk, commitCustomerDeletionChunk, resolveOrCreateCustomer, updateCustomer, setCustomerInterestedPrograms, archiveCustomer, restoreCustomer, deleteCustomerCascade, deleteTrackCascade,
       findEngagement, engagementById, engagementsForCustomer, engagementsForBusinessUnit,
       addEngagement, buildEngagementDoc, createEngagementIfAbsent, listCustomerEngagements, patchCustomer, mergeStudentProfile, resolveOrCreateEngagement, updateEngagement,
       changeEngagementStatus, changeEnrollmentStatus, logEngagementActivity, archiveEngagement, restoreEngagement,

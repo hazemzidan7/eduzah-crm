@@ -285,14 +285,10 @@ service cloud.firestore {
     match /importBatches/{id} {
       allow read: if isAdmin();
       allow create: if isAdmin();
-      allow update: if isAdmin()
-        || (isSalesStaff()
-          && resource.data.get('kind', '') == 'customer_leads'
-          && resource.data.get('importedBy', '') == request.auth.uid
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'status', 'createdCount', 'updatedCount', 'skippedCount', 'errorCount',
-            'createdCustomerIds', 'updatedCustomerIds', 'interestsAddedCount', 'updatedAt'
-          ]));
+      /* SAFE-DELETE-01: import history (incl. marking an import deleted) is admin-only end to end. The old
+         Sales counter-update branch only served Sales-run imports, which are no longer possible (create above
+         is admin-only), so it is removed rather than left as a dormant write path onto import history. */
+      allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 
@@ -334,6 +330,14 @@ service cloud.firestore {
        an audit trail; only AccountingContext.deleteTransaction/
        restoreTransaction ever write here, and only ever via `create`. ── */
     match /accountingTransactionAudit/{id} {
+      allow read, create: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    /* ── SAFE-DELETE-01: immutable audit trail for bulk customer deletions and "Delete Import"
+       (utils/safeDelete.js buildDeletionAuditEntry — counts and who did it, never customer content).
+       Admin-only, create-only: same shape as accountingTransactionAudit above. ── */
+    match /customerDeletionAudit/{id} {
       allow read, create: if isAdmin();
       allow update, delete: if false;
     }

@@ -23,6 +23,8 @@ import EditNewCustomerModal from "./EditNewCustomerModal";
 import ContactOutcomeModal from "./ContactOutcomeModal";
 import RegisterCustomerModal from "./RegisterCustomerModal";
 import DistributeLeadsPanel from "./DistributeLeadsPanel";
+import LeadImportHistoryPanel from "./LeadImportHistoryPanel";
+import { DeleteCustomersModal } from "./SafeDeleteModals";
 
 function Stat({ label, value, tone }) {
   return (
@@ -79,6 +81,9 @@ export default function NewCustomersPage() {
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [reassigning, setReassigning] = useState(false);
   const [distributing, setDistributing] = useState(false);
+  // SAFE-DELETE-01 (admin-only): bulk delete of the ticked customers, and the lead-import history with "حذف الاستيراد".
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const allRows = useMemo(() => selectNewCustomers(customers, engagements, { search }), [customers, engagements, search]);
   const distributionStats = useMemo(() => computeDistributionStats(allRows), [allRows]);
@@ -170,6 +175,7 @@ export default function NewCustomersPage() {
             />
           </div>
           {isAdmin && <Btn v="ghost" onClick={() => setImporting((v) => !v)}>{tx("رفع ملف Excel", "Upload Excel file")}</Btn>}
+          {isAdmin && <Btn v="ghost" onClick={() => setHistoryOpen((v) => !v)}>{tx("سجل الاستيراد", "Import history")}</Btn>}
           {isAdmin && <Btn v="primary" onClick={startDistribute}>{tx("توزيع العملاء على السيلز", "Distribute leads to Sales")}</Btn>}
           <Btn v="primary" onClick={() => setAdding(true)}>+ {tx("إضافة عميل جديد", "Add New Customer")}</Btn>
         </div>
@@ -220,6 +226,7 @@ export default function NewCustomersPage() {
       )}
 
       {importing && <LeadExcelImportPanel onClose={() => setImporting(false)} />}
+      {isAdmin && historyOpen && <LeadImportHistoryPanel onClose={() => setHistoryOpen(false)} />}
 
       {isAdmin && selectedIds.size > 0 && (
         <Card style={{ padding: "10px 14px", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
@@ -228,6 +235,7 @@ export default function NewCustomersPage() {
             <Btn sm v="ghost" onClick={() => setSelectedIds(new Set())}>{tx("إلغاء التحديد", "Clear selection")}</Btn>
             <Btn sm v="ghost" onClick={startDistribute}>{tx("توزيع العملاء على السيلز", "Distribute leads to Sales")}</Btn>
             <Btn sm v="primary" onClick={startReassign}>{tx("إعادة توزيع", "Reassign")}</Btn>
+            <Btn sm v="danger" onClick={() => setDeleteOpen(true)}>{tx("حذف المحدد", "Delete Selected")}</Btn>
           </div>
         </Card>
       )}
@@ -357,6 +365,13 @@ export default function NewCustomersPage() {
         </Card>
       )}
 
+      {isAdmin && deleteOpen && (
+        <DeleteCustomersModal
+          customerIds={[...selectedIds]}
+          onClose={() => setDeleteOpen(false)}
+          onDone={() => setSelectedIds(new Set())}
+        />
+      )}
       {adding && <AddNewCustomerModal onClose={() => setAdding(false)} />}
       {editing && <EditNewCustomerModal customer={editing} onClose={() => setEditingId(null)} />}
       {contacting && (
