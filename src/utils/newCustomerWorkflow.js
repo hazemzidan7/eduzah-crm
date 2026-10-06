@@ -46,6 +46,14 @@ export const NEW_CUSTOMER_REQUIRED_STATUSES = [
   { key: "will_book", name_ar: "هيحجز", name_en: "Will Book", color: "#16a34a", order: 8 },
 ];
 
+/**
+ * "غير مهتم" is part of the original seed, but on a database where an earlier
+ * duplicate cleanup left no ACTIVE copy the picker shows it as "not enabled
+ * yet". LeadStatusContext ensures it once (restoring the original if archived,
+ * creating it only if no doc with this key exists) — see utils/leadStatusEnsure.js.
+ */
+export const NOT_INTERESTED_STATUS = { key: "not_interested", name_ar: "غير مهتم", name_en: "Not Interested", color: "#6b7280", order: 3, isTerminal: true };
+
 /** Outcomes after which a follow-up makes sense. */
 export const FOLLOW_UP_STATUS_KEYS = ["no_answer", "thinking", "interested"];
 /** Outcome that must name the ACTUAL Program the customer will register in. */

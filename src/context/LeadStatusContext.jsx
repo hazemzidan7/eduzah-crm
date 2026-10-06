@@ -16,7 +16,8 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "./AuthContext";
-import { NEW_CUSTOMER_REQUIRED_STATUSES } from "../utils/newCustomerWorkflow";
+import { NEW_CUSTOMER_REQUIRED_STATUSES, NOT_INTERESTED_STATUS } from "../utils/newCustomerWorkflow";
+import { planEnsureGlobalStatus } from "../utils/leadStatusEnsure";
 
 const LeadStatusCtx = createContext(null);
 
@@ -231,6 +232,47 @@ export function LeadStatusProvider({ children }) {
         throw e;
       }
     })().catch((e) => console.warn("New-customer lead status ensure failed:", e));
+  }, [currentUser?.id, currentUser?.role]);
+
+  // "غير مهتم" must be selectable in "عملاء جدد". If the database has no ACTIVE global status with key
+  // `not_interested` (an earlier duplicate cleanup archived the copies) this restores the original — or creates it
+  // when no doc with that key exists at all — exactly once, with the same guards as the ensure above: the claim is a
+  // transaction on settings/seedState, admin-only, released on failure so the next admin session retries, and
+  // utils/leadStatusEnsure.js never plans a second copy when one already exists.
+  useEffect(() => {
+    if (currentUser?.role !== "admin") return;
+    (async () => {
+      const seedStateRef = doc(db, "settings", "seedState");
+      const claimed = await runTransaction(db, async (tx) => {
+        const s = await tx.get(seedStateRef);
+        const seeded = s.exists() ? (s.data() || {}) : {};
+        if (seeded.notInterestedStatusEnsured === true) return false;
+        tx.set(seedStateRef, { ...seeded, notInterestedStatusEnsured: true, updatedAt: new Date().toISOString() }, { merge: true });
+        return true;
+      });
+      if (!claimed) return;
+      try {
+        const snap = await getDocs(query(collection(db, "leadStatuses"), where("key", "==", NOT_INTERESTED_STATUS.key)));
+        const plan = planEnsureGlobalStatus(snap.docs.map((d) => ({ id: d.id, ...d.data() })), NOT_INTERESTED_STATUS.key);
+        const now = new Date().toISOString();
+        if (plan.action === "restore") {
+          await updateDoc(doc(db, "leadStatuses", plan.id), { isActive: true, archivedAt: null, updatedAt: now });
+        } else if (plan.action === "create") {
+          await addDoc(collection(db, "leadStatuses"), {
+            name_ar: NOT_INTERESTED_STATUS.name_ar, name_en: NOT_INTERESTED_STATUS.name_en, key: NOT_INTERESTED_STATUS.key,
+            description: "", color: NOT_INTERESTED_STATUS.color, icon: "",
+            order: NOT_INTERESTED_STATUS.order, parentId: null, path: [],
+            scope: "global", businessUnitId: null,
+            isDefault: false, isTerminal: NOT_INTERESTED_STATUS.isTerminal,
+            isActive: true, archivedAt: null,
+            createdAt: now, updatedAt: now,
+          });
+        }
+      } catch (e) {
+        await setDoc(seedStateRef, { notInterestedStatusEnsured: false }, { merge: true }).catch(() => {});
+        throw e;
+      }
+    })().catch((e) => console.warn("Not-interested lead status ensure failed:", e));
   }, [currentUser?.id, currentUser?.role]);
 
   // ── SELECTORS ────────────────────────────────────────
