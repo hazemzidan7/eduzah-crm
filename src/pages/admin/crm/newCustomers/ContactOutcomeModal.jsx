@@ -5,6 +5,7 @@ import { useLang } from "../../../../context/LangContext";
 import ProgramSelect from "../../../../components/crm/ProgramSelect";
 import { useNewCustomerWorkflow } from "../../../../hooks/useNewCustomerWorkflow";
 import { FOLLOW_UP_STATUS_KEYS, PROGRAM_REQUIRED_STATUS_KEY, REGISTERED_STATUS_KEY } from "../../../../utils/newCustomerWorkflow";
+import { cleanWhitespace } from "../../../../utils/importEngine/dataCleaning";
 import { workflowErrorText } from "./EditNewCustomerModal";
 
 const selectSx = { width: "100%", boxSizing: "border-box", background: "#fff", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "10px 12px", fontFamily: "'Cairo',sans-serif", fontSize: 13, outline: "none", cursor: "pointer" };
@@ -37,6 +38,16 @@ export default function ContactOutcomeModal({ customer, onClose, onRegister, onS
   const isRegistered = statusKey === REGISTERED_STATUS_KEY;
   const canFollowUp = FOLLOW_UP_STATUS_KEYS.includes(statusKey);
 
+  // BUG FIX: Modal's backdrop/✕ close instantly on any click outside the box, with no save and no warning — a typed
+  // note (or status change) was silently discarded this way, never reaching Firestore. Guard every dismiss path
+  // (backdrop, ✕, "إلغاء") behind a confirm whenever there's unsaved input.
+  const dirty = !isRegistered && (cleanWhitespace(note) !== "" || statusKey !== currentKey || (needsProgram && plannedProgramId !== (customer.plannedProgramId || "")));
+  const requestClose = () => {
+    if (saving) return;
+    if (dirty && !window.confirm(tx("هتفقد التغييرات اللي عملتها (زي الملاحظة) لو قفلت من غير حفظ. متأكد؟", "You'll lose the changes you made (like the note) if you close without saving. Are you sure?"))) return;
+    onClose();
+  };
+
   const save = async (thenFollowUp) => {
     setError("");
     setSaving(true);
@@ -52,7 +63,7 @@ export default function ContactOutcomeModal({ customer, onClose, onRegister, onS
   };
 
   return (
-    <Modal title={tx("تسجيل متابعة", "Record Contact")} onClose={onClose}>
+    <Modal title={tx("تسجيل متابعة", "Record Contact")} onClose={requestClose}>
       <div style={{ fontSize: 12.5, marginBottom: 12, color: C.muted }}>
         <b style={{ color: C.text }}>{customer.fullName || tx("بدون اسم", "No name")}</b> · <span dir="ltr">{customer.phone}</span>
       </div>
@@ -93,7 +104,7 @@ export default function ContactOutcomeModal({ customer, onClose, onRegister, onS
 
       {error && <div style={{ color: C.danger, fontSize: 12, marginBottom: 10 }}>{error}</div>}
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
-        <Btn v="purple" onClick={onClose}>{tx("إلغاء", "Cancel")}</Btn>
+        <Btn v="purple" onClick={requestClose}>{tx("إلغاء", "Cancel")}</Btn>
         {isRegistered ? (
           <Btn v="primary" onClick={() => { onClose(); onRegister?.(customer.id); }}>{tx("متابعة لتسجيل العميل", "Continue to register")}</Btn>
         ) : (
