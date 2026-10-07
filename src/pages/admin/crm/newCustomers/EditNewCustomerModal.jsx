@@ -5,6 +5,7 @@ import { useLang } from "../../../../context/LangContext";
 import { useAuth } from "../../../../context/AuthContext";
 import { InterestedProgramsPicker } from "../../../../components/crm/InterestedPrograms";
 import { customerInterestedProgramIds } from "../../../../utils/interestedPrograms";
+import { splitCustomerNotes, combineCustomerNotes } from "../../../../utils/customerNotes";
 import { useNewCustomerWorkflow } from "../../../../hooks/useNewCustomerWorkflow";
 
 /** Turns the workflow's error codes into a message a Sales user can act on. */
@@ -32,12 +33,16 @@ export function workflowErrorText(err, tx) {
 /**
  * "تعديل" — the customer's own information from inside "عملاء جدد": name
  * (OPTIONAL — Sales often learns it during the call), phone, WhatsApp
- * username, and interested Programs; admin can also set the assigned
- * employee. Saves the customer document only. Notes are read-only here by
- * design — shown in their own "ملاحظات" column on the "عملاء جدد" table
- * instead; they're written only through "تسجيل متابعة" (see
- * ContactOutcomeModal), which appends a timestamped log entry rather than
- * letting this form silently rewrite that history.
+ * username, interested Programs, and the GENERAL note (e.g. the one written
+ * at import time); admin can also set the assigned employee. Saves the
+ * customer document only.
+ *
+ * CUSTOMER-NOTES-SPLIT-01: `customers.notes` also carries Sales's own
+ * per-call log ("تسجيل متابعة", one timestamped line per contact) — that part
+ * is never shown or editable here, only in its own "ملاحظات" column on the
+ * "عملاء جدد" table, so this form can't silently rewrite that history.
+ * Editing the general note still writes the SAME `notes` field — see
+ * utils/customerNotes.js for how the two halves are split and recombined.
  */
 export default function EditNewCustomerModal({ customer, onClose }) {
   const { lang } = useLang();
@@ -46,10 +51,12 @@ export default function EditNewCustomerModal({ customer, onClose }) {
   const { currentUser, users } = useAuth();
   const { saveCustomerEdits } = useNewCustomerWorkflow();
   const isAdmin = currentUser?.role === "admin";
+  const { generalText: initialGeneralText, contactNotes } = splitCustomerNotes(customer.notes);
 
   const [fullName, setFullName] = useState(customer.fullName || "");
   const [phone, setPhone] = useState(customer.phone || "");
   const [whatsappUsername, setWhatsappUsername] = useState(customer.whatsappUsername || "");
+  const [generalNote, setGeneralNote] = useState(initialGeneralText);
   const [interestedProgramIds, setInterestedProgramIds] = useState(() => customerInterestedProgramIds(customer));
   const [assignedToId, setAssignedToId] = useState(customer.assignedToId || "");
   const [error, setError] = useState("");
@@ -65,6 +72,7 @@ export default function EditNewCustomerModal({ customer, onClose }) {
       const assignee = salesUsers.find((u) => u.id === assignedToId);
       await saveCustomerEdits(customer, {
         fullName, phone, whatsappUsername, interestedProgramIds,
+        notes: combineCustomerNotes(generalNote, contactNotes),
         ...(isAdmin ? { assignedToId, assignedToName: assignee ? (assignee.name || assignee.email) : null } : {}),
       });
       onClose();
@@ -81,6 +89,7 @@ export default function EditNewCustomerModal({ customer, onClose }) {
       <Input label={tx("رقم الهاتف", "Phone Number")} value={phone} onChange={setPhone} dir="ltr" />
       <Input label={tx("اسم مستخدم واتساب (اختياري إذا وُجد رقم هاتف)", "WhatsApp Username (optional if there is a phone)")} value={whatsappUsername} onChange={setWhatsappUsername} dir="ltr" placeholder="ahmed123" />
       <InterestedProgramsPicker value={interestedProgramIds} onChange={setInterestedProgramIds} />
+      <Input label={tx("ملاحظات", "Notes")} value={generalNote} onChange={setGeneralNote} rows={4} />
       {isAdmin ? (
         <Select
           label={tx("الموظف المسؤول", "Assigned employee")}
