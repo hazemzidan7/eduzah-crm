@@ -285,6 +285,7 @@ export default function NewCustomersPage() {
                   <th style={th}>{tx("واتساب (اسم المستخدم)", "WhatsApp Username")}</th>
                   <th style={th}>{tx("الكورسات المهتم بيها", "Interested Programs")}</th>
                   <th style={th}>{tx("حالة التواصل", "Contact status")}</th>
+                  <th style={th}>{tx("ملاحظات", "Notes")}</th>
                   <th style={th}>{tx("الموظف المسؤول", "Assigned")}</th>
                   <th style={th}>{tx("آخر تحديث", "Last update")}</th>
                   <th style={th} aria-label={tx("إجراءات", "Actions")}></th>
@@ -319,7 +320,6 @@ export default function NewCustomersPage() {
                       <td style={{ ...td, color: C.muted, fontWeight: 700 }}>{rowIndex + 1}</td>
                       <td style={{ ...td, fontWeight: 800 }}>
                         {c.fullName || <span style={{ color: C.muted, fontWeight: 600 }}>{tx("بدون اسم", "No name")}</span>}
-                        {c.notes && <div style={{ fontWeight: 500, fontSize: 11, color: C.muted, marginTop: 2, maxWidth: 220, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={c.notes}>{c.notes}</div>}
                       </td>
                       <td style={td}>
                         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -346,6 +346,11 @@ export default function NewCustomersPage() {
                         <LeadStatusBadge statusId={status?.id} />
                         {plannedProgram && key === "will_book" && <div dir="ltr" style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>{tx("هيحجز في: ", "Will book: ")}{plannedProgram.name_en}</div>}
                         {nextFollowUp && <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>{tx("متابعة: ", "Follow-up: ")}{fmtDate(nextFollowUp.dueAt)}</div>}
+                      </td>
+                      <td style={td}>
+                        {c.notes ? (
+                          <div style={{ maxWidth: 220, maxHeight: 54, overflowY: "auto", whiteSpace: "pre-wrap", fontSize: 11.5, color: C.muted, lineHeight: 1.5 }} title={c.notes}>{c.notes}</div>
+                        ) : <span style={{ color: C.muted }}>—</span>}
                       </td>
                       <td style={td}>{assignedLabel(c)}</td>
                       <td style={{ ...td, whiteSpace: "nowrap", color: C.muted }}>{fmtDate(c.updatedAt || c.createdAt)}</td>
